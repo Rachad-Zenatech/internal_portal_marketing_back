@@ -9,7 +9,7 @@ Reference enterprise boilerplate backend providing a turnkey foundation for Zena
 ```mermaid
 flowchart TD
     subgraph ClientLayer [Client Consumers]
-        FrontApp[Marketing Frontend (web :5177 / mobile)]
+        FrontApp["Marketing Frontend (web :5177 / mobile)"]
         MCPClient[MCP AI Agents & Inspectors]
         ThirdParty[External REST Integrations]
     end
