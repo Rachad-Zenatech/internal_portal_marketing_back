@@ -267,6 +267,7 @@ async def setup():
         print("Seeding navigation items...")
         nav_items = [
             ("DASHBOARD", "Dashboard", "/dashboard", None, 10, "LayoutDashboard", True),
+            ("EVENTS", "Events", "/events", None, 15, "CalendarDays", True),
             ("CONFIGURATIONS", "Configurations", "/configuration", None, 20, "Settings", True),
             ("CONFIG_USERS", "Users", "/configuration/users", "CONFIGURATIONS", 21, "Users", True),
             ("CONFIG_ROLES", "Roles & Permissions", "/configuration/roles", "CONFIGURATIONS", 22, "Shield", True),
@@ -295,6 +296,7 @@ async def setup():
 
         modules = [
             ("MAIN", "Dashboard & Overview", 10),
+            ("MARKETING", "Marketing", 15),
             ("CONFIGURATIONS", "Configurations & Security", 20),
             ("LOGS", "Audit & System Logs", 30),
         ]
@@ -304,6 +306,10 @@ async def setup():
         groups_data = {
             "MAIN": [
                 ("MAIN_VIEW_DASHBOARD", "View Dashboard", "Access system KPI dashboards and metrics.", 10, [("DASHBOARD", "VIEW")]),
+            ],
+            "MARKETING": [
+                ("MARKETING_VIEW_EVENTS", "View Events", "View events, their costs, outcomes and performance.", 10, [("EVENTS", "VIEW")]),
+                ("MARKETING_MANAGE_EVENTS", "Manage Events", "Create, edit and change the status of events.", 20, [("EVENTS", "CREATE"), ("EVENTS", "UPDATE"), ("EVENTS", "DELETE")]),
             ],
             "CONFIGURATIONS": [
                 ("CONFIG_VIEW_USERS", "View Users & Roles", "View all users, roles, and permission assignments.", 10, [("CONFIG_USERS", "VIEW"), ("CONFIG_ROLES", "VIEW")]),

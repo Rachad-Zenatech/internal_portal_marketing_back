@@ -103,7 +103,7 @@ Each task is small and built end to end (database → backend → web → mobile
 ### Groundwork
 - [x] **G1** — Fix `postgresql_db/schema_metadata.py` drift so `alembic check` is clean; create the baseline migration; run migrations in the reset scripts; fail CI on drift.
 - [x] **G1b** — Reference data: tables and seed values for brands, channels, sub-channels, funnel stages, goals (with Rule 1 links), primary KPIs, performance ratings and scale-or-cut options; read-only list API.
-- [ ] **G2** — Events navigation item and permissions; empty Events page (web) and tab (mobile).
+- [x] **G2** — Events navigation item and permissions (Marketing module: View Events, Manage Events); empty Events page (web) and screen (mobile).
 - [ ] **G3** — Install Android Studio and create the emulator.
 
 ### Events (physical)
@@ -147,6 +147,12 @@ Columns: Brand, Market/Region, Period Start, Period End, Channel, Sub-Channel, C
 7. The CEO asked for cost per **visitor**, **demo** and **follow-up**; the Primary KPI list has none of these (it has CP-Trial, CP-SQL). Add CP-Visitor, CP-Demo, CP-Follow-up, or map demo → SQL?
 8. Which Primary KPIs are allowed for each goal (e.g. Leads → CPL, Customers → CAC)? Not in the sheet yet.
 9. Confirm which sub-channels belong to which channel. The sheet lists them separately; the current links are proposed in migration `898548e5a993` (e.g. Events → In-Person Events, Virtual Events, Webinars, Sponsorships; "Other" under every channel).
+10. Which roles should see Events by default? Today only Super Admin has access; other roles need "View Events" / "Manage Events" assigned under Role Permissions.
+
+## Known issues (from the template)
+
+- `postgresql_db/setup_pbac_schema.py` runs `TRUNCATE permission_modules CASCADE` on every run, which also deletes role → permission-group assignments for every role except Super Admin. Re-running it on a shared or production database would wipe permissions configured in the UI. Make the seed upsert instead of truncate before the first deployment.
+- `GET /api/observability/usage/tokens` returns 500 (imports a `services.usage_service` module that the template doesn't include). No page uses it.
 
 ## Local development
 
