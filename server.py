@@ -42,6 +42,7 @@ from tools.notification_router import notification_router
 from tools.observability import router as observability_router
 from tools.log_router import router as log_router
 from tools.graph_router import router as graph_router
+from tools.reference_data_router import router as reference_data_router
 
 # MCP tools & AI functions
 from mcp_tools import register_all as register_mcp_tools, ask_gemini, ask_gemini_stream, sync_mcp_tools_to_vector_db
@@ -249,6 +250,7 @@ app.include_router(notification_router, prefix="/api", tags=["Notifications"], d
 app.include_router(log_router, prefix="/api", tags=["Logs"])
 app.include_router(observability_router, prefix="/api", tags=["Observability"])
 app.include_router(graph_router, prefix="/api", tags=["Microsoft Graph"], dependencies=authenticated)
+app.include_router(reference_data_router, prefix="/api", tags=["Reference Data"], dependencies=authenticated)
 
 
 # --- Session Middleware ---

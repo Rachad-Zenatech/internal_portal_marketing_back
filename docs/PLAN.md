@@ -102,7 +102,7 @@ Each task is small and built end to end (database → backend → web → mobile
 
 ### Groundwork
 - [x] **G1** — Fix `postgresql_db/schema_metadata.py` drift so `alembic check` is clean; create the baseline migration; run migrations in the reset scripts; fail CI on drift.
-- [ ] **G1b** — Reference data: tables and seed values for brands, channels, sub-channels, funnel stages, goals (with Rule 1 links), primary KPIs, performance ratings and scale-or-cut options; read-only list API.
+- [x] **G1b** — Reference data: tables and seed values for brands, channels, sub-channels, funnel stages, goals (with Rule 1 links), primary KPIs, performance ratings and scale-or-cut options; read-only list API.
 - [ ] **G2** — Events navigation item and permissions; empty Events page (web) and tab (mobile).
 - [ ] **G3** — Install Android Studio and create the emulator.
 
@@ -146,6 +146,7 @@ Columns: Brand, Market/Region, Period Start, Period End, Channel, Sub-Channel, C
 6. Confirm expense request / approval workflows are out of scope.
 7. The CEO asked for cost per **visitor**, **demo** and **follow-up**; the Primary KPI list has none of these (it has CP-Trial, CP-SQL). Add CP-Visitor, CP-Demo, CP-Follow-up, or map demo → SQL?
 8. Which Primary KPIs are allowed for each goal (e.g. Leads → CPL, Customers → CAC)? Not in the sheet yet.
+9. Confirm which sub-channels belong to which channel. The sheet lists them separately; the current links are proposed in migration `898548e5a993` (e.g. Events → In-Person Events, Virtual Events, Webinars, Sponsorships; "Other" under every channel).
 
 ## Local development
 

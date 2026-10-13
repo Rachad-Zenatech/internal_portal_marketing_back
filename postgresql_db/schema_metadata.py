@@ -257,3 +257,39 @@ workflow_assignments = sa.Table(
     sa.Column("effective_to", postgresql.TIMESTAMP(timezone=True)),
     sa.UniqueConstraint("role", "request_type", name="workflow_assignments_role_request_type_key"),
 )
+
+
+# --- Marketing reference data (taxonomy from Marketing's channel sheet) ---
+
+def _reference_table(name: str, *extra: sa.Column) -> sa.Table:
+    return sa.Table(
+        name, metadata,
+        sa.Column("id", sa.INTEGER(), primary_key=True),
+        sa.Column("code", sa.VARCHAR(length=50), nullable=False),
+        sa.Column("name", sa.VARCHAR(length=100), nullable=False),
+        *extra,
+        sa.Column("sort_order", sa.INTEGER(), nullable=False, server_default=sa.text("0")),
+        sa.Column("is_active", sa.BOOLEAN(), nullable=False, server_default=sa.text("true")),
+        sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.UniqueConstraint("code", name=f"{name}_code_key"),
+    )
+
+
+brands = _reference_table("brands")
+channels = _reference_table("channels")
+sub_channels = _reference_table("sub_channels")
+funnel_stages = _reference_table("funnel_stages")
+goals = _reference_table(
+    "goals",
+    # Rule 1: each goal belongs to exactly one funnel stage
+    sa.Column("funnel_stage_id", sa.INTEGER(), sa.ForeignKey("funnel_stages.id", name="goals_funnel_stage_id_fkey"), nullable=False),
+)
+primary_kpis = _reference_table("primary_kpis")
+performance_ratings = _reference_table("performance_ratings", sa.Column("description", sa.TEXT()))
+scale_or_cut_options = _reference_table("scale_or_cut_options", sa.Column("description", sa.TEXT()))
+
+channel_sub_channels = sa.Table(
+    "channel_sub_channels", metadata,
+    sa.Column("channel_id", sa.INTEGER(), sa.ForeignKey("channels.id", name="channel_sub_channels_channel_id_fkey", ondelete="CASCADE"), primary_key=True),
+    sa.Column("sub_channel_id", sa.INTEGER(), sa.ForeignKey("sub_channels.id", name="channel_sub_channels_sub_channel_id_fkey", ondelete="CASCADE"), primary_key=True),
+)
