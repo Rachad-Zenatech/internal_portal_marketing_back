@@ -101,7 +101,7 @@ def test_owner_options(client, admin, viewer):
     assert {str(admin["id"]), str(viewer["id"])} <= ids
 
 
-def test_owner_options_requires_manage_permission(client, viewer):
+def test_owner_options_requires_view_permission(client, viewer):
     response = client.get("/api/initiatives/owner-options", headers=viewer["headers"])
 
     assert response.status_code == 403

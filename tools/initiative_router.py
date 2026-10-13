@@ -8,13 +8,19 @@ from models.initiative_model import (
     InitiativeListItem,
     InitiativeListResponse,
     InitiativeStatus,
+    InitiativeUpdate,
     OwnerOption,
 )
 from services.auth_service import require_permission
-from services.initiative_service import InitiativeValidationError
+from services.initiative_service import (
+    InitiativeNotFoundError,
+    InitiativeValidationError,
+)
 from services.initiative_service import create_initiative as insert_initiative
+from services.initiative_service import get_initiative as fetch_initiative
 from services.initiative_service import list_initiatives as fetch_initiatives
 from services.initiative_service import list_owner_options as fetch_owner_options
+from services.initiative_service import update_initiative as save_initiative_changes
 
 router = APIRouter()
 
@@ -61,8 +67,36 @@ async def create_initiative(
 @router.get(
     "/initiatives/owner-options",
     response_model=list[OwnerOption],
-    dependencies=[Depends(require_permission("INITIATIVES_CREATE"))],
+    dependencies=[Depends(require_permission("INITIATIVES_VIEW"))],
 )
 async def list_owner_options(search: str | None = Query(None, max_length=200)):
     """Active users who can be picked as an initiative's owner."""
     return await fetch_owner_options(search)
+
+
+# Declared after /initiatives/owner-options so that path isn't read as an id
+@router.get(
+    "/initiatives/{initiative_id}",
+    response_model=InitiativeListItem,
+    dependencies=[Depends(require_permission("INITIATIVES_VIEW"))],
+)
+async def get_initiative(initiative_id: UUID):
+    try:
+        return await fetch_initiative(initiative_id)
+    except InitiativeNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Initiative not found") from exc
+
+
+@router.patch("/initiatives/{initiative_id}", response_model=InitiativeListItem)
+async def update_initiative(
+    initiative_id: UUID,
+    payload: InitiativeUpdate,
+    user_id: Annotated[UUID, Depends(require_permission("INITIATIVES_UPDATE"))],
+):
+    """Change any of an initiative's fields; only the fields sent are updated."""
+    try:
+        return await save_initiative_changes(initiative_id, payload.model_dump(exclude_unset=True), user_id)
+    except InitiativeNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Initiative not found") from exc
+    except InitiativeValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc

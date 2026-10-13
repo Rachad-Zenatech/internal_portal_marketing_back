@@ -129,7 +129,7 @@ Focus on the **Events** channel working end to end, built on the shared initiati
 - [x] **I1** — Initiatives list: `initiatives` table (name, brand, channel, sub-channel, owner, start/end dates, budget + currency, status); rename Events → Initiatives in navigation and permissions; list API with channel / sub-channel / brand / status filters; web list; sample data across several channels.
 - [x] **I3** — Create an initiative: form for any channel; sub-channel options follow the chosen channel; funnel stage → goal enforced (Rule 1).
 - [ ] **I3b** — Upload initiatives: import a spreadsheet of initiatives (any channel), with a preview and validation before saving.
-- [ ] **I4** — Initiative detail, edit and status (Planned → Active → Completed / Paused / Cancelled), recorded in the audit log.
+- [x] **I4** — Initiative detail, edit and status (Planned → Active → Completed / Paused / Cancelled), recorded in the audit log.
 - [ ] **I5** — Budget and spend: spend lines per initiative by category and period, with currency and source; budget vs spend shown.
 - [ ] **E1** — Event details for event initiatives: event code, venue, city, country, region.
 - [ ] **E2** — Event costs: categories (booth/space, materials, staff time, travel, other); travel-cost file upload matched by event code until the travel management system feeds it.

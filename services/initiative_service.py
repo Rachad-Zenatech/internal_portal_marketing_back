@@ -53,6 +53,33 @@ class InitiativeValidationError(Exception):
     """A request that breaks a business rule; the message is safe to show to users."""
 
 
+class InitiativeNotFoundError(Exception):
+    """No initiative with the requested id."""
+
+
+# Allowed status changes. Completed and Cancelled can be reopened so a mistake isn't permanent.
+STATUS_TRANSITIONS: dict[str, set[str]] = {
+    "PLANNED": {"ACTIVE", "CANCELLED"},
+    "ACTIVE": {"PAUSED", "COMPLETED", "CANCELLED"},
+    "PAUSED": {"ACTIVE", "CANCELLED"},
+    "COMPLETED": {"ACTIVE"},
+    "CANCELLED": {"PLANNED"},
+}
+
+_STATUS_LABELS = {"PLANNED": "Planned", "ACTIVE": "Active", "COMPLETED": "Completed", "PAUSED": "Paused", "CANCELLED": "Cancelled"}
+
+# Columns a PATCH may set, in a fixed order (keeps the generated SQL safe from field-name injection)
+_UPDATABLE_COLUMNS = (
+    "name", "brand_id", "channel_id", "sub_channel_id", "funnel_stage_id", "goal_id", "primary_kpi_id",
+    "owner_user_id", "start_date", "end_date", "budget_amount", "currency", "status",
+)
+
+
+def _constraint_error(exc: asyncpg.PostgresError) -> InitiativeValidationError:
+    message = _CONSTRAINT_MESSAGES.get(getattr(exc, "constraint_name", None), "Invalid initiative details.")
+    return InitiativeValidationError(message)
+
+
 async def list_initiatives(
     *,
     channel_id: int | None = None,
@@ -129,8 +156,63 @@ async def create_initiative(data: InitiativeCreate, actor_id: UUID) -> dict:
                 )
                 await log_audit(conn, actor_id, "CREATE", AUDIT_ENTITY, initiative_id, new_value=values)
         except (asyncpg.ForeignKeyViolationError, asyncpg.CheckViolationError) as exc:
-            message = _CONSTRAINT_MESSAGES.get(exc.constraint_name, "Invalid initiative details.")
-            raise InitiativeValidationError(message) from exc
+            raise _constraint_error(exc) from exc
+
+        row = await conn.fetchrow(f"{_SELECT} WHERE i.id = $1", initiative_id)
+    return dict(row)
+
+
+async def get_initiative(initiative_id: UUID) -> dict:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(f"{_SELECT} WHERE i.id = $1", initiative_id)
+    if row is None:
+        raise InitiativeNotFoundError
+    return dict(row)
+
+
+async def update_initiative(initiative_id: UUID, changes: dict, actor_id: UUID) -> dict:
+    """Apply a partial update and audit what changed (old and new values), in one transaction."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        try:
+            async with conn.transaction():
+                current = await conn.fetchrow(
+                    f"SELECT {', '.join(_UPDATABLE_COLUMNS)} FROM initiatives WHERE id = $1 FOR UPDATE",
+                    initiative_id,
+                )
+                if current is None:
+                    raise InitiativeNotFoundError
+
+                current = dict(current)
+                if current["budget_amount"] is not None:
+                    current["budget_amount"] = float(current["budget_amount"])
+                changed = {k: v for k, v in changes.items() if k in _UPDATABLE_COLUMNS and current[k] != v}
+
+                new_status = changed.get("status")
+                if new_status and new_status not in STATUS_TRANSITIONS[current["status"]]:
+                    raise InitiativeValidationError(
+                        f"An initiative can't go from {_STATUS_LABELS[current['status']]} to {_STATUS_LABELS[new_status]}."
+                    )
+
+                if changed:
+                    columns = [c for c in _UPDATABLE_COLUMNS if c in changed]
+                    assignments = ", ".join(f"{c} = ${n}" for n, c in enumerate(columns, start=2))
+                    await conn.execute(
+                        f"""
+                        UPDATE initiatives
+                        SET {assignments}, updated_at = now(), updated_by = ${len(columns) + 2}
+                        WHERE id = $1
+                        """,
+                        initiative_id, *[changed[c] for c in columns], actor_id,
+                    )
+                    await log_audit(
+                        conn, actor_id, "UPDATE", AUDIT_ENTITY, initiative_id,
+                        old_value={c: current[c] for c in columns},
+                        new_value={c: changed[c] for c in columns},
+                    )
+        except (asyncpg.ForeignKeyViolationError, asyncpg.CheckViolationError) as exc:
+            raise _constraint_error(exc) from exc
 
         row = await conn.fetchrow(f"{_SELECT} WHERE i.id = $1", initiative_id)
     return dict(row)
