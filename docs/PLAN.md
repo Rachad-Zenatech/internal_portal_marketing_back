@@ -19,8 +19,8 @@ Example (from the CEO): a $20,000 trade show with 200 leads, 20 demos and 2 cust
 
 - **One core for all channels.** An *initiative* is anything Marketing spends money on and wants to judge. Every initiative has the same core: what it is (brand, channel, sub-channel, owner, dates, status), what it's for (funnel stage → goal, primary KPI, target), what it cost (budget and spend), what it produced (funnel metrics) and the verdict.
 - **One set of funnel metrics** covers every channel: impressions, clicks, visitors, engagement, leads, MQLs, SQLs, trials, demos, follow-ups, customers, pipeline, revenue. Channels differ in *which* they fill and *where the data comes from*. Ratios (CTR, CPC, CPM, CPL, CAC, ROI) are always calculated, never stored.
-- **Build the core first, then one channel at a time.** Each channel adds its own details and its data feed (spreadsheet import first, then automatic API sync).
-- **Sub-channels are editable**, so Marketing can add new ones (e.g. a new ad platform) without a code change.
+- **Build the core first, then one channel at a time — Events first, then Ads.** Each channel adds its own details and its data feed (spreadsheet upload first, then automatic API sync in Phase 3).
+- **Sub-channels are reference data**, so new ones (e.g. a new ad platform) are a data change, not a code change. A screen for Marketing to manage them is on hold until they ask for it.
 
 ## Scope
 
@@ -33,8 +33,8 @@ Example (from the CEO): a $20,000 trade show with 200 leads, 20 demos and 2 cust
 - Web app plus mobile app (Android/iOS).
 
 **Out of scope**
-- **Travel management.** A separate travel management system handles booking and approval (Navan, Gigi/Phil). This platform only receives travel **costs**.
-- Expense request / approval workflows and auto-approval rules. *(To confirm with Rachad/Ibraheem.)*
+- **Travel management.** A separate travel management system handles travel booking and expense approvals (per diems, Uber, hotels). This platform only receives travel **costs** and tracks them against each event.
+- Expense request / approval workflows and auto-approval rules (handled by the travel management system). *(Marketing asked to confirm whether any other event costs still need approvals here.)*
 - Card and subscription governance.
 
 ## Integrations (automatic sync)
@@ -110,7 +110,7 @@ Always shown alongside, whatever the KPI: total cost, the cost-per-outcome ladde
 
 **Defaults by sub-channel** pre-fill the settings (e.g. Google Ads → Consideration / Leads / CPL; In-Person Events → Conversion / Demos / CP-SQL, 180 days); Marketing can override.
 
-*Open: confirm the suggestion thresholds (e.g. "within 20%") and the default settings per sub-channel with Robert and Tom.*
+*Open: confirm the suggestion thresholds (e.g. "within 20%") and the default settings per sub-channel with Marketing.*
 
 ## Task list
 
@@ -122,28 +122,38 @@ Each task is small and built end to end (database → backend → web → mobile
 - [x] **G2** — Events navigation and permissions; empty page (web) and screen (mobile). *Becomes "Initiatives" in I1.*
 - [x] **G3** — Android Studio, SDK and Pixel 7 emulator (Android 15); app running on the emulator.
 
-### Phase 1 — Initiatives core (all channels)
+Agreed phasing: **Phase 1 initiatives and events** → **Phase 2 ads** → **Phase 3 connecting external tools** (the largest piece; the whole team works on it once Marketing confirms what they want). The **travel management system** is a separate project being built in parallel; this platform only receives its costs.
+
+### Phase 1 — Initiatives and events
+Focus on the **Events** channel working end to end, built on the shared initiatives core — so by the end of Phase 1 an initiative can be created (or uploaded) for **any** channel. The budget and spend work is the base Phase 2 (ads) builds on.
 - [x] **I1** — Initiatives list: `initiatives` table (name, brand, channel, sub-channel, owner, start/end dates, budget + currency, status); rename Events → Initiatives in navigation and permissions; list API with channel / sub-channel / brand / status filters; web list; sample data across several channels.
-- [ ] **I2** — Manage sub-channels: add, rename, deactivate sub-channels and choose which channels they belong to (admin screen + API); reference-data cache invalidated on change.
 - [ ] **I3** — Create an initiative: form for any channel; sub-channel options follow the chosen channel; funnel stage → goal enforced (Rule 1).
+- [ ] **I3b** — Upload initiatives: import a spreadsheet of initiatives (any channel), with a preview and validation before saving.
 - [ ] **I4** — Initiative detail, edit and status (Planned → Active → Completed / Paused / Cancelled), recorded in the audit log.
 - [ ] **I5** — Budget and spend: spend lines per initiative by category and period, with currency and source; budget vs spend shown.
-- [ ] **I6** — Outcomes: funnel metrics per initiative per period — manual entry, with source tracking ready for syncs.
+- [ ] **E1** — Event details for event initiatives: event code, venue, city, country, region.
+- [ ] **E2** — Event costs: categories (booth/space, materials, staff time, travel, other); travel-cost file upload matched by event code until the travel management system feeds it.
+- [ ] **I6** — Outcomes: funnel metrics per initiative per period — manual entry, with source tracking ready for later syncs.
 - [ ] **I7** — "Worth it" view: evaluation settings, cost-per-outcome ladder, ROI, suggested performance rating, recorded scale-or-cut decision.
-- [ ] **I8** — Rollups: budget vs actual vs prior year per channel and brand; cross-channel comparison (e.g. cost per lead by channel).
+- [ ] **I8** — Budget rollups: budget vs actual vs prior year per channel and brand.
 - [ ] **I9** — Initiatives on mobile: list, detail, verdict.
 
-### Phase 2 — Channels and integrations (one channel at a time)
-- [ ] **X1** — Integration framework: connections, external campaign links per initiative, scheduled sync jobs, "Sync now", sync status and errors.
-- [ ] **C1** — Paid Search: import Robert's paid-ads spreadsheet → then Google Ads and Microsoft Advertising API sync.
-- [ ] **C2** — HubSpot sync: leads, MQLs, SQLs, deals/pipeline, customers, revenue per campaign (feeds every channel); campaign costs where HubSpot tracks them.
-- [ ] **C3** — Paid Social: LinkedIn and Meta API sync.
-- [ ] **C4** — Events: event details (venue, city, country, event code), travel-cost upload → travel-system feed.
-- [ ] **C5** — SEO / Content: Google Search Console and GA4 sync.
-- [ ] **C6+** — Remaining channels (Email, Influencer, Partnerships, …) as Marketing prioritises.
+### CEO dashboard
+- [ ] **D1** — CEO dashboard feed: summary KPIs per channel and brand (RabbitMQ outbox + marketing connector in the CEO backend). Can start once Phase 1 data exists.
 
-### Phase 3 — Leadership view
-- [ ] **D1** — CEO dashboard feed: summary KPIs per channel and brand (RabbitMQ outbox + marketing connector in the CEO backend).
+### Phase 2 — Ads
+- [ ] **A1** — Paid-ads import: upload Marketing's paid-ads spreadsheet (spend, impressions, clicks, conversions, HubSpot contacts, MQLs, SQLs per campaign and period); CTR, CPC, CPL calculated.
+- [ ] **A2** — Ads views: performance by sub-channel (Google, Bing, LinkedIn, Meta, …), budget vs spend, cost per lead compared across ad platforms and with other channels.
+
+### Phase 3 — Connecting external tools *(scope to confirm with Marketing first)*
+- [ ] **X1** — Integration framework: connections, external campaign links per initiative, scheduled sync jobs, "Sync now", sync status and errors.
+- [ ] **X2** — Ads APIs: Google Ads, Microsoft Advertising, LinkedIn, Meta (replacing the spreadsheet upload).
+- [ ] **X3** — HubSpot: leads, MQLs, SQLs, deals/pipeline, customers, revenue per campaign; costs where HubSpot tracks them.
+- [ ] **X4** — Travel management system feed (replacing the travel-cost upload).
+- [ ] **X5** — Others as Marketing prioritises (Search Console / GA4, email tools, …).
+
+### On hold
+- [ ] **I2** — Manage sub-channels (add, rename, deactivate; choose their channels). *Marketing hasn't asked for this — confirm before building. Until then, sub-channel changes are a small migration.*
 
 ### Supporting
 - [ ] Microsoft sign-in on mobile.
@@ -161,10 +171,11 @@ Columns: Brand, Market/Region, Period Start, Period End, Channel, Sub-Channel, C
 ## Open questions
 
 1. What does Marketing call these — "initiatives", "campaigns", something else? (Their sheet says "Campaign Name".)
-2. Which tools does Marketing use per channel today, and who can grant API access (HubSpot admin, Google Ads, LinkedIn, Meta)?
+2. Which tools does Marketing use per channel today, which do they actually want **integrated** (auto-synced), and who can grant API access (HubSpot admin, Google Ads, LinkedIn, Meta)? *Needed before Phase 3.*
+2a. Do they want to add or rename sub-channels themselves (task I2)?
 3. Does HubSpot hold campaign **costs/budgets**, or only leads and deals?
 4. Full list of regions; reporting currency and where exchange rates come from.
-5. "Worth it" suggestion thresholds and default settings per sub-channel — to review with Robert and Tom.
+5. "Worth it" suggestion thresholds and default settings per sub-channel — to review with Marketing.
 6. Confirm expense request / approval workflows are out of scope.
 7. The CEO asked for cost per **visitor**, **demo** and **follow-up**; the Primary KPI list has none of these. Add CP-Visitor, CP-Demo, CP-Follow-up, or map demo → SQL?
 8. Which Primary KPIs are allowed for each goal (e.g. Leads → CPL, Customers → CAC)?
