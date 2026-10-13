@@ -1,8 +1,29 @@
 import json
-from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
-from typing import Optional, Dict, Any, List, Tuple
+
 from postgresql_db.database import get_pool
+
+
+def entity_title_sql(alias: str) -> str:
+    """SQL expression giving a readable name for the audited item (e.g. the initiative's name).
+
+    Initiatives fall back to the name recorded in the audit entry, so entries for a since-renamed
+    or removed initiative still read sensibly.
+    """
+    return f"""
+        CASE
+            WHEN {alias}.entity_type = 'User' THEN (SELECT full_name FROM users WHERE CAST(id AS TEXT) = {alias}.entity_id LIMIT 1)
+            WHEN {alias}.entity_type = 'Role' THEN (SELECT name FROM roles WHERE CAST(id AS TEXT) = {alias}.entity_id LIMIT 1)
+            WHEN {alias}.entity_type = 'Initiative' THEN COALESCE(
+                (SELECT name FROM initiatives WHERE CAST(id AS TEXT) = {alias}.entity_id LIMIT 1),
+                {alias}.new_value->>'name',
+                {alias}.old_value->>'name'
+            )
+            ELSE NULL
+        END
+    """
+
 
 async def log_audit_event(
     entity_type: str,
@@ -41,17 +62,13 @@ async def get_audit_logs(
 ) -> Tuple[List[Dict[str, Any]], int]:
     pool = get_pool()
     async with pool.acquire() as conn:
-        query = """
+        query = f"""
         SELECT al.*,
                COALESCE(u.full_name, 'System') as actor_name,
                u.email as actor_email,
                u.department as actor_department,
                u.job_title as actor_job_title,
-               CASE
-                   WHEN al.entity_type = 'User' THEN (SELECT full_name FROM users WHERE CAST(id AS TEXT) = al.entity_id LIMIT 1)
-                   WHEN al.entity_type = 'Role' THEN (SELECT name FROM roles WHERE CAST(id AS TEXT) = al.entity_id LIMIT 1)
-                   ELSE NULL
-               END as entity_title
+               {entity_title_sql("al")} as entity_title
         FROM audit_logs al
         LEFT JOIN users u ON al.actor_user_id = u.id
         WHERE 1=1
@@ -110,6 +127,7 @@ async def get_audit_logs(
                 OR al.entity_id ILIKE ${idx}
                 OR u.full_name ILIKE ${idx}
                 OR u.email ILIKE ${idx}
+                OR ({entity_title_sql("al")}) ILIKE ${idx}
             )"""
             query += clause
             count_query += clause

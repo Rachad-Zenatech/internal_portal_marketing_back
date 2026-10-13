@@ -1,7 +1,8 @@
-import os
 import asyncio
 import logging
-from typing import Any, Optional, List
+import os
+from typing import Any, List, Optional
+
 from google import genai
 from google.genai import errors
 
@@ -90,8 +91,6 @@ async def generate_content_with_fallback(
     """
     models = get_gemini_fallback_models()
 
-    last_exception = None
-
     for i, model_name in enumerate(models):
         logger.info(f"Attempting Gemini model: {model_name}")
 
@@ -109,7 +108,6 @@ async def generate_content_with_fallback(
             return response
 
         except Exception as e:
-            last_exception = e
             if is_rotatable_model_error(e):
                 logger.warning(f"Gemini model {model_name} unavailable or quota exceeded ({e}). Moving to next model.")
                 continue

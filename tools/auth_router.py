@@ -1,28 +1,28 @@
 import logging
 import os
-from fastapi import APIRouter, Request, HTTPException, Depends, Response
-from fastapi.responses import JSONResponse, RedirectResponse
-from pydantic import BaseModel
+from uuid import UUID
 
 from authlib.integrations.starlette_client import OAuth
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import JSONResponse, RedirectResponse
+from pydantic import BaseModel
 from starlette.config import Config
+
+from postgresql_db.database import get_pool
 from services.auth_service import (
-    create_access_token,
-    getCurrentUserFromMicrosoftClaims,
-    upsertMicrosoftUser,
-    getUserRoles,
-    getUserNavigationPermissions,
-    getUserToolPermissions,
-    clear_access_token_cookie,
-    get_current_user_id_dependency,
-    set_access_token_cookie,
     AUTH_COOKIE_NAME,
+    clear_access_token_cookie,
+    create_access_token,
+    get_current_user_id_dependency,
+    getCurrentUserFromMicrosoftClaims,
+    getUserNavigationPermissions,
+    getUserRoles,
+    getUserToolPermissions,
+    set_access_token_cookie,
+    upsertMicrosoftUser,
 )
 from services.graph_service import fetch_me_profile
-from tools.rbac_router import get_current_user_id
 from services.rbac_service import log_login_activity
-from postgresql_db.database import get_pool
-from uuid import UUID
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -235,7 +235,7 @@ async def logout(request: Request):
         try:
             form = await request.form()
             token = form.get("token")
-        except:
+        except Exception:
             pass
 
     response = JSONResponse({"status": "success"})
@@ -244,6 +244,7 @@ async def logout(request: Request):
 
     if token:
         import jwt
+
         from services.auth_service import ALLOWED_JWT_ISSUERS, JWT_ALGORITHM, JWT_SECRET
         from services.cache_service import emit_cache_invalidation
         try:

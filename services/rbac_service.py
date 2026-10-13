@@ -1,12 +1,19 @@
 import json
-from typing import Optional, List
+from typing import List, Optional
 from uuid import UUID
-from postgresql_db.database import get_pool, fetch_all, fetch_one
-from services.cache_service import config_cache, emit_cache_invalidation
+
 from models.rbac_model import (
-    UserCreate, UserUpdate, RoleCreate, RoleUpdate,
-    RoleNavigationPermissionCreate, RoleMcpToolPermissionCreate
+    RoleCreate,
+    RoleMcpToolPermissionCreate,
+    RoleNavigationPermissionCreate,
+    RoleUpdate,
+    UserCreate,
+    UserUpdate,
 )
+from postgresql_db.database import fetch_all, fetch_one, get_pool
+from services.audit_service import entity_title_sql
+from services.cache_service import config_cache, emit_cache_invalidation
+
 
 # Utility for audit logging
 async def log_audit(conn, actor_id: UUID, action: str, entity_type: str, entity_id: UUID, old_value: dict = None, new_value: dict = None, ip: str = None, ua: str = None):
@@ -22,8 +29,9 @@ async def log_audit(conn, actor_id: UUID, action: str, entity_type: str, entity_
 
 # --- AUDIT LOGS ---
 async def get_audit_logs():
-    sql = """
-        SELECT a.*, u.full_name as actor_name, u.email as actor_email
+    sql = f"""
+        SELECT a.*, u.full_name as actor_name, u.email as actor_email,
+               {entity_title_sql("a")} as entity_title
         FROM audit_logs a
         LEFT JOIN users u ON a.actor_user_id = u.id
         ORDER BY a.created_at DESC
@@ -208,7 +216,7 @@ async def update_user(user_id: UUID, user: UserUpdate, actor_id: UUID = None):
             if not updates:
                 return _public_user(old)
 
-            updates.append(f"updated_at = now()")
+            updates.append("updated_at = now()")
             updates.append(f"updated_by = ${arg_idx}")
             args.append(actor_id)
             arg_idx += 1
@@ -481,7 +489,7 @@ async def update_role(role_id: UUID, role: RoleUpdate, actor_id: UUID = None):
             if not updates:
                 return dict(old)
 
-            updates.append(f"updated_at = now()")
+            updates.append("updated_at = now()")
             updates.append(f"updated_by = ${arg_idx}")
             args.append(actor_id)
             arg_idx += 1

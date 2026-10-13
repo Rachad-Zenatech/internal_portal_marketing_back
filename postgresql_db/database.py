@@ -1,7 +1,8 @@
-import os
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
+
 import asyncpg
 
 # Optional dotenv import for loading .env and local overrides during development

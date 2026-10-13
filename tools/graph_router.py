@@ -5,6 +5,7 @@ Used by the CEO Dashboard autocomplete to find Entra users to assign as approver
 """
 
 from typing import List, Optional
+
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 

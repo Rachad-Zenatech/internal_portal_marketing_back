@@ -1,4 +1,5 @@
 import asyncio
+
 from postgresql_db.database import get_pool
 
 DDL = """
@@ -30,7 +31,8 @@ async def ensure_notifications_schema() -> None:
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
-    from postgresql_db.database import create_pool, close_pool
+
+    from postgresql_db.database import close_pool, create_pool
 
     load_dotenv()
 

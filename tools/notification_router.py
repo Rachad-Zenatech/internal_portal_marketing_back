@@ -1,12 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
 import asyncio
-from typing import List, Dict
-from models.notification_model import NotificationResponse
-from services.notification_service import get_recent_notifications, get_unread_count, mark_notification_as_read, mark_all_notifications_as_read, clear_read_notifications, clear_all_notifications, broadcaster
-
-from services.auth_service import get_current_user_id_dependency
+from typing import Dict, List
 from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
+
+from models.notification_model import NotificationResponse
+from services.auth_service import get_current_user_id_dependency
+from services.notification_service import (
+    broadcaster,
+    clear_all_notifications,
+    clear_read_notifications,
+    get_recent_notifications,
+    get_unread_count,
+    mark_all_notifications_as_read,
+    mark_notification_as_read,
+)
 
 notification_router = APIRouter()
 
@@ -45,7 +54,7 @@ async def api_clear_all(user_id: str = Depends(get_current_user_id)):
     await clear_all_notifications(user_id)
     return {"success": True}
 
-from fastapi import Request
+
 
 @notification_router.get("/notifications/stream")
 async def api_notification_stream(request: Request, user_id: str = Depends(get_current_user_id)):

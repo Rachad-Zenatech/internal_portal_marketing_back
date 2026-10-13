@@ -1,9 +1,10 @@
-import re
-from fastapi import APIRouter, Query, Depends
-from typing import List, Optional, Any, Dict
-from pydantic import BaseModel
-from postgresql_db.database import fetch_all
+from typing import Any, Dict, List, Optional
 from uuid import UUID
+
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
+
+from postgresql_db.database import fetch_all
 from services.auth_service import get_current_user_id_dependency, get_my_permissions
 
 router = APIRouter()

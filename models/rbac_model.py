@@ -1,10 +1,10 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
-from typing import Optional, List, Dict, Any
+import re
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-import re
-from pydantic import field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+
 
 # Users
 class UserBase(BaseModel):

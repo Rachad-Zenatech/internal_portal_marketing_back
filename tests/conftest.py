@@ -45,10 +45,18 @@ def _database_available() -> bool:
         return False
 
 
+def _skip_without_database() -> None:
+    if _database_available():
+        return
+    # CI sets this so a broken database fails the build instead of silently skipping every test
+    if os.environ.get("REQUIRE_TEST_DATABASE") == "1":
+        pytest.fail("Test database not available but REQUIRE_TEST_DATABASE=1")
+    pytest.skip("Local database not available")
+
+
 @pytest.fixture(scope="session")
 def client():
-    if not _database_available():
-        pytest.skip("Local database not available")
+    _skip_without_database()
     from fastapi.testclient import TestClient
 
     from server import app
@@ -60,8 +68,7 @@ def client():
 @pytest.fixture(scope="session")
 def ref():
     """Reference-data ids by code, e.g. ref['channels']['EVENTS']."""
-    if not _database_available():
-        pytest.skip("Local database not available")
+    _skip_without_database()
     tables = ["brands", "channels", "sub_channels", "funnel_stages", "goals", "primary_kpis"]
     return {t: {r["code"]: r["id"] for r in run_sql(f"SELECT id, code FROM {t}")} for t in tables}
 
@@ -92,6 +99,9 @@ def _token_for(client, user_id: uuid.UUID) -> dict:
 
 
 def _delete_user(user_id: uuid.UUID) -> None:
+    # Everything the test user did, so local audit logs don't fill up with test entries
+    run_sql("DELETE FROM audit_logs WHERE actor_user_id = $1 OR entity_id = $2", user_id, str(user_id))
+    run_sql("DELETE FROM login_activity_logs WHERE user_id = $1", user_id)
     run_sql("DELETE FROM initiatives WHERE created_by = $1", user_id)
     run_sql("DELETE FROM user_roles WHERE user_id = $1", user_id)
     run_sql("DELETE FROM users WHERE id = $1", user_id)

@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field
 
 from services.auth_service import get_current_user_id_dependency
 
-
 router = APIRouter()
 logger = logging.getLogger(__name__)
 

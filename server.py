@@ -21,33 +21,35 @@ from fastmcp import FastMCP
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
-from postgresql_db.database import close_pool, create_pool, fetch_one, get_pool
+from mcp_tools import ask_gemini_stream, sync_mcp_tools_to_vector_db
+
+# MCP tools & AI functions
+from mcp_tools import register_all as register_mcp_tools
+from postgresql_db.database import close_pool, create_pool, fetch_one
+from services.auth_service import (
+    current_user_id_ctx,
+    get_current_user_id_dependency,
+)
+from services.cache_service import start_cache_invalidation_listener
+from services.graph_sync_job import graph_sync_loop
 from services.logging_service import (
     asyncio_exception_handler,
     configure_logging,
     log_background_task_result,
     request_id_ctx,
 )
-from services.cache_service import start_cache_invalidation_listener
-from services.auth_service import (
-    current_user_id_ctx,
-    get_current_user_id_dependency,
-)
+from tools.auth_router import router as auth_router
+from tools.graph_router import router as graph_router
+from tools.initiative_router import router as initiative_router
+from tools.log_router import router as log_router
+from tools.notification_router import notification_router
+from tools.observability import router as observability_router
+from tools.rbac_router import get_current_user_id
+from tools.rbac_router import router as rbac_router
+from tools.reference_data_router import router as reference_data_router
 
 # FastAPI routers
 from tools.search import router as search_router
-from tools.rbac_router import router as rbac_router, get_current_user_id
-from tools.auth_router import router as auth_router
-from tools.notification_router import notification_router
-from tools.observability import router as observability_router
-from tools.log_router import router as log_router
-from tools.graph_router import router as graph_router
-from tools.reference_data_router import router as reference_data_router
-from tools.initiative_router import router as initiative_router
-
-# MCP tools & AI functions
-from mcp_tools import register_all as register_mcp_tools, ask_gemini, ask_gemini_stream, sync_mcp_tools_to_vector_db
-from services.graph_sync_job import graph_sync_loop
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -69,12 +71,6 @@ async def lifespan(app: FastAPI):
     loop.set_exception_handler(asyncio_exception_handler)
     try:
         await create_pool()
-        # Ensure schema tables exist
-        try:
-            from postgresql_db.setup_pbac_schema import setup as setup_schema
-            # Non-blocking schema initialization check
-        except Exception as schema_err:
-            logger.warning(f"Schema verification note: {schema_err}")
     except Exception:
         logger.exception("Application startup failed", extra={"event": "application_startup_failed"})
         raise
@@ -167,7 +163,7 @@ async def ai_chat(req: ChatRequest, user_id: UUID = Depends(get_current_user_id)
             try:
                 async for chunk in ask_gemini_stream(req.message, req.history, req.file_data, req.mime_type):
                     yield chunk
-            except Exception as e:
+            except Exception:
                 import json
                 logger.exception("AI stream request failed", extra={"event": "ai_chat_stream_failed"})
                 yield f"data: {json.dumps({'type': 'error', 'message': 'The AI service is temporarily unavailable.'})}\n\n"

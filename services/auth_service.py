@@ -1,15 +1,17 @@
-from uuid import UUID
-from postgresql_db.database import fetch_all, fetch_one
-from services.cache_service import permission_cache, emit_cache_invalidation
-import jwt
 import asyncio
 import contextvars
 import datetime
 import logging
 import os
 import secrets
-from fastapi import Cookie, Depends, Header, HTTPException, Response, Query
 from typing import Optional
+from uuid import UUID
+
+import jwt
+from fastapi import Cookie, Depends, Header, HTTPException, Query, Response
+
+from postgresql_db.database import fetch_all, fetch_one
+from services.cache_service import emit_cache_invalidation, permission_cache
 
 logger = logging.getLogger(__name__)
 

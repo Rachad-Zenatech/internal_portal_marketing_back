@@ -1,29 +1,49 @@
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Header
-from pydantic import BaseModel
 from typing import List, Optional
 from uuid import UUID
 
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException
+from pydantic import BaseModel
+
 from models.rbac_model import (
-    UserCreate, UserUpdate, UserBulkDelete, RoleCreate, RoleUpdate, RoleNavigationPermissionCreate, RoleMcpToolPermissionCreate,
-    PermissionModule, RolePermissionGroupsUpdate
+    PermissionModule,
+    RoleCreate,
+    RoleMcpToolPermissionCreate,
+    RoleNavigationPermissionCreate,
+    RolePermissionGroupsUpdate,
+    RoleUpdate,
+    UserBulkDelete,
+    UserCreate,
+    UserUpdate,
 )
-from services.rbac_service import (
-    get_all_users, create_user, update_user, delete_user, bulk_delete_users,
-    get_all_roles, get_role_tree, create_role, update_role, delete_role,
-    get_user_roles, set_user_roles,
-    get_role_navigation_permissions, update_role_navigation_permissions,
-    get_role_mcp_tool_permissions, update_role_mcp_tool_permissions,
-    get_login_activity_logs,
-    get_permission_modules, get_role_permission_groups, update_role_permission_groups
-)
+from postgresql_db.database import fetch_all
 from services.auth_service import (
     AUTH_COOKIE_NAME,
     get_current_user_id_dependency,
     get_my_permissions,
     require_permission,
-    user_can_access_page,
 )
-from postgresql_db.database import fetch_all
+from services.rbac_service import (
+    bulk_delete_users,
+    create_role,
+    create_user,
+    delete_role,
+    delete_user,
+    get_all_roles,
+    get_all_users,
+    get_login_activity_logs,
+    get_permission_modules,
+    get_role_mcp_tool_permissions,
+    get_role_navigation_permissions,
+    get_role_permission_groups,
+    get_role_tree,
+    get_user_roles,
+    set_user_roles,
+    update_role,
+    update_role_mcp_tool_permissions,
+    update_role_navigation_permissions,
+    update_role_permission_groups,
+    update_user,
+)
 
 router = APIRouter()
 

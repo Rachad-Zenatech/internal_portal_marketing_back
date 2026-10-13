@@ -1,0 +1,18 @@
+# Lint rules for this repo. CI runs `ruff check .` with the version pinned in
+# requirements-dev.txt, so local and CI results always match.
+target-version = "py312"
+line-length = 120
+
+[lint]
+# Real errors, undefined/unused names, and import order
+select = ["E4", "E7", "E9", "F", "I"]
+
+[lint.per-file-ignores]
+# Alembic's generated revision template always imports op and sa, used or not
+"alembic/versions/*" = ["F401"]
+# env.py must load the Alembic config before importing the table definitions
+"alembic/env.py" = ["E402"]
+
+[lint.isort]
+# The repo has an alembic/ migrations folder; the import is the Alembic library
+known-third-party = ["alembic"]

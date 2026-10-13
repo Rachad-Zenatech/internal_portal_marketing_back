@@ -1,5 +1,6 @@
-from services.auth_service import get_my_permissions, current_user_id_ctx
 from postgresql_db.database import fetch_all
+from services.auth_service import current_user_id_ctx, get_my_permissions
+
 
 async def list_my_accessible_tools_tool():
     """

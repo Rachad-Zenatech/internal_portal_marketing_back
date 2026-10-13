@@ -6,10 +6,11 @@ can request, send, and synchronize.
 """
 
 import logging
-from typing import Dict, List, Set, Optional, Any
-from fastapi import HTTPException, Security, Depends, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Any, Dict, List, Optional
+
 import jwt
+from fastapi import HTTPException, Security, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 # One secret, algorithm and issuer for the whole app — no hard-coded fallback
 from services.auth_service import ALLOWED_JWT_ISSUERS, JWT_ALGORITHM, JWT_ISSUER, JWT_SECRET
@@ -148,7 +149,6 @@ def require_application_scope(required_scope: str, allowed_services: Optional[Li
         # 1. Identify if this is a Machine-to-Machine Service Token or a User Token
         is_service_token = payload.get("is_service_token", False)
         caller_service = payload.get("service") or payload.get("service_name") or ("admin" if payload.get("is_super_admin") else "unknown")
-        token_scopes: Set[str] = set(payload.get("scopes", []))
 
         # 2. Check if the calling application is trusted
         if caller_service not in TRUSTED_APPLICATIONS:
@@ -217,9 +217,8 @@ def generate_scoped_outbound_token(
     """
     Generates a minimal, scope-restricted token for sending requests to another application.
     """
-    import time
-    from datetime import datetime, timezone, timedelta
     import secrets
+    from datetime import datetime, timedelta, timezone
 
     now = datetime.now(timezone.utc)
     exp = now + timedelta(minutes=expires_in_minutes)

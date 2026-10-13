@@ -1,9 +1,10 @@
 import json
-from typing import Optional, Any
+from typing import Any, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from services.auth_service import get_current_user_id_dependency
+
 from services.audit_service import get_audit_logs
-from services.auth_service import require_permission
+from services.auth_service import get_current_user_id_dependency, require_permission
 
 router = APIRouter()
 
@@ -19,7 +20,7 @@ def _safe_parse_json(val: Any) -> Any:
             return val
     return val
 
-@router.get("/logs", dependencies=[Depends(get_current_user_id_dependency), Depends(require_permission("AUDIT_LOGS_VIEW"))])
+@router.get("/logs", dependencies=[Depends(get_current_user_id_dependency), Depends(require_permission("AUDIT_LOG_VIEW"))])
 async def list_audit_logs(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),

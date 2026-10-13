@@ -1,8 +1,10 @@
-from typing import List
-import json
 import asyncio
-from postgresql_db.database import execute, fetch_all, fetch_one
+import json
+from typing import List
+
 from models.notification_model import NotificationCreate, NotificationResponse
+from postgresql_db.database import execute, fetch_all, fetch_one
+
 
 class NotificationBroadcaster:
     def __init__(self):

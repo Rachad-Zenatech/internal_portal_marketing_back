@@ -1,0 +1,4 @@
+# Development and CI tools, pinned so local results match CI.
+# Install with: pip install -r requirements.txt -r requirements-dev.txt
+pytest==9.1.1
+ruff==0.17.0

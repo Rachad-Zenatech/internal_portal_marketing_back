@@ -3,22 +3,19 @@
 # module-level function; `register_all` attaches tools via `mcp.add_tool` and
 # prompts via `mcp.add_prompt`, deriving the name and description from the
 # function name and docstring.
-import os
-import re
-import inspect
 import asyncio
+import inspect
 import json
 import logging
+import os
 
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
-from google.genai import errors
 from fastmcp.prompts import Prompt
+from google import genai
+from google.genai import errors, types
 
-from mcp_tools.prompts import ALL_PROMPTS
 from mcp_tools.permissions import list_my_accessible_tools_tool
-from services.auth_service import current_user_id_ctx, user_can_use_mcp_tool, get_my_permissions
+from mcp_tools.prompts import ALL_PROMPTS
 
 load_dotenv()
 logger = logging.getLogger(__name__)
