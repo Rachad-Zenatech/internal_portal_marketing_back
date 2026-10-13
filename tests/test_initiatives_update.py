@@ -99,10 +99,23 @@ def test_status_transitions(client, admin, initiative, steps, allowed):
         assert "can't go from" in responses[-1].text
 
 
-def test_update_rejects_sub_channel_from_another_channel(client, admin, initiative, ref):
+def test_update_rejects_sub_channel_from_another_channel(client, admin, ref):
+    # Not an event: events can't leave the Events channel at all (see test_events_update.py)
+    created = client.post(
+        "/api/initiatives",
+        json={
+            "name": "Pytest Search",
+            "brand_id": ref["brands"]["DESKFLEX"],
+            "channel_id": ref["channels"]["PAID_SEARCH"],
+            "sub_channel_id": ref["sub_channels"]["GOOGLE_ADS"],
+        },
+        headers=admin["headers"],
+    )
+    assert created.status_code == 201, created.text
+
     response = client.patch(
-        f"/api/initiatives/{initiative['id']}",
-        json={"channel_id": ref["channels"]["PAID_SEARCH"]},  # keeps the In-Person Events sub-channel
+        f"/api/initiatives/{created.json()['id']}",
+        json={"channel_id": ref["channels"]["PAID_SOCIAL"]},  # keeps the Google Ads sub-channel
         headers=admin["headers"],
     )
 

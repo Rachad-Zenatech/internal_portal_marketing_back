@@ -20,7 +20,9 @@ _SELECT = """
            i.primary_kpi_id, k.name AS primary_kpi_name,
            i.owner_user_id, u.full_name AS owner_name,
            i.start_date, i.end_date,
-           i.budget_amount::float8 AS budget_amount, i.currency, i.status
+           i.budget_amount::float8 AS budget_amount, i.currency, i.status,
+           ed.event_code, ed.event_type_id, et.name AS event_type_name,
+           ed.venue, ed.city, ed.country_code, ed.region_id, r.name AS region_name
     FROM initiatives i
     JOIN brands b ON b.id = i.brand_id
     JOIN channels c ON c.id = i.channel_id
@@ -29,6 +31,9 @@ _SELECT = """
     LEFT JOIN goals g ON g.id = i.goal_id
     LEFT JOIN primary_kpis k ON k.id = i.primary_kpi_id
     LEFT JOIN users u ON u.id = i.owner_user_id
+    LEFT JOIN event_details ed ON ed.initiative_id = i.id
+    LEFT JOIN event_types et ON et.id = ed.event_type_id
+    LEFT JOIN regions r ON r.id = ed.region_id
 """
 
 # Database rule → message a person can act on
@@ -121,7 +126,8 @@ async def list_initiatives(
     if status:
         add("i.status = ${n}", status)
     if search and search.strip():
-        add("i.name ILIKE ${n}", f"%{search.strip()}%")
+        # Name or event code, so typing "EVT-2026-0007" finds the event
+        add("(i.name ILIKE ${n} OR ed.event_code ILIKE ${n})", f"%{search.strip()}%")
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     args.extend([limit, offset])
@@ -140,7 +146,10 @@ async def list_initiatives(
             total = rows[0]["total_count"]
         else:
             # Page past the end: still report the real total
-            total = await conn.fetchval(f"SELECT count(*) FROM initiatives i {where}", *args[:-2])
+            total = await conn.fetchval(
+                f"SELECT count(*) FROM initiatives i LEFT JOIN event_details ed ON ed.initiative_id = i.id {where}",
+                *args[:-2],
+            )
 
     return [{k: v for k, v in dict(r).items() if k != "total_count"} for r in rows], total
 
@@ -215,6 +224,63 @@ async def get_initiative(initiative_id: UUID) -> dict:
     return dict(row)
 
 
+async def _apply_event_changes(
+    conn, initiative_id: UUID, actor_id: UUID, *,
+    channel_id: int, sub_channel_id: int | None, current_event: dict | None, event_changes: dict,
+) -> tuple[dict | None, dict | None, str | None]:
+    """Validate and save an initiative's event details as part of an update.
+
+    Rules use the channel and sub-channel after the update. Returns (old, new, event_code), where old/new
+    hold only the event fields that changed; new is None when nothing changed.
+    """
+    codes = await conn.fetchrow(
+        "SELECT c.code AS channel, s.code AS sub_channel "
+        "FROM channels c LEFT JOIN sub_channels s ON s.id = $2 WHERE c.id = $1",
+        channel_id, sub_channel_id,
+    )
+    if codes is None:
+        raise InitiativeValidationError(_CONSTRAINT_MESSAGES["initiatives_channel_id_fkey"])
+
+    if codes["channel"] != EVENTS_CHANNEL:
+        if current_event is not None:
+            # Never delete event details (and their code) as a side effect of a channel change
+            raise InitiativeValidationError("Remove this initiative's event details before moving it to another channel.")
+        if event_changes:
+            raise InitiativeValidationError("Event details can only be added to initiatives in the Events channel.")
+        return None, None, None
+
+    before = {f: current_event[f] for f in _EVENT_FIELDS} if current_event else dict.fromkeys(_EVENT_FIELDS)
+    after = {**before, **event_changes}
+    required, message = EVENT_REQUIRED_FIELDS.get(codes["sub_channel"], ((), ""))
+    if any(after[field] is None for field in required):
+        raise InitiativeValidationError(message)
+
+    if current_event is None:
+        # Moving into Events: create the details row, which generates the code
+        event_code = await conn.fetchval(
+            """
+            INSERT INTO event_details (initiative_id, event_type_id, venue, city, country_code, region_id,
+                                       created_by, updated_by)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+            RETURNING event_code
+            """,
+            initiative_id, after["event_type_id"], after["venue"], after["city"],
+            after["country_code"], after["region_id"], actor_id,
+        )
+        return None, after, event_code
+
+    fields = [f for f in _EVENT_FIELDS if after[f] != before[f]]
+    if not fields:
+        return None, None, current_event["event_code"]
+    assignments = ", ".join(f"{f} = ${n}" for n, f in enumerate(fields, start=2))
+    await conn.execute(
+        f"UPDATE event_details SET {assignments}, updated_at = now(), updated_by = ${len(fields) + 2} "
+        "WHERE initiative_id = $1",
+        initiative_id, *[after[f] for f in fields], actor_id,
+    )
+    return {f: before[f] for f in fields}, {f: after[f] for f in fields}, current_event["event_code"]
+
+
 async def update_initiative(initiative_id: UUID, changes: dict, actor_id: UUID) -> dict:
     """Apply a partial update and audit what changed (old and new values), in one transaction."""
     pool = get_pool()
@@ -231,6 +297,10 @@ async def update_initiative(initiative_id: UUID, changes: dict, actor_id: UUID) 
                 current = dict(current)
                 if current["budget_amount"] is not None:
                     current["budget_amount"] = float(current["budget_amount"])
+                current_event = await conn.fetchrow(
+                    f"SELECT event_code, {', '.join(_EVENT_FIELDS)} FROM event_details WHERE initiative_id = $1 FOR UPDATE",
+                    initiative_id,
+                )
                 changed = {k: v for k, v in changes.items() if k in _UPDATABLE_COLUMNS and current[k] != v}
 
                 new_status = changed.get("status")
@@ -238,6 +308,15 @@ async def update_initiative(initiative_id: UUID, changes: dict, actor_id: UUID) 
                     raise InitiativeValidationError(
                         f"An initiative can't go from {_STATUS_LABELS[current['status']]} to {_STATUS_LABELS[new_status]}."
                     )
+
+                # Event rules apply to the state after this change
+                event_old, event_new, event_code = await _apply_event_changes(
+                    conn, initiative_id, actor_id,
+                    channel_id=changed.get("channel_id", current["channel_id"]),
+                    sub_channel_id=changed.get("sub_channel_id", current["sub_channel_id"]),
+                    current_event=dict(current_event) if current_event else None,
+                    event_changes=changes.get("event") or {},
+                )
 
                 if changed:
                     columns = [c for c in _UPDATABLE_COLUMNS if c in changed]
@@ -250,10 +329,17 @@ async def update_initiative(initiative_id: UUID, changes: dict, actor_id: UUID) 
                         """,
                         initiative_id, *[changed[c] for c in columns], actor_id,
                     )
+
+                # One audit entry per request, covering the initiative and its event details
+                if changed or event_new:
+                    old_value = {c: current[c] for c in changed}
+                    new_value = dict(changed)
+                    if event_new:
+                        old_value["event"] = event_old
+                        new_value["event"] = {**event_new, "event_code": event_code}
                     await log_audit(
                         conn, actor_id, "UPDATE", AUDIT_ENTITY, initiative_id,
-                        old_value={c: current[c] for c in columns},
-                        new_value={c: changed[c] for c in columns},
+                        old_value=old_value, new_value=new_value,
                     )
         except (asyncpg.ForeignKeyViolationError, asyncpg.CheckViolationError) as exc:
             raise _constraint_error(exc) from exc

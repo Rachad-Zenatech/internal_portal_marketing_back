@@ -3,7 +3,7 @@ from datetime import date
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 InitiativeStatus = Literal["PLANNED", "ACTIVE", "COMPLETED", "PAUSED", "CANCELLED"]
 
@@ -30,6 +30,15 @@ class InitiativeListItem(BaseModel):
     budget_amount: float | None = None
     currency: str
     status: InitiativeStatus
+    # Event details — null for initiatives outside the Events channel
+    event_code: str | None = None
+    event_type_id: int | None = None
+    event_type_name: str | None = None
+    venue: str | None = None
+    city: str | None = None
+    country_code: str | None = None
+    region_id: int | None = None
+    region_name: str | None = None
 
 
 class InitiativeListResponse(BaseModel):
@@ -65,6 +74,13 @@ class EventDetailsInput(BaseModel):
         if not re.fullmatch(r"[A-Z]{2}", value):
             raise ValueError("Country must be a two-letter code, e.g. US")
         return value
+
+
+class EventDetailsUpdate(EventDetailsInput):
+    """Partial: only the fields sent change; send null to clear one. The event code can't be changed."""
+
+    # Reject unknown fields (e.g. event_code) instead of silently ignoring them
+    model_config = ConfigDict(extra="forbid")
 
 
 class InitiativeCreate(BaseModel):
@@ -123,6 +139,8 @@ class InitiativeUpdate(BaseModel):
     budget_amount: float | None = Field(default=None, ge=0, le=999_999_999_999)
     currency: str | None = Field(default=None, pattern=r"^[A-Za-z]{3}$")
     status: InitiativeStatus | None = None
+    # Only for initiatives in the Events channel; only the event fields sent are changed
+    event: EventDetailsUpdate | None = None
 
     @field_validator("name")
     @classmethod
