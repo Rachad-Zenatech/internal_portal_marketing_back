@@ -267,7 +267,7 @@ async def setup():
         print("Seeding navigation items...")
         nav_items = [
             ("DASHBOARD", "Dashboard", "/dashboard", None, 10, "LayoutDashboard", True),
-            ("EVENTS", "Events", "/events", None, 15, "CalendarDays", True),
+            ("INITIATIVES", "Initiatives", "/initiatives", None, 15, "Megaphone", True),
             ("CONFIGURATIONS", "Configurations", "/configuration", None, 20, "Settings", True),
             ("CONFIG_USERS", "Users", "/configuration/users", "CONFIGURATIONS", 21, "Users", True),
             ("CONFIG_ROLES", "Roles & Permissions", "/configuration/roles", "CONFIGURATIONS", 22, "Shield", True),
@@ -291,6 +291,9 @@ async def setup():
                     is_active = true
             """, code, name, path, parent, order, icon, is_menu)
 
+        # Navigation codes that were renamed; remove the old rows (their role grants cascade)
+        await conn.execute("DELETE FROM navigation_items WHERE code = ANY($1::text[])", ["EVENTS"])
+
         print("Seeding permission modules and groups...")
         await conn.execute("TRUNCATE permission_modules CASCADE")
 
@@ -308,8 +311,8 @@ async def setup():
                 ("MAIN_VIEW_DASHBOARD", "View Dashboard", "Access system KPI dashboards and metrics.", 10, [("DASHBOARD", "VIEW")]),
             ],
             "MARKETING": [
-                ("MARKETING_VIEW_EVENTS", "View Events", "View events, their costs, outcomes and performance.", 10, [("EVENTS", "VIEW")]),
-                ("MARKETING_MANAGE_EVENTS", "Manage Events", "Create, edit and change the status of events.", 20, [("EVENTS", "CREATE"), ("EVENTS", "UPDATE"), ("EVENTS", "DELETE")]),
+                ("MARKETING_VIEW_INITIATIVES", "View Initiatives", "View marketing initiatives across all channels, with their budgets, spend and results.", 10, [("INITIATIVES", "VIEW")]),
+                ("MARKETING_MANAGE_INITIATIVES", "Manage Initiatives", "Create, edit and change the status of marketing initiatives.", 20, [("INITIATIVES", "CREATE"), ("INITIATIVES", "UPDATE"), ("INITIATIVES", "DELETE")]),
             ],
             "CONFIGURATIONS": [
                 ("CONFIG_VIEW_USERS", "View Users & Roles", "View all users, roles, and permission assignments.", 10, [("CONFIG_USERS", "VIEW"), ("CONFIG_ROLES", "VIEW")]),

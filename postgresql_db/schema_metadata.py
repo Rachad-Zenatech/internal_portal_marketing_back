@@ -293,3 +293,40 @@ channel_sub_channels = sa.Table(
     sa.Column("channel_id", sa.INTEGER(), sa.ForeignKey("channels.id", name="channel_sub_channels_channel_id_fkey", ondelete="CASCADE"), primary_key=True),
     sa.Column("sub_channel_id", sa.INTEGER(), sa.ForeignKey("sub_channels.id", name="channel_sub_channels_sub_channel_id_fkey", ondelete="CASCADE"), primary_key=True),
 )
+
+
+# --- Marketing initiatives (any channel) ---
+
+initiatives = sa.Table(
+    "initiatives", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column("name", sa.VARCHAR(length=255), nullable=False),
+    sa.Column("brand_id", sa.INTEGER(), sa.ForeignKey("brands.id", name="initiatives_brand_id_fkey"), nullable=False),
+    sa.Column("channel_id", sa.INTEGER(), sa.ForeignKey("channels.id", name="initiatives_channel_id_fkey"), nullable=False),
+    sa.Column("sub_channel_id", sa.INTEGER(), sa.ForeignKey("sub_channels.id", name="initiatives_sub_channel_id_fkey")),
+    sa.Column("owner_user_id", sa.UUID(), sa.ForeignKey("users.id", name="initiatives_owner_user_id_fkey", ondelete="SET NULL")),
+    sa.Column("start_date", sa.DATE()),
+    sa.Column("end_date", sa.DATE()),
+    sa.Column("budget_amount", sa.NUMERIC(precision=14, scale=2)),
+    sa.Column("currency", sa.CHAR(length=3), nullable=False, server_default=sa.text("'USD'::bpchar")),
+    sa.Column("status", sa.VARCHAR(length=20), nullable=False, server_default=sa.text("'PLANNED'::character varying")),
+    sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="initiatives_created_by_fkey", ondelete="SET NULL")),
+    sa.Column("updated_by", sa.UUID(), sa.ForeignKey("users.id", name="initiatives_updated_by_fkey", ondelete="SET NULL")),
+    # The sub-channel must be one that belongs to the chosen channel
+    sa.ForeignKeyConstraint(
+        ["channel_id", "sub_channel_id"],
+        ["channel_sub_channels.channel_id", "channel_sub_channels.sub_channel_id"],
+        name="initiatives_channel_sub_channel_fkey",
+    ),
+    sa.CheckConstraint(
+        "status IN ('PLANNED', 'ACTIVE', 'COMPLETED', 'PAUSED', 'CANCELLED')",
+        name="initiatives_status_check",
+    ),
+    sa.CheckConstraint("end_date IS NULL OR start_date IS NULL OR end_date >= start_date", name="initiatives_dates_check"),
+    sa.CheckConstraint("budget_amount IS NULL OR budget_amount >= 0", name="initiatives_budget_check"),
+    sa.Index("idx_initiatives_channel", "channel_id"),
+    sa.Index("idx_initiatives_brand", "brand_id"),
+    sa.Index("idx_initiatives_status", "status"),
+)
