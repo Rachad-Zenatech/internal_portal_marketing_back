@@ -18,6 +18,7 @@ def initiative(client, admin, ref):
         "start_date": "2026-12-01",
         "end_date": "2026-12-03",
         "budget_amount": 10000,
+        "event": {"city": "Las Vegas", "country_code": "US"},
     }
     response = client.post("/api/initiatives", json=payload, headers=admin["headers"])
     assert response.status_code == 201, response.text

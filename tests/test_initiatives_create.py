@@ -17,6 +17,8 @@ def _payload(ref, **overrides) -> dict:
         "end_date": "2026-12-03",
         "budget_amount": 12500,
         "currency": "usd",
+        # In-person events need a city and a country
+        "event": {"city": "Las Vegas", "country_code": "US"},
     }
     payload.update(overrides)
     return payload

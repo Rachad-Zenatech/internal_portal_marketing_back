@@ -46,7 +46,21 @@ _CONSTRAINT_MESSAGES = {
     "initiatives_dates_check": "End date can't be before the start date.",
     "initiatives_budget_check": "Budget can't be negative.",
     "initiatives_status_check": "Unknown status.",
+    "event_details_event_type_id_fkey": "Unknown event type.",
+    "event_details_region_id_fkey": "Unknown region.",
+    "event_details_country_code_check": "Country must be a two-letter code, e.g. US.",
 }
+
+EVENTS_CHANNEL = "EVENTS"
+
+# Event fields each sub-channel requires: (fields, message). Still an open question with Marketing,
+# so it lives here in one place. Sub-channels not listed (Virtual Events, Webinars) need nothing.
+EVENT_REQUIRED_FIELDS: dict[str, tuple[tuple[str, ...], str]] = {
+    "IN_PERSON_EVENTS": (("city", "country_code"), "In-person events need a city and a country."),
+    "SPONSORSHIPS": (("country_code",), "Sponsorships need a country."),
+}
+
+_EVENT_FIELDS = ("event_type_id", "venue", "city", "country_code", "region_id")
 
 
 class InitiativeValidationError(Exception):
@@ -135,11 +149,29 @@ async def create_initiative(data: InitiativeCreate, actor_id: UUID) -> dict:
     """Insert an initiative and its audit entry in one transaction; return it as the list shows it."""
     values = data.model_dump()
     values["owner_user_id"] = values["owner_user_id"] or actor_id
+    event = values.pop("event")
 
     pool = get_pool()
     async with pool.acquire() as conn:
         try:
             async with conn.transaction():
+                codes = await conn.fetchrow(
+                    "SELECT c.code AS channel, s.code AS sub_channel "
+                    "FROM channels c LEFT JOIN sub_channels s ON s.id = $2 WHERE c.id = $1",
+                    values["channel_id"], values["sub_channel_id"],
+                )
+                if codes is None:
+                    raise InitiativeValidationError(_CONSTRAINT_MESSAGES["initiatives_channel_id_fkey"])
+                is_event = codes["channel"] == EVENTS_CHANNEL
+                if event is not None and not is_event:
+                    raise InitiativeValidationError("Event details can only be added to initiatives in the Events channel.")
+                if is_event:
+                    # Every event gets a details row (and so a code), even with no details sent
+                    event = event or dict.fromkeys(_EVENT_FIELDS)
+                    required, message = EVENT_REQUIRED_FIELDS.get(codes["sub_channel"], ((), ""))
+                    if any(event[field] is None for field in required):
+                        raise InitiativeValidationError(message)
+
                 initiative_id = await conn.fetchval(
                     """
                     INSERT INTO initiatives (name, brand_id, channel_id, sub_channel_id,
@@ -154,6 +186,18 @@ async def create_initiative(data: InitiativeCreate, actor_id: UUID) -> dict:
                     values["start_date"], values["end_date"], values["budget_amount"], values["currency"],
                     values["status"], actor_id,
                 )
+                if is_event:
+                    event_code = await conn.fetchval(
+                        """
+                        INSERT INTO event_details (initiative_id, event_type_id, venue, city, country_code, region_id,
+                                                   created_by, updated_by)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+                        RETURNING event_code
+                        """,
+                        initiative_id, event["event_type_id"], event["venue"], event["city"],
+                        event["country_code"], event["region_id"], actor_id,
+                    )
+                    values["event"] = {**event, "event_code": event_code}
                 await log_audit(conn, actor_id, "CREATE", AUDIT_ENTITY, initiative_id, new_value=values)
         except (asyncpg.ForeignKeyViolationError, asyncpg.CheckViolationError) as exc:
             raise _constraint_error(exc) from exc

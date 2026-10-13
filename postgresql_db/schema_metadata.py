@@ -345,3 +345,27 @@ initiatives = sa.Table(
     sa.Index("idx_initiatives_brand", "brand_id"),
     sa.Index("idx_initiatives_status", "status"),
 )
+
+
+# --- Event details (one row per event initiative, in-person or virtual) ---
+
+# Codes look like EVT-2026-0007: the year the row was created + a global counter. They are generated in
+# the database by next_event_code() (reads event_code_seq once), so concurrent creates can't collide.
+# The sequence and function are created by hand in the event_details migration, because Alembic
+# autogenerate doesn't track either.
+event_details = sa.Table(
+    "event_details", metadata,
+    sa.Column("initiative_id", sa.UUID(), sa.ForeignKey("initiatives.id", name="event_details_initiative_id_fkey", ondelete="CASCADE"), primary_key=True),
+    sa.Column("event_code", sa.VARCHAR(length=20), nullable=False, server_default=sa.text("next_event_code()")),
+    sa.Column("event_type_id", sa.INTEGER(), sa.ForeignKey("event_types.id", name="event_details_event_type_id_fkey")),
+    sa.Column("venue", sa.VARCHAR(length=255)),
+    sa.Column("city", sa.VARCHAR(length=120)),
+    sa.Column("country_code", sa.CHAR(length=2)),
+    sa.Column("region_id", sa.INTEGER(), sa.ForeignKey("regions.id", name="event_details_region_id_fkey")),
+    sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="event_details_created_by_fkey", ondelete="SET NULL")),
+    sa.Column("updated_by", sa.UUID(), sa.ForeignKey("users.id", name="event_details_updated_by_fkey", ondelete="SET NULL")),
+    sa.UniqueConstraint("event_code", name="event_details_event_code_key"),
+    sa.CheckConstraint("country_code ~ '^[A-Z]{2}$'", name="event_details_country_code_check"),
+)

@@ -18,6 +18,10 @@ load_dotenv(os.path.join(ROOT, ".env"))
 load_dotenv(os.path.join(ROOT, ".env.local"), override=True)
 # Dev sign-in is only available outside production
 os.environ.setdefault("APP_ENV", "development")
+# Every test signs in fresh users from one address, which would trip the per-minute sign-in limit.
+# Raise it for the test run only (read when server.py is imported); real limits are unchanged.
+for _limit in ("RATE_LIMIT_AUTH_PER_WINDOW", "RATE_LIMIT_REQUESTS_PER_WINDOW", "RATE_LIMIT_IP_CEILING_PER_WINDOW"):
+    os.environ.setdefault(_limit, "1000000")
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
