@@ -289,6 +289,9 @@ goals = _reference_table(
 primary_kpis = _reference_table("primary_kpis")
 performance_ratings = _reference_table("performance_ratings", sa.Column("description", sa.TEXT()))
 scale_or_cut_options = _reference_table("scale_or_cut_options", sa.Column("description", sa.TEXT()))
+# Used by event details
+regions = _reference_table("regions")
+event_types = _reference_table("event_types")
 
 channel_sub_channels = sa.Table(
     "channel_sub_channels", metadata,

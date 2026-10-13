@@ -29,3 +29,5 @@ class ReferenceDataResponse(BaseModel):
     primary_kpis: list[ReferenceItem]
     performance_ratings: list[DescribedReferenceItem]
     scale_or_cut_options: list[DescribedReferenceItem]
+    regions: list[ReferenceItem]
+    event_types: list[ReferenceItem]

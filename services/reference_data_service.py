@@ -26,6 +26,8 @@ _SIMPLE_LISTS = {
         "SELECT id, code, name, funnel_stage_id, sort_order FROM goals "
         "WHERE is_active ORDER BY sort_order, name"
     ),
+    "regions": "SELECT id, code, name, sort_order FROM regions WHERE is_active ORDER BY sort_order, name",
+    "event_types": "SELECT id, code, name, sort_order FROM event_types WHERE is_active ORDER BY sort_order, name",
 }
 
 _CHANNELS_SQL = """

@@ -131,7 +131,7 @@ Focus on the **Events** channel working end to end, built on the shared initiati
 - [ ] **I3b** — Upload initiatives: import a spreadsheet of initiatives (any channel), with a preview and validation before saving.
 - [x] **I4** — Initiative detail, edit and status (Planned → Active → Completed / Paused / Cancelled), recorded in the audit log.
 - [ ] **I5** — Budget and spend: spend lines per initiative by category and period, with currency and source; budget vs spend shown.
-- [ ] **E1** — Event details for event initiatives: event code, venue, city, country, region.
+- [ ] **E1** — Event details for event initiatives, in-person and virtual in one table (no separate "hybrid"). The sub-channel decides the format — In-Person Events and Sponsorships are in-person; Virtual Events and Webinars are virtual — so there is no extra "virtual" flag to keep in sync. Shared: event code, event type, region. In-person adds venue, city, country; virtual adds platform and event link.
 - [ ] **E2** — Event costs: categories (booth/space, materials, staff time, travel, other); travel-cost file upload matched by event code until the travel management system feeds it.
 - [ ] **I6** — Outcomes: funnel metrics per initiative per period — manual entry, with source tracking ready for later syncs.
 - [ ] **I7** — "Worth it" view: evaluation settings, cost-per-outcome ladder, ROI, suggested performance rating, recorded scale-or-cut decision.
