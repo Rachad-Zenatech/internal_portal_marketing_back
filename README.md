@@ -124,11 +124,13 @@ internal_portal_marketing_back/
 ## Local Development & Setup
 
 ### 1. Python Environment Setup
+Use **Python 3.12** (production and CI run 3.12). Newer versions such as 3.14 break the compiled dependencies, so name the version explicitly:
 ```bash
-python3 -m venv venv
-# On Windows:
+# On Windows (Python launcher):
+py -3.12 -m venv venv
 venv\Scripts\activate
 # On Linux / WSL:
+python3.12 -m venv venv
 source venv/bin/activate
 ```
 

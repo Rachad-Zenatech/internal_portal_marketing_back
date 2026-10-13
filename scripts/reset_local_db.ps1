@@ -78,10 +78,14 @@ if (Test-Path "venv\Scripts\python.exe") {
     & "venv\Scripts\python.exe" -m postgresql_db.setup_pbac_schema
     & "venv\Scripts\python.exe" -m postgresql_db.setup_graph_sync_schema
     & "venv\Scripts\python.exe" -m postgresql_db.notifications_schema
+    Write-Host "?? [Disposable DB] Running Alembic migrations to branch HEAD..." -ForegroundColor Cyan
+    & "venv\Scripts\python.exe" -m alembic upgrade head
 } elseif (Get-Command python -ErrorAction SilentlyContinue) {
     python -m postgresql_db.setup_pbac_schema
     python -m postgresql_db.setup_graph_sync_schema
     python -m postgresql_db.notifications_schema
+    Write-Host "?? [Disposable DB] Running Alembic migrations to branch HEAD..." -ForegroundColor Cyan
+    python -m alembic upgrade head
 }
 
 Write-Host "? [Disposable DB] Local database successfully recreated and schemas applied!" -ForegroundColor Green

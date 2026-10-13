@@ -39,53 +39,81 @@ Rules:
 - Where both a HubSpot value and a manual value exist, show the HubSpot value with the manual adjustment visible — neither silently overwrites the other.
 - The **event code** is unique and stable, because uploads (and later the travel system) match on it. *Open: confirm which identifier the travel system will use.*
 
+## Marketing's taxonomy (from Marketing's channel sheet)
+
+Marketing classifies every initiative the same way. These lists are **reference data** (editable tables, not hard-coded), because they will grow.
+
+| List | Values |
+|---|---|
+| **Channel** | Paid Search, Paid Social, SEO, Content Marketing, Email Marketing, Marketing Automation, **Events**, Partnerships, Affiliates, Influencer Marketing, PR / Communications, Outbound Marketing, Product-Led Growth, Marketplace, Other |
+| **Sub-channel** | Google Ads, Bing Ads, LinkedIn Ads, Meta Ads, X (Twitter) Ads, YouTube Ads, Reddit Ads, TikTok Ads, Display / Programmatic, Organic Search, Blog, Guest Posts, Email Newsletter, Email Nurture, Cold Email, Webinars, Virtual Events, **In-Person Events**, Sponsorships, Referrals, Resellers, Review Sites (G2, Capterra), App Marketplace, Community, Other |
+| **Funnel stage** | Awareness, Consideration, Conversion, Retention |
+| **Goal** | Traffic, Engagement, Brand Awareness, Leads, MQLs, SQLs, Trials, Demos, Customers, Revenue, Retention, Upsell, Expansion |
+| **Primary KPI** | Impressions, CTR, CPC, CPM, CPL, CP-MQL, CP-SQL, CP-Trial, CAC, Conversion Rate, Pipeline Generated, Revenue, ROI, LTV/CAC |
+| **Performance rating** | High, Medium, Low, Test |
+| **Scale or cut** | Scale, Optimize, Maintain, Pause, Stop, Test More |
+| **Brand** | Othership, DeskFlex, WorkAware, PsPortal, Tillerstack, K9Sky, Jadian, Pace+, Zoo Office, TBD/All |
+
+**Rule 1 — funnel logic must align** (enforced on save):
+
+| Funnel stage | Allowed goals |
+|---|---|
+| Awareness | Traffic, Engagement, Brand Awareness |
+| Consideration | Leads, MQLs, SQLs |
+| Conversion | Trials, Demos, Customers, Revenue |
+| Retention | Retention, Expansion, Upsell |
+
+**Rule 2 — performance rating:** High = strong ROI, good CAC, scalable · Medium = works but needs optimization · Low = inefficient or poor quality · Test = new / not enough data yet.
+
+**Rule 3 — scale or cut:** Scale = increase budget & effort · Optimize = fix targeting, creative, funnel · Maintain = keep as-is · Pause = temporarily stop · Stop = kill permanently · Test More = not enough data.
+
+**Consequence for the data model:** an event is not a separate kind of thing — it is an initiative whose channel is **Events** (sub-channel In-Person Events, Virtual Events, Webinars or Sponsorships). So events and campaigns share **one** core record (brand, channel, sub-channel, funnel stage, goal, primary KPI, target, budget, costs, outcomes, rating, decision). Physical events add their own details (venue, city, country, dates, event code) in a linked table. "Physical events first" = initiatives with channel Events / sub-channel In-Person Events.
+
 ## "Was it worth it?" — evaluation design
 
-What counts as success differs per event/campaign, so each one carries its own evaluation settings:
+Uses Marketing's own framework above. Each initiative carries its own settings, because success differs per campaign:
 
 | Setting | Meaning | Example |
 |---|---|---|
-| **Primary goal** | What the event was for | Awareness, Lead generation, Pipeline, Revenue |
-| **Target** | The number that means success for that goal | Cost per lead ≤ $100 |
-| **Maturity window** | Days before the verdict is final (deals close late) | 180 days |
-| **Revenue basis** | Which revenue counts for ROI | Closed revenue (v1); weighted pipeline and lifetime value later |
+| **Funnel stage + goal** | What it was for (must satisfy Rule 1) | Consideration → Leads |
+| **Primary KPI + target** | The number that means success | CPL ≤ $100 |
+| **Maturity window** | Days before the rating is final (deals close late) | 180 days |
+| **Revenue basis** | Which revenue counts for ROI | Closed revenue (v1); weighted pipeline and LTV later |
 
-Goal → metric:
+**Performance rating** — the system **suggests** one from actual vs target:
+- **High** — target met (or beaten)
+- **Medium** — within 20% of target
+- **Low** — missed by more than 20%
+- **Test** — still inside the maturity window, or not enough data
 
-| Goal | Judged on |
-|---|---|
-| Awareness | Cost per visitor / impression |
-| Lead generation | Cost per lead |
-| Pipeline | Cost per demo / SQL |
-| Revenue | ROI (revenue ÷ cost) |
+**Scale or cut** — the **decision**, made by a person (Marketing), recorded with who decided and when. The system can suggest a default (High → Scale, Medium → Optimize, Low → Pause/Stop, Test → Test More), but the decision is theirs.
 
-**Verdict:** ✅ hit target · ⚠️ within 20% of target · ❌ missed target · ⏳ maturing (inside the maturity window).
+Always shown alongside, whatever the KPI: total cost, the cost-per-outcome ladder (impression → click/visitor → lead → MQL → SQL → trial/demo → customer), pipeline generated, revenue and ROI.
 
-Always shown alongside the verdict, whatever the goal: total cost, the cost-per-outcome ladder (visitor → lead → demo → follow-up → customer) and ROI.
+**Defaults by sub-channel** pre-fill the settings (e.g. In-Person Events → Conversion / Demos / CP-SQL target, 180 days); Marketing can override.
 
-**Defaults by event type** pre-fill the settings (e.g. trade show → Pipeline, cost per demo ≤ $1,000, 180 days); Marketing can override per event.
+**Later options:** weighted-pipeline and LTV revenue bases (LTV/CAC ≥ 3 is a common benchmark); comparison with similar initiatives and the prior year.
 
-**Later options:** weighted-pipeline and customer-lifetime-value revenue bases (LTV ≥ 3× acquisition cost is a common benchmark); comparison with similar events and the prior year; a weighted multi-metric scorecard.
-
-*Open: review these options with Robert and Tom — they decide what "worth it" means.*
+*Open: confirm the suggestion thresholds (e.g. "within 20%") and the default settings per sub-channel with Robert and Tom.*
 
 ## Task list
 
 Each task is small and built end to end (database → backend → web → mobile where relevant), then reviewed before the next.
 
 ### Groundwork
-- [ ] **G1** — Fix `postgresql_db/schema_metadata.py` drift so `alembic check` is clean; create the baseline migration.
+- [x] **G1** — Fix `postgresql_db/schema_metadata.py` drift so `alembic check` is clean; create the baseline migration; run migrations in the reset scripts; fail CI on drift.
+- [ ] **G1b** — Reference data: tables and seed values for brands, channels, sub-channels, funnel stages, goals (with Rule 1 links), primary KPIs, performance ratings and scale-or-cut options; read-only list API.
 - [ ] **G2** — Events navigation item and permissions; empty Events page (web) and tab (mobile).
 - [ ] **G3** — Install Android Studio and create the emulator.
 
 ### Events (physical)
-- [ ] **E1** — List events: `events` table (code, name, type, dates, venue, city, country, brand, region, owner, department, budget + currency, status, `format` = in-person), list API, web list, sample data.
+- [ ] **E1** — List events: shared initiative record (name, brand, channel = Events, sub-channel, funnel stage, goal, primary KPI, owner, budget + currency, status) plus physical-event details (event code, dates, venue, city, country, region); list API filtered to In-Person Events; web list; sample data.
 - [ ] **E2** — Create an event (web form, validation; status starts Planned).
 - [ ] **E3** — Event detail page.
 - [ ] **E4** — Edit an event and change status (Planned → Active → Completed / Cancelled), recorded in the audit log.
 - [ ] **E5** — Event costs: cost lines by category (booth, materials, staff time, travel, other), planned vs actual; travel-cost file upload matched by event code.
 - [ ] **E6** — Event outcomes: visitors, leads, demos, follow-ups, customers, revenue — manual entry, with source tracking ready for HubSpot.
-- [ ] **E7** — "Worth it" view: evaluation settings (goal, target, maturity window, revenue basis), cost-per-outcome ladder, ROI and verdict.
+- [ ] **E7** — "Worth it" view: evaluation settings (funnel stage, goal, primary KPI, target, maturity window, revenue basis), cost-per-outcome ladder, ROI, suggested performance rating, and the recorded scale-or-cut decision.
 - [ ] **E8** — Search and filters (brand, region, status, type, dates).
 - [ ] **E9** — Events on mobile: list, detail, verdict.
 
@@ -110,12 +138,14 @@ Columns: Brand, Market/Region, Period Start, Period End, Channel, Sub-Channel, C
 
 ## Open questions
 
-1. Event types Marketing runs (trade show, conference, sponsorship, roadshow, customer event, …)?
-2. Full list of brands and regions?
+1. Do physical events need a finer type within In-Person Events (trade show, conference, roadshow, customer event, …)?
+2. Full list of regions? (Brands are now known — see taxonomy.)
 3. Reporting currency, and where exchange rates come from?
 4. Do events already have codes (Excel / HubSpot)? Which identifier will the travel system use?
-5. "Worth it" defaults per event type — to review with Robert and Tom.
+5. "Worth it" suggestion thresholds and default settings per sub-channel — to review with Robert and Tom.
 6. Confirm expense request / approval workflows are out of scope.
+7. The CEO asked for cost per **visitor**, **demo** and **follow-up**; the Primary KPI list has none of these (it has CP-Trial, CP-SQL). Add CP-Visitor, CP-Demo, CP-Follow-up, or map demo → SQL?
+8. Which Primary KPIs are allowed for each goal (e.g. Leads → CPL, Customers → CAC)? Not in the sheet yet.
 
 ## Local development
 
