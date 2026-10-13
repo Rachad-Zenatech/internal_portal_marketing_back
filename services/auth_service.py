@@ -13,12 +13,16 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-JWT_SECRET = os.environ.get("JWT_SECRET") or os.environ.get("SESSION_SECRET")
-if not JWT_SECRET or len(JWT_SECRET) < 32:
-    raise RuntimeError("JWT_SECRET or SESSION_SECRET must be configured with at least 32 characters")
+# No fallback: tokens must be signed with a secret of their own, never the session secret or a default
+JWT_SECRET = os.environ.get("JWT_SECRET", "")
+if len(JWT_SECRET) < 32:
+    raise RuntimeError("JWT_SECRET must be configured with at least 32 characters")
 JWT_ALGORITHM = "HS256"
-JWT_ISSUER = os.getenv("JWT_ISSUER", "zenatech-internal-portal")
-ALLOWED_JWT_ISSUERS = {"zenatech-internal-portal", "app-template-auth", JWT_ISSUER}
+JWT_ISSUER = os.getenv("JWT_ISSUER", "marketing-portal")
+# Tokens are only accepted from this app's issuer, plus any listed in JWT_ACCEPTED_ISSUERS (comma-separated)
+ALLOWED_JWT_ISSUERS = [JWT_ISSUER] + [
+    iss.strip() for iss in os.getenv("JWT_ACCEPTED_ISSUERS", "").split(",") if iss.strip() and iss.strip() != JWT_ISSUER
+]
 AUTH_COOKIE_NAME = os.getenv("AUTH_COOKIE_NAME", "access_token")
 AUTH_COOKIE_MAX_AGE = max(300, int(os.getenv("AUTH_TOKEN_TTL_SECONDS", "7200")))
 
@@ -53,16 +57,13 @@ def create_access_token(user_id: UUID, is_super_admin: bool):
 # Helper to verify token and extract user_id
 def verify_token(token: str):
     try:
-        payload = jwt.decode(
+        return jwt.decode(
             token,
             JWT_SECRET,
             algorithms=[JWT_ALGORITHM],
-            options={"require": ["sub", "exp", "iat"], "verify_iss": False},
+            issuer=ALLOWED_JWT_ISSUERS,
+            options={"require": ["sub", "exp", "iat", "iss"]},
         )
-        iss = payload.get("iss")
-        if iss and iss not in ALLOWED_JWT_ISSUERS:
-            logger.debug(f"Token issuer {iss} not in allowed list, but accepting matching secret")
-        return payload
     except jwt.PyJWTError:
         return None
 
@@ -509,41 +510,23 @@ async def get_current_user_id_dependency(
     payload = verify_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail='Invalid token')
-    user_id = None
-    sub_raw = payload.get('sub')
-    if sub_raw:
-        try:
-            user_id = UUID(str(sub_raw))
-        except (KeyError, TypeError, ValueError):
-            user_id = None
+    # User endpoints only accept tokens for a real user. Service tokens (sub "service:...") and
+    # tokens for unknown users are rejected — never mapped to another account.
+    try:
+        user_id = UUID(str(payload["sub"]))
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(status_code=401, detail='Invalid token') from None
 
     import time
     now_ts = time.time()
-    user = None
-    if user_id:
-        cached = _user_auth_cache.get(user_id)
-        if cached and (now_ts - cached["time"]) < 30.0:
-            user = cached["user"]
-        else:
-            user = await fetch_one(
-                "SELECT id, last_activity_at, last_logout_at, is_super_admin FROM users WHERE id = $1 AND deleted_at IS NULL AND is_active = true",
-                user_id,
-            )
-
-    if not user and (payload.get("is_service_token") or payload.get("email")):
-        if payload.get("email"):
-            user = await fetch_one(
-                "SELECT id, last_activity_at, last_logout_at, is_super_admin FROM users WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL AND is_active = true",
-                payload["email"],
-            )
-        if not user and payload.get("is_service_token"):
-            user = await fetch_one(
-                "SELECT id, last_activity_at, last_logout_at, is_super_admin FROM users WHERE is_super_admin = true AND deleted_at IS NULL AND is_active = true ORDER BY created_at ASC LIMIT 1",
-            )
-            if not user:
-                user = await fetch_one(
-                    "SELECT id, last_activity_at, last_logout_at, is_super_admin FROM users WHERE deleted_at IS NULL AND is_active = true ORDER BY created_at ASC LIMIT 1",
-                )
+    cached = _user_auth_cache.get(user_id)
+    if cached and (now_ts - cached["time"]) < 30.0:
+        user = cached["user"]
+    else:
+        user = await fetch_one(
+            "SELECT id, last_activity_at, last_logout_at, is_super_admin FROM users WHERE id = $1 AND deleted_at IS NULL AND is_active = true",
+            user_id,
+        )
 
     if not user:
         raise HTTPException(status_code=401, detail="User is inactive or no longer exists")
@@ -561,7 +544,7 @@ async def get_current_user_id_dependency(
     if user.get("last_activity_at"):
         if now_dt - user["last_activity_at"] > datetime.timedelta(minutes=30):
             from postgresql_db.database import execute
-            if payload.get("is_super_admin") or payload.get("is_service_token"):
+            if payload.get("is_super_admin"):
                 await execute("UPDATE users SET last_activity_at = now(), last_logout_at = NULL WHERE id = $1", user_id)
             else:
                 await execute("UPDATE users SET last_logout_at = now() WHERE id = $1", user_id)

@@ -10,13 +10,11 @@ from typing import Dict, List, Set, Optional, Any
 from fastapi import HTTPException, Security, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
-import os
+
+# One secret, algorithm and issuer for the whole app — no hard-coded fallback
+from services.auth_service import ALLOWED_JWT_ISSUERS, JWT_ALGORITHM, JWT_ISSUER, JWT_SECRET
 
 logger = logging.getLogger(__name__)
-
-JWT_SECRET = os.environ.get("SESSION_SECRET") or os.environ.get("JWT_SECRET") or "OU2YW8HGoJJMb7+aAVjoxRXah2gSUtvPLPlzK8G6j9c="
-JWT_ALGORITHM = "HS256"
-JWT_ISSUER = "zenatech-internal-portal"
 
 security_bearer = HTTPBearer(auto_error=False)
 
@@ -133,18 +131,19 @@ def require_application_scope(required_scope: str, allowed_services: Optional[Li
                 token,
                 JWT_SECRET,
                 algorithms=[JWT_ALGORITHM],
-                options={"verify_exp": True},
+                issuer=ALLOWED_JWT_ISSUERS,
+                options={"require": ["exp", "iss"]},
             )
         except jwt.ExpiredSignatureError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Service token has expired",
             )
-        except Exception as exc:
+        except jwt.PyJWTError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Invalid token signature: {exc}",
-            )
+                detail="Invalid token",
+            ) from None
 
         # 1. Identify if this is a Machine-to-Machine Service Token or a User Token
         is_service_token = payload.get("is_service_token", False)

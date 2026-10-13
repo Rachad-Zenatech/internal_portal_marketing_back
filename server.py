@@ -256,9 +256,13 @@ app.include_router(initiative_router, prefix="/api", tags=["Initiatives"], depen
 
 
 # --- Session Middleware ---
+# No default: a known session secret would let anyone forge the SSO login session
+_session_secret = os.environ.get("SESSION_SECRET", "")
+if len(_session_secret) < 32:
+    raise RuntimeError("SESSION_SECRET must be configured with at least 32 characters")
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.environ.get("SESSION_SECRET", "default_session_secret_key_needs_32_characters!"),
+    secret_key=_session_secret,
     same_site="lax",
     https_only=os.getenv("SESSION_COOKIE_SECURE", "true" if _is_prod else "false").lower() in ("true", "1", "yes"),
     max_age=3600,

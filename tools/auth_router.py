@@ -244,14 +244,16 @@ async def logout(request: Request):
 
     if token:
         import jwt
-        from services.auth_service import JWT_SECRET, JWT_ALGORITHM, JWT_ISSUER
+        from services.auth_service import ALLOWED_JWT_ISSUERS, JWT_ALGORITHM, JWT_SECRET
         from services.cache_service import emit_cache_invalidation
         try:
+            # Expired tokens may still log out, but only tokens this app issued
             payload = jwt.decode(
                 token,
                 JWT_SECRET,
                 algorithms=[JWT_ALGORITHM],
-                options={"verify_exp": False, "require": ["sub", "iat"], "verify_iss": False}
+                issuer=ALLOWED_JWT_ISSUERS,
+                options={"verify_exp": False, "require": ["sub", "iat", "iss"]},
             )
         except jwt.PyJWTError:
             payload = None
@@ -285,21 +287,25 @@ async def logout(request: Request):
 
 
 
+def _require_dev_login_enabled() -> None:
+    """Dev sign-in skips Microsoft SSO, so it only exists when APP_ENV is explicitly "development"."""
+    if os.getenv("APP_ENV", "").lower() != "development":
+        raise HTTPException(status_code=404, detail="Not found")
+
+
 @router.get("/auth/dev-login")
 async def dev_login(email: str):
-    if os.getenv("APP_ENV", "development").lower() == "production":
-        raise HTTPException(status_code=404, detail="Endpoint not available in production")
+    _require_dev_login_enabled()
 
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5177").rstrip("/")
 
     pool = get_pool()
     async with pool.acquire() as conn:
-        user = await conn.fetchrow("SELECT id, is_super_admin FROM users WHERE email = $1 AND is_active = true", email)
+        user = await conn.fetchrow(
+            "SELECT id, is_super_admin FROM users WHERE lower(email) = lower($1) AND is_active = true", email
+        )
         if not user:
-            user = await conn.fetchrow("SELECT id, is_super_admin FROM users WHERE is_active = true ORDER BY is_super_admin DESC LIMIT 1")
-            if not user:
-                url = f"{frontend_url}/login?error=account_not_found"
-                return RedirectResponse(url=url)
+            return RedirectResponse(url=f"{frontend_url}/login?error=account_not_found")
 
         await conn.execute("UPDATE users SET last_activity_at = now(), last_logout_at = NULL WHERE id = $1", user['id'])
         token = create_access_token(user['id'], bool(user['is_super_admin']))
@@ -316,9 +322,8 @@ class DevLoginRequest(BaseModel):
 
 @router.post("/auth/dev-login")
 async def dev_login_json(req: DevLoginRequest):
-    """Non-production login for the mobile app, which cannot follow the web redirect."""
-    if os.getenv("APP_ENV", "development").lower() == "production":
-        raise HTTPException(status_code=404, detail="Endpoint not available in production")
+    """Development-only login for the mobile app, which cannot follow the web redirect."""
+    _require_dev_login_enabled()
 
     pool = get_pool()
     async with pool.acquire() as conn:
