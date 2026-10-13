@@ -261,7 +261,7 @@ workflow_assignments = sa.Table(
 
 # --- Marketing reference data (taxonomy from Marketing's channel sheet) ---
 
-def _reference_table(name: str, *extra: sa.Column) -> sa.Table:
+def _reference_table(name: str, *extra: sa.Column | sa.Constraint) -> sa.Table:
     return sa.Table(
         name, metadata,
         sa.Column("id", sa.INTEGER(), primary_key=True),
@@ -283,6 +283,8 @@ goals = _reference_table(
     "goals",
     # Rule 1: each goal belongs to exactly one funnel stage
     sa.Column("funnel_stage_id", sa.INTEGER(), sa.ForeignKey("funnel_stages.id", name="goals_funnel_stage_id_fkey"), nullable=False),
+    # Target for initiatives' (goal, funnel stage) foreign key, which enforces Rule 1
+    sa.UniqueConstraint("id", "funnel_stage_id", name="goals_id_funnel_stage_id_key"),
 )
 primary_kpis = _reference_table("primary_kpis")
 performance_ratings = _reference_table("performance_ratings", sa.Column("description", sa.TEXT()))
@@ -310,6 +312,9 @@ initiatives = sa.Table(
     sa.Column("budget_amount", sa.NUMERIC(precision=14, scale=2)),
     sa.Column("currency", sa.CHAR(length=3), nullable=False, server_default=sa.text("'USD'::bpchar")),
     sa.Column("status", sa.VARCHAR(length=20), nullable=False, server_default=sa.text("'PLANNED'::character varying")),
+    sa.Column("funnel_stage_id", sa.INTEGER(), sa.ForeignKey("funnel_stages.id", name="initiatives_funnel_stage_id_fkey")),
+    sa.Column("goal_id", sa.INTEGER(), sa.ForeignKey("goals.id", name="initiatives_goal_id_fkey")),
+    sa.Column("primary_kpi_id", sa.INTEGER(), sa.ForeignKey("primary_kpis.id", name="initiatives_primary_kpi_id_fkey")),
     sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="initiatives_created_by_fkey", ondelete="SET NULL")),
@@ -320,6 +325,13 @@ initiatives = sa.Table(
         ["channel_sub_channels.channel_id", "channel_sub_channels.sub_channel_id"],
         name="initiatives_channel_sub_channel_fkey",
     ),
+    # Rule 1: the goal must belong to the chosen funnel stage
+    sa.ForeignKeyConstraint(
+        ["goal_id", "funnel_stage_id"],
+        ["goals.id", "goals.funnel_stage_id"],
+        name="initiatives_goal_funnel_stage_fkey",
+    ),
+    sa.CheckConstraint("goal_id IS NULL OR funnel_stage_id IS NOT NULL", name="initiatives_goal_requires_stage_check"),
     sa.CheckConstraint(
         "status IN ('PLANNED', 'ACTIVE', 'COMPLETED', 'PAUSED', 'CANCELLED')",
         name="initiatives_status_check",
