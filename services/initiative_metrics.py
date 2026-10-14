@@ -80,15 +80,19 @@ def cost_ladder(cost: float, counts: dict[str, float]) -> list[dict]:
     return steps
 
 
-def summary_ratios(cost: float, counts: dict[str, float], revenue: float | None) -> dict:
-    """Ratios that sit outside the ladder: click-through, cost per click / thousand impressions, ROI."""
+def summary_ratios(cost: float, counts: dict[str, float], revenue: float | None, channel_code: str | None = None) -> dict:
+    """Ratios that sit outside the ladder: click-through, cost per click / thousand impressions, ROI.
+
+    The ad ratios are only given where they mean something for the channel (never on an event).
+    """
     impressions, clicks = counts.get("IMPRESSIONS"), counts.get("CLICKS")
-    return {
+    ratios = {
         "ctr": _percent(_ratio(clicks, impressions)),
         "cpc": _money(_ratio(cost, clicks)) if cost else None,
         "cpm": _money(_ratio(cost * 1000, impressions)) if cost else None,
-        "roi_percent": roi_percent(cost, revenue),
     }
+    fits = {key: value if kpi_fits_channel(key.upper(), channel_code) else None for key, value in ratios.items()}
+    return {**fits, "roi_percent": roi_percent(cost, revenue)}
 
 
 # --- Primary KPIs: how to read each one's actual value, and which direction is better ---
@@ -126,19 +130,68 @@ KPI_DEFINITIONS: dict[str, KpiDefinition] = {
 # Not calculated yet: Conversion Rate needs Marketing to say which stage to which; LTV/CAC needs a lifetime value source
 UNSUPPORTED_KPIS = {"CONVERSION_RATE", "LTV_CAC"}
 
-# Which primary KPIs make sense for a channel. Ad measures (impressions, CPM, CTR…) mean nothing for a trade show,
-# and booth visitors mean nothing for a search ad. Channels not listed can use any KPI.
+# --- What each channel can record and be judged on (proposed, to confirm with Marketing) ---
+# Ad measures (impressions, clicks, CTR, CPM…) mean nothing for a trade show, and booth visitors and follow-ups
+# mean nothing for a search ad. Only "Other" is open to everything.
+
+# Results a channel can record, in the order the results form shows them
+_SALES = ["LEADS", "MQLS", "SQLS"]
+_WON = ["CUSTOMERS", "PIPELINE", "REVENUE"]
+RESULT_METRICS_BY_CHANNEL: dict[str, list[str]] = {
+    "PAID_SEARCH": ["IMPRESSIONS", "CLICKS", "CONVERSIONS", *_SALES, "TRIALS", *_WON],
+    "PAID_SOCIAL": ["IMPRESSIONS", "CLICKS", "ENGAGEMENTS", "CONVERSIONS", *_SALES, "TRIALS", *_WON],
+    "SEO": ["IMPRESSIONS", "CLICKS", "VISITORS", *_SALES, "TRIALS", *_WON],
+    "CONTENT_MARKETING": ["VISITORS", "ENGAGEMENTS", *_SALES, "TRIALS", *_WON],
+    "EMAIL_MARKETING": ["CLICKS", "VISITORS", *_SALES, "TRIALS", "DEMOS", *_WON],
+    "MARKETING_AUTOMATION": ["CLICKS", "VISITORS", *_SALES, "TRIALS", "DEMOS", *_WON],
+    "EVENTS": ["VISITORS", "LEADS", "FOLLOW_UPS", "DEMOS", "MQLS", "SQLS", *_WON],
+    "PARTNERSHIPS": ["VISITORS", *_SALES, "DEMOS", *_WON],
+    "AFFILIATES": ["CLICKS", "VISITORS", "CONVERSIONS", *_SALES, "TRIALS", *_WON],
+    "INFLUENCER_MARKETING": ["IMPRESSIONS", "CLICKS", "VISITORS", "ENGAGEMENTS", "CONVERSIONS", *_SALES, "TRIALS", *_WON],
+    "PR_COMMUNICATIONS": ["IMPRESSIONS", "VISITORS", "ENGAGEMENTS", *_SALES, *_WON],
+    "OUTBOUND_MARKETING": ["ENGAGEMENTS", *_SALES, "DEMOS", *_WON],
+    "PRODUCT_LED_GROWTH": ["VISITORS", "ENGAGEMENTS", "TRIALS", "CONVERSIONS", *_SALES, *_WON],
+    "MARKETPLACE": ["IMPRESSIONS", "CLICKS", "VISITORS", "CONVERSIONS", *_SALES, "TRIALS", *_WON],
+}
+
+# Primary KPIs a channel can be judged on. Each one only uses results the channel can record (a test checks this);
+# CPC and CPM are left to channels that actually pay per click or per thousand impressions.
 _COST_AND_RETURN = ["CPL", "CP_MQL", "CP_SQL", "CAC", "PIPELINE_GENERATED", "REVENUE", "ROI"]
+_ADS = ["IMPRESSIONS", "CTR", "CPC", "CPM"]
 KPI_CHOICES_BY_CHANNEL: dict[str, list[str]] = {
+    "PAID_SEARCH": [*_ADS, *_COST_AND_RETURN, "CP_TRIAL", "CONVERSION_RATE", "LTV_CAC"],
+    "PAID_SOCIAL": [*_ADS, *_COST_AND_RETURN, "CP_TRIAL", "CONVERSION_RATE", "LTV_CAC"],
+    "SEO": ["IMPRESSIONS", "CTR", "CP_VISITOR", *_COST_AND_RETURN, "CP_TRIAL"],
+    "CONTENT_MARKETING": ["CP_VISITOR", *_COST_AND_RETURN, "CP_TRIAL"],
+    "EMAIL_MARKETING": ["CP_VISITOR", *_COST_AND_RETURN, "CP_TRIAL", "CP_DEMO"],
+    "MARKETING_AUTOMATION": ["CP_VISITOR", *_COST_AND_RETURN, "CP_TRIAL", "CP_DEMO"],
     "EVENTS": ["CP_VISITOR", "CPL", "CP_FOLLOW_UP", "CP_MQL", "CP_SQL", "CP_DEMO", "CAC", "PIPELINE_GENERATED", "REVENUE", "ROI"],
-    "PAID_SEARCH": ["IMPRESSIONS", "CTR", "CPC", "CPM", *_COST_AND_RETURN, "CP_TRIAL", "CONVERSION_RATE", "LTV_CAC"],
-    "PAID_SOCIAL": ["IMPRESSIONS", "CTR", "CPC", "CPM", *_COST_AND_RETURN, "CP_TRIAL", "CONVERSION_RATE", "LTV_CAC"],
+    "PARTNERSHIPS": ["CP_VISITOR", *_COST_AND_RETURN, "CP_DEMO"],
+    "AFFILIATES": ["CPC", "CP_VISITOR", *_COST_AND_RETURN, "CP_TRIAL", "CONVERSION_RATE"],
+    "INFLUENCER_MARKETING": [*_ADS, "CP_VISITOR", *_COST_AND_RETURN, "CP_TRIAL", "CONVERSION_RATE"],
+    "PR_COMMUNICATIONS": ["IMPRESSIONS", "CP_VISITOR", *_COST_AND_RETURN],
+    "OUTBOUND_MARKETING": [*_COST_AND_RETURN, "CP_DEMO"],
+    "PRODUCT_LED_GROWTH": ["CP_VISITOR", *_COST_AND_RETURN, "CP_TRIAL", "CONVERSION_RATE", "LTV_CAC"],
+    "MARKETPLACE": ["IMPRESSIONS", "CTR", "CP_VISITOR", *_COST_AND_RETURN, "CP_TRIAL", "CONVERSION_RATE"],
+}
+
+# The results each calculated KPI is worked out from
+KPI_NEEDS: dict[str, set[str]] = {
+    "IMPRESSIONS": {"IMPRESSIONS"}, "CTR": {"IMPRESSIONS", "CLICKS"}, "CPC": {"CLICKS"}, "CPM": {"IMPRESSIONS"},
+    "CP_VISITOR": {"VISITORS"}, "CPL": {"LEADS"}, "CP_FOLLOW_UP": {"FOLLOW_UPS"}, "CP_MQL": {"MQLS"},
+    "CP_SQL": {"SQLS"}, "CP_TRIAL": {"TRIALS"}, "CP_DEMO": {"DEMOS"}, "CAC": {"CUSTOMERS"},
+    "PIPELINE_GENERATED": {"PIPELINE"}, "REVENUE": {"REVENUE"}, "ROI": {"REVENUE"},
 }
 
 
 def kpi_fits_channel(kpi_code: str | None, channel_code: str | None) -> bool:
     allowed = KPI_CHOICES_BY_CHANNEL.get(channel_code or "")
     return kpi_code is None or allowed is None or kpi_code in allowed
+
+
+def result_fits_channel(metric_code: str, channel_code: str | None) -> bool:
+    allowed = RESULT_METRICS_BY_CHANNEL.get(channel_code or "")
+    return allowed is None or metric_code in allowed
 
 
 def kpi_actual(code: str | None, cost: float, counts: dict[str, float], revenue: float | None, pipeline: float | None) -> float | None:

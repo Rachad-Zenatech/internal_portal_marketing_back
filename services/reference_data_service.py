@@ -5,7 +5,7 @@ tables must call emit_cache_invalidation(scope="master_data", key=REFERENCE_DATA
 """
 from postgresql_db.database import get_pool
 from services.cache_service import master_data_cache
-from services.initiative_metrics import KPI_CHOICES_BY_CHANNEL
+from services.initiative_metrics import KPI_CHOICES_BY_CHANNEL, RESULT_METRICS_BY_CHANNEL
 
 REFERENCE_DATA_CACHE_KEY = "reference_data"
 _CACHE_TTL_SECONDS = 300
@@ -76,8 +76,9 @@ async def get_reference_data() -> dict:
             for r in await conn.fetch(_CHANNELS_SQL)
         ]
 
-    # Which primary KPIs each channel can use (a rule in code, not a table)
+    # Which primary KPIs and results each channel can use (rules in code, not tables)
     result["kpi_choices_by_channel"] = KPI_CHOICES_BY_CHANNEL
+    result["result_metrics_by_channel"] = RESULT_METRICS_BY_CHANNEL
 
     await master_data_cache.set(REFERENCE_DATA_CACHE_KEY, result, ttl_seconds=_CACHE_TTL_SECONDS)
     return result

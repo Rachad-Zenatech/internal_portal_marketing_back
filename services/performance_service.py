@@ -104,12 +104,20 @@ async def save_outcomes(initiative_id: UUID, period_start: date, values: list[di
     async with pool.acquire() as conn:
         async with conn.transaction():
             initiative = await _initiative(conn, initiative_id)
-            known = {r["code"]: r for r in await conn.fetch("SELECT id, code, unit FROM outcome_metrics WHERE code = ANY($1::text[])", codes)}
+            known = {r["code"]: r for r in await conn.fetch("SELECT id, code, name, unit FROM outcome_metrics WHERE code = ANY($1::text[])", codes)}
             unknown = [c for c in codes if c not in known]
             if unknown:
                 raise PerformanceValidationError(f"Unknown result: {', '.join(unknown)}.")
             if initiative["has_demo_log"] and "DEMOS" in codes:
                 raise PerformanceValidationError("Demos are counted from the demo log on this event.")
+            # Only results that make sense for the channel (no impressions on a trade show). Clearing one is
+            # always allowed, so anything recorded before the rule can still be removed.
+            misfits = [
+                known[v["metric_code"]]["name"] for v in values
+                if v["value"] is not None and not metrics.result_fits_channel(v["metric_code"], initiative["channel_code"])
+            ]
+            if misfits:
+                raise PerformanceValidationError(f"{initiative['channel_name']} doesn't record {', '.join(misfits)}.")
 
             current = {
                 r["code"]: r["value"]
@@ -339,7 +347,7 @@ async def get_performance(initiative_id: UUID, today: date | None = None) -> dic
 
     revenue = money.get("REVENUE")
     pipeline = money.get("PIPELINE")
-    ratios = metrics.summary_ratios(cost, totals, revenue)
+    ratios = metrics.summary_ratios(cost, totals, revenue, initiative["channel_code"])
     kpi = evaluation["primary_kpi"]
     actual = metrics.kpi_actual(kpi["code"] if kpi else None, cost, totals, revenue, pipeline)
     matures = metrics.matures_on(initiative["start_date"], initiative["end_date"], evaluation["maturity_days"])

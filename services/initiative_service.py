@@ -5,7 +5,7 @@ import asyncpg
 
 from models.initiative_model import InitiativeCreate
 from postgresql_db.database import get_pool
-from services.initiative_metrics import kpi_fits_channel
+from services.initiative_metrics import kpi_fits_channel, result_fits_channel
 from services.rbac_service import log_audit
 
 AUDIT_ENTITY = "Initiative"
@@ -275,6 +275,21 @@ async def _check_kpi_fits_channel(conn, kpi_id: int | None, channel_id: int) -> 
         raise InitiativeValidationError(f"{row['name']} isn't used to judge {row['channel_name']}. Choose another primary KPI.")
 
 
+async def _check_results_fit_channel(conn, initiative_id: UUID, channel_id: int) -> None:
+    """Moving to another channel can't leave results it doesn't record, e.g. ad impressions on an event."""
+    rows = await conn.fetch(
+        "SELECT DISTINCT m.code, m.name, m.sort_order, c.code AS channel, c.name AS channel_name "
+        "FROM outcomes o JOIN outcome_metrics m ON m.id = o.metric_id CROSS JOIN channels c "
+        "WHERE o.initiative_id = $1 AND c.id = $2 ORDER BY m.sort_order",
+        initiative_id, channel_id,
+    )
+    misfits = [r["name"] for r in rows if not result_fits_channel(r["code"], r["channel"])]
+    if misfits:
+        raise InitiativeValidationError(
+            f"{rows[0]['channel_name']} doesn't record {', '.join(misfits)}. Remove those results before moving it."
+        )
+
+
 async def _apply_event_changes(
     conn, initiative_id: UUID, actor_id: UUID, *,
     channel_id: int, sub_channel_id: int | None, current_event: dict | None, event_changes: dict,
@@ -353,6 +368,8 @@ async def update_initiative(initiative_id: UUID, changes: dict, actor_id: UUID) 
                     await _check_kpi_fits_channel(
                         conn, changed.get("primary_kpi_id", current["primary_kpi_id"]), changed.get("channel_id", current["channel_id"])
                     )
+                if "channel_id" in changed:
+                    await _check_results_fit_channel(conn, initiative_id, changed["channel_id"])
 
                 # Event rules apply to the state after this change
                 event_old, event_new, event_code = await _apply_event_changes(

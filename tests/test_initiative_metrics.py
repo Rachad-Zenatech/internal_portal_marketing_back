@@ -47,6 +47,30 @@ def test_summary_ratios():
     ratios = m.summary_ratios(2000, {"IMPRESSIONS": 100000, "CLICKS": 1500}, 5000)
     assert ratios == {"ctr": 1.5, "cpc": 1.33, "cpm": 20.0, "roi_percent": 150.0}
     assert m.summary_ratios(0, {}, None) == {"ctr": None, "cpc": None, "cpm": None, "roi_percent": None}
+    # Ad ratios only where the channel uses them: none on an event, click-through but no CPC/CPM for SEO
+    counts = {"IMPRESSIONS": 100000, "CLICKS": 1500}
+    assert m.summary_ratios(2000, counts, 5000, "EVENTS") == {"ctr": None, "cpc": None, "cpm": None, "roi_percent": 150.0}
+    assert m.summary_ratios(2000, counts, 5000, "SEO") == {"ctr": 1.5, "cpc": None, "cpm": None, "roi_percent": 150.0}
+
+
+@pytest.mark.parametrize("channel", sorted(m.KPI_CHOICES_BY_CHANNEL))
+def test_channel_kpis_only_use_results_it_records(channel):
+    """A KPI a channel can pick must be measurable from results that channel can record."""
+    recorded = set(m.RESULT_METRICS_BY_CHANNEL[channel])
+    for kpi in m.KPI_CHOICES_BY_CHANNEL[channel]:
+        assert m.KPI_NEEDS.get(kpi, set()) <= recorded, f"{channel} can pick {kpi} but can't record {m.KPI_NEEDS[kpi] - recorded}"
+
+
+def test_every_calculated_kpi_says_what_it_needs():
+    assert set(m.KPI_NEEDS) == set(m.KPI_DEFINITIONS)
+    assert set(m.KPI_CHOICES_BY_CHANNEL) == set(m.RESULT_METRICS_BY_CHANNEL)
+
+
+def test_events_never_get_ad_measures():
+    assert not {"IMPRESSIONS", "CTR", "CPC", "CPM"} & set(m.KPI_CHOICES_BY_CHANNEL["EVENTS"])
+    assert not {"IMPRESSIONS", "CLICKS", "CONVERSIONS"} & set(m.RESULT_METRICS_BY_CHANNEL["EVENTS"])
+    assert not m.result_fits_channel("IMPRESSIONS", "EVENTS")
+    assert m.result_fits_channel("IMPRESSIONS", "OTHER")
 
 
 def test_money_outcome():
@@ -143,7 +167,8 @@ def test_kpi_fits_channel():
     assert m.kpi_fits_channel("CP_DEMO", "EVENTS")
     assert not m.kpi_fits_channel("CPM", "EVENTS")
     assert m.kpi_fits_channel("CPM", "PAID_SEARCH")
-    assert m.kpi_fits_channel("CPM", "SEO")  # channels without a list can use any KPI
+    assert not m.kpi_fits_channel("CPM", "SEO")  # organic search doesn't buy impressions
+    assert m.kpi_fits_channel("CPM", "OTHER")  # only "Other" can use any KPI
     assert m.kpi_fits_channel(None, "EVENTS")
 
 

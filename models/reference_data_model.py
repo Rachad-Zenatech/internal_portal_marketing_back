@@ -72,6 +72,8 @@ class ReferenceDataResponse(BaseModel):
     outcome_metrics: list[OutcomeMetricItem]
     # Channel code → primary KPI codes it can use; channels not listed can use any
     kpi_choices_by_channel: dict[str, list[str]]
+    # Channel code → result codes it can record, in form order; channels not listed can record any
+    result_metrics_by_channel: dict[str, list[str]]
     evaluation_defaults: list[EvaluationDefaultItem]
     demo_types: list[ReferenceItem]
     demo_outcomes: list[DemoOutcomeItem]

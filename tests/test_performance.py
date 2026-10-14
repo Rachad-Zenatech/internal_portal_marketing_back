@@ -301,6 +301,67 @@ def test_kpi_choices_in_reference_data(client, admin):
     assert "CPM" in choices["PAID_SEARCH"]
 
 
+def test_choices_by_channel_use_real_codes(client, admin):
+    """Every channel, KPI and result named in the rules exists, so a typo can't quietly hide a choice."""
+    body = client.get("/api/reference-data", headers=admin["headers"]).json()
+    channels = {c["code"] for c in body["channels"]}
+    kpis = {k["code"] for k in body["primary_kpis"]}
+    results = {m["code"] for m in body["outcome_metrics"]}
+    assert set(body["kpi_choices_by_channel"]) <= channels
+    assert set(body["result_metrics_by_channel"]) <= channels
+    assert {code for codes in body["kpi_choices_by_channel"].values() for code in codes} <= kpis
+    assert {code for codes in body["result_metrics_by_channel"].values() for code in codes} <= results
+    assert "IMPRESSIONS" not in body["result_metrics_by_channel"]["EVENTS"]
+
+
+def test_results_must_fit_the_channel(client, admin, event):
+    """No ad impressions or clicks on a trade show."""
+    response = _save(client, admin, event["id"], "2025-09-01", [{"metric_code": "IMPRESSIONS", "value": 5000}, {"metric_code": "CLICKS", "value": 50}])
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Events doesn't record Impressions, Clicks."
+
+
+def test_an_older_misfit_result_can_be_cleared(client, admin, event, codes):
+    # Saved before the rule existed
+    run_sql(
+        "INSERT INTO outcomes (initiative_id, period_start, metric_id, value, source) VALUES ($1, '2025-09-01', $2, 5000, 'MANUAL')",
+        uuid.UUID(event["id"]), codes["metrics"]["IMPRESSIONS"],
+    )
+    assert _save(client, admin, event["id"], "2025-09-01", [{"metric_code": "IMPRESSIONS", "value": None}]).status_code == 200
+    assert client.get(f"/api/initiatives/{event['id']}/outcomes", headers=admin["headers"]).json()["values"] == []
+
+
+def test_ad_ratios_only_where_the_channel_uses_them(client, admin, event, codes):
+    """Even with old ad numbers on an event, it shows no click-through or cost per click."""
+    _cost(client, admin, event["id"], codes, 1000)
+    run_sql(
+        "INSERT INTO outcomes (initiative_id, period_start, metric_id, value, source) "
+        "VALUES ($1, '2025-09-01', $2, 10000, 'MANUAL'), ($1, '2025-09-01', $3, 100, 'MANUAL')",
+        uuid.UUID(event["id"]), codes["metrics"]["IMPRESSIONS"], codes["metrics"]["CLICKS"],
+    )
+    p = _performance(client, admin, event["id"])
+    assert (p["ctr"], p["cpc"], p["cpm"]) == (None, None, None)
+
+
+def test_moving_channel_needs_results_that_fit(client, admin, ref):
+    """A search ad with impressions can't become content marketing, which doesn't record them."""
+    created = client.post(
+        "/api/initiatives",
+        json={"name": f"Pytest Search Ad {uuid.uuid4().hex[:6]}", "brand_id": ref["brands"]["DESKFLEX"],
+              "channel_id": ref["channels"]["PAID_SEARCH"], "sub_channel_id": ref["sub_channels"]["GOOGLE_ADS"]},
+        headers=admin["headers"],
+    ).json()
+    assert _save(client, admin, created["id"], "2025-09-01", [{"metric_code": "IMPRESSIONS", "value": 5000}, {"metric_code": "LEADS", "value": 5}]).status_code == 200
+
+    move = {"channel_id": ref["channels"]["CONTENT_MARKETING"], "sub_channel_id": ref["sub_channels"]["BLOG"]}
+    moved = client.patch(f"/api/initiatives/{created['id']}", json=move, headers=admin["headers"])
+    assert moved.status_code == 422
+    assert moved.json()["detail"] == "Content Marketing doesn't record Impressions. Remove those results before moving it."
+
+    _save(client, admin, created["id"], "2025-09-01", [{"metric_code": "IMPRESSIONS", "value": None}])
+    assert client.patch(f"/api/initiatives/{created['id']}", json=move, headers=admin["headers"]).status_code == 200
+
+
 def test_other_currencies_are_reported_not_converted(client, admin, event, codes):
     _cost(client, admin, event["id"], codes, 1000)
     _cost(client, admin, event["id"], codes, 500, currency="GBP")
