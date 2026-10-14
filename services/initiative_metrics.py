@@ -126,6 +126,20 @@ KPI_DEFINITIONS: dict[str, KpiDefinition] = {
 # Not calculated yet: Conversion Rate needs Marketing to say which stage to which; LTV/CAC needs a lifetime value source
 UNSUPPORTED_KPIS = {"CONVERSION_RATE", "LTV_CAC"}
 
+# Which primary KPIs make sense for a channel. Ad measures (impressions, CPM, CTR…) mean nothing for a trade show,
+# and booth visitors mean nothing for a search ad. Channels not listed can use any KPI.
+_COST_AND_RETURN = ["CPL", "CP_MQL", "CP_SQL", "CAC", "PIPELINE_GENERATED", "REVENUE", "ROI"]
+KPI_CHOICES_BY_CHANNEL: dict[str, list[str]] = {
+    "EVENTS": ["CP_VISITOR", "CPL", "CP_FOLLOW_UP", "CP_MQL", "CP_SQL", "CP_DEMO", "CAC", "PIPELINE_GENERATED", "REVENUE", "ROI"],
+    "PAID_SEARCH": ["IMPRESSIONS", "CTR", "CPC", "CPM", *_COST_AND_RETURN, "CP_TRIAL", "CONVERSION_RATE", "LTV_CAC"],
+    "PAID_SOCIAL": ["IMPRESSIONS", "CTR", "CPC", "CPM", *_COST_AND_RETURN, "CP_TRIAL", "CONVERSION_RATE", "LTV_CAC"],
+}
+
+
+def kpi_fits_channel(kpi_code: str | None, channel_code: str | None) -> bool:
+    allowed = KPI_CHOICES_BY_CHANNEL.get(channel_code or "")
+    return kpi_code is None or allowed is None or kpi_code in allowed
+
 
 def kpi_actual(code: str | None, cost: float, counts: dict[str, float], revenue: float | None, pipeline: float | None) -> float | None:
     definition = KPI_DEFINITIONS.get(code or "")
@@ -148,40 +162,20 @@ def _format_target(value: float, unit: str, currency: str) -> str:
     return f"{value:,.0f}"
 
 
-def suggest_rating(
-    *,
-    kpi_code: str | None,
-    kpi_name: str | None,
-    actual: float | None,
-    target: float | None,
-    matures: date | None,
-    maturity_days: int,
-    today: date,
-    roi: float | None,
-    revenue_recorded: bool,
-    currency: str,
-) -> dict:
-    """High / Medium / Low / Test with a one-sentence reason a person can act on."""
+def _result(code: str, reason: str, gap: float | None = None) -> dict:
+    return {"code": code, "name": RATING_NAMES[code], "reason": reason, "gap_percent": gap}
 
-    def result(code: str, reason: str, gap: float | None = None) -> dict:
-        return {"code": code, "name": RATING_NAMES[code], "reason": reason, "gap_percent": gap}
 
-    if matures and today < matures:
-        days = (matures - today).days
-        final_on = f"{matures.day} {matures.strftime('%B %Y')}"
-        return result("TEST", f"Too early to judge — {days} {'day' if days == 1 else 'days'} left in the {maturity_days}-day window "
-                              f"(final on {final_on}).")
-    if BREAK_EVEN_IS_LOW and revenue_recorded and roi is not None and roi <= 0:
-        verdict = "broke even" if roi == 0 else "lost money"
-        return result("LOW", f"It {verdict} (ROI {roi:g}%) — not a success, whatever the KPI says.")
+def _kpi_rating(kpi_code: str | None, kpi_name: str | None, actual: float | None, target: float | None, currency: str) -> dict:
+    """The primary KPI against its target: High when met, Medium within 20%, Low beyond — or Test without what it needs."""
     if not kpi_code:
-        return result("TEST", "Choose a primary KPI to get a rating.")
+        return _result("TEST", "Choose a primary KPI to get a rating.")
     if kpi_code in UNSUPPORTED_KPIS or kpi_code not in KPI_DEFINITIONS:
-        return result("TEST", f"{kpi_name or kpi_code} isn't calculated yet, so there's no rating.")
+        return _result("TEST", f"{kpi_name or kpi_code} isn't calculated yet, so there's no rating.")
     if target is None:
-        return result("TEST", f"Set a target for {kpi_name or kpi_code} to get a rating.")
+        return _result("TEST", f"Set a target for {kpi_name or kpi_code} to get a rating.")
     if actual is None:
-        return result("TEST", f"Not enough results yet to work out {kpi_name or kpi_code}.")
+        return _result("TEST", f"Not enough results yet to work out {kpi_name or kpi_code}.")
 
     definition = KPI_DEFINITIONS[kpi_code]
     shown_actual = _format_target(actual, definition.unit, currency)
@@ -195,12 +189,62 @@ def suggest_rating(
     gap_percent = None if gap == float("inf") else round(abs(gap) * 100, 1)
 
     if met:
-        return result("HIGH", f"{kpi_name} {shown_actual} met the target of {shown_target}.", gap_percent)
+        return _result("HIGH", f"{kpi_name} {shown_actual} met the target of {shown_target}.", gap_percent)
     if gap <= MEDIUM_BAND + 1e-9:
-        return result("MEDIUM", f"{kpi_name} {shown_actual} is within {MEDIUM_BAND:.0%} of the target of {shown_target} "
-                                f"(missed by {gap_percent:g}%).", gap_percent)
+        return _result("MEDIUM", f"{kpi_name} {shown_actual} is within {MEDIUM_BAND:.0%} of the target of {shown_target} "
+                                 f"(missed by {gap_percent:g}%).", gap_percent)
     missed = f"missed by {gap_percent:g}%" if gap_percent is not None else "missed it"
-    return result("LOW", f"{kpi_name} {shown_actual} {missed} against the target of {shown_target}.", gap_percent)
+    return _result("LOW", f"{kpi_name} {shown_actual} {missed} against the target of {shown_target}.", gap_percent)
+
+
+def verdict_stage(start: date | None, matures: date | None, today: date) -> str:
+    """UPCOMING before it starts, EARLY until the maturity window ends, then FINAL."""
+    if start and today < start:
+        return "UPCOMING"
+    if matures and today < matures:
+        return "EARLY"
+    return "FINAL"
+
+
+def early_read(*, kpi_code: str | None, kpi_name: str | None, actual: float | None, target: float | None, currency: str) -> dict:
+    """A provisional rating on the leading KPI (cost per lead, demo…), available days after an event — revenue comes later."""
+    return _kpi_rating(kpi_code, kpi_name, actual, target, currency)
+
+
+def suggest_rating(
+    *,
+    kpi_code: str | None,
+    kpi_name: str | None,
+    actual: float | None,
+    target: float | None,
+    matures: date | None,
+    maturity_days: int,
+    today: date,
+    roi: float | None,
+    revenue_recorded: bool,
+    currency: str,
+) -> dict:
+    """The final High / Medium / Low / Test, with a one-sentence reason a person can act on.
+
+    Once revenue is in, the return leads: breaking even or losing money is Low; making money is High when the KPI
+    was also met (or has no target), Medium when it made money but cost more per outcome than planned.
+    Without revenue (e.g. an awareness push) it's judged on the KPI alone.
+    """
+    if matures and today < matures:
+        days = (matures - today).days
+        final_on = f"{matures.day} {matures.strftime('%B %Y')}"
+        return _result("TEST", f"Too early to judge — {days} {'day' if days == 1 else 'days'} left in the {maturity_days}-day window "
+                               f"(final on {final_on}).")
+    kpi = _kpi_rating(kpi_code, kpi_name, actual, target, currency)
+    if not (revenue_recorded and roi is not None):
+        return kpi
+    if roi <= 0 and BREAK_EVEN_IS_LOW:
+        verdict = "broke even" if roi == 0 else "lost money"
+        return _result("LOW", f"It {verdict} (ROI {roi:g}%) — not a success, whatever the KPI says.")
+    if kpi["code"] in ("HIGH", "TEST"):
+        detail = f" {kpi['reason']}" if kpi["code"] == "HIGH" else ""
+        return _result("HIGH", f"It made money: ROI {roi:g}%.{detail}", kpi["gap_percent"])
+    return _result("MEDIUM", f"It made money (ROI {roi:g}%), but {kpi['reason'][0].lower()}{kpi['reason'][1:]}", kpi["gap_percent"])
 
 
 def money_outcome(cost: float, revenue: float | None, roi: float | None) -> str | None:

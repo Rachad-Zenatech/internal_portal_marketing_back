@@ -118,5 +118,34 @@ def test_breaking_even_is_low_whatever_the_kpi_says():
     assert _rating(actual=50.0, roi=0.0, revenue_recorded=True, matures=date(2027, 1, 1))["code"] == "TEST"
 
 
+def test_final_verdict_leads_with_the_return():
+    # Made money and met the KPI
+    assert _rating(actual=90.0, roi=50.0, revenue_recorded=True)["code"] == "HIGH"
+    # Made money, no target set: still worth it
+    made_money = _rating(target=None, roi=50.0, revenue_recorded=True)
+    assert made_money["code"] == "HIGH"
+    assert made_money["reason"] == "It made money: ROI 50%."
+    # Made money but cost far more per lead than planned
+    costly = _rating(actual=150.0, roi=20.0, revenue_recorded=True)
+    assert costly["code"] == "MEDIUM"
+    assert costly["reason"].startswith("It made money (ROI 20%), but cpl")
+
+
+def test_verdict_stage():
+    today = date(2026, 10, 14)
+    assert m.verdict_stage(date(2026, 11, 4), date(2027, 5, 5), today) == "UPCOMING"
+    assert m.verdict_stage(date(2026, 9, 1), date(2027, 3, 1), today) == "EARLY"
+    assert m.verdict_stage(date(2026, 1, 1), date(2026, 7, 1), today) == "FINAL"
+    assert m.verdict_stage(None, None, today) == "FINAL"
+
+
+def test_kpi_fits_channel():
+    assert m.kpi_fits_channel("CP_DEMO", "EVENTS")
+    assert not m.kpi_fits_channel("CPM", "EVENTS")
+    assert m.kpi_fits_channel("CPM", "PAID_SEARCH")
+    assert m.kpi_fits_channel("CPM", "SEO")  # channels without a list can use any KPI
+    assert m.kpi_fits_channel(None, "EVENTS")
+
+
 def test_suggested_decisions():
     assert m.SUGGESTED_DECISION == {"HIGH": "SCALE", "MEDIUM": "OPTIMIZE", "LOW": "PAUSE", "TEST": "TEST_MORE"}

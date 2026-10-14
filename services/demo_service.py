@@ -3,6 +3,7 @@
 The log is the record of demos for an event, so the demo count, cost per demo and how many demos turned
 into customers all come from it. Only the organisation is stored; people's details stay in HubSpot.
 """
+from datetime import date
 from uuid import UUID
 
 import asyncpg
@@ -12,6 +13,12 @@ from postgresql_db.database import get_pool
 from services.rbac_service import log_audit
 
 AUDIT_ENTITY = "Demo"
+
+# Which logged demos count as demos given: the date has passed and it wasn't a no-show. A demo booked at the
+# booth for a later date only counts once it has happened, so bookings can't make an event look cheaper per
+# demo. Used here and by Results (services/performance_service.py) so the two always agree.
+# Expects event_demos as d and demo_outcomes as o.
+HELD_DEMO_SQL = "d.demo_at <= now() AND o.code <> 'NO_SHOW'"
 EVENTS_CHANNEL = "EVENTS"
 
 _SELECT = """
@@ -170,7 +177,7 @@ async def delete_demo(demo_id: UUID, actor_id: UUID) -> None:
 # --- Summary ---
 
 # Counts by type, outcome, brand and staff member, plus the overall total, in one grouped pass
-_SUMMARY_SQL = """
+_SUMMARY_SQL = f"""
     SELECT GROUPING(dt.id) = 0 AS by_type,
            GROUPING(o.id) = 0 AS by_outcome,
            GROUPING(d.brand_id) = 0 AS by_brand,
@@ -185,7 +192,7 @@ _SUMMARY_SQL = """
     JOIN demo_outcomes o ON o.id = d.outcome_id
     LEFT JOIN brands b ON b.id = d.brand_id
     LEFT JOIN users u ON u.id = d.given_by
-    WHERE d.initiative_id = $1
+    WHERE d.initiative_id = $1 AND {HELD_DEMO_SQL}
     GROUP BY GROUPING SETS (
         (dt.id, dt.code, dt.name, dt.sort_order),
         (o.id, o.code, o.name, o.sort_order, o.funnel_rank),
@@ -195,15 +202,29 @@ _SUMMARY_SQL = """
     )
 """
 
-# The event's expected cost (estimates included) in its own currency; other currencies are flagged, never converted
+# Demos booked for later, no-shows, and how many different companies the demos given reached. A demo with no
+# company recorded counts as its own company, so leaving the field blank never shrinks the count.
+_DEMO_EXTRAS_SQL = f"""
+    SELECT count(*) FILTER (WHERE d.demo_at > now() AND o.code <> 'NO_SHOW') AS upcoming,
+           count(*) FILTER (WHERE o.code = 'NO_SHOW') AS no_shows,
+           count(DISTINCT lower(btrim(d.company))) FILTER (WHERE {HELD_DEMO_SQL} AND nullif(btrim(d.company), '') IS NOT NULL) AS named_companies,
+           count(*) FILTER (WHERE {HELD_DEMO_SQL} AND nullif(btrim(d.company), '') IS NULL) AS unnamed_demos
+    FROM event_demos d
+    JOIN demo_outcomes o ON o.id = d.outcome_id
+    WHERE d.initiative_id = $1
+"""
+
+# The event's cost in its own currency: expected (estimates included) and actual (invoiced or paid) so far.
+# Other currencies are flagged, never converted.
 _COST_SQL = """
-    SELECT i.currency,
+    SELECT i.currency, i.end_date,
            COALESCE(SUM(s.amount) FILTER (WHERE s.currency = i.currency), 0) AS expected_cost,
+           COALESCE(SUM(s.amount) FILTER (WHERE s.currency = i.currency AND s.status IN ('INVOICED', 'PAID')), 0) AS actual_cost,
            COALESCE(bool_or(s.currency <> i.currency), false) AS mixed_currencies
     FROM initiatives i
     LEFT JOIN spend_lines s ON s.initiative_id = i.id
     WHERE i.id = $1
-    GROUP BY i.currency
+    GROUP BY i.currency, i.end_date
 """
 
 
@@ -216,13 +237,18 @@ def _per(cost: float, count: int) -> float | None:
 
 
 async def get_demo_summary(initiative_id: UUID) -> dict:
-    """How many demos, of which kind, by whom, how far they got, and what each one cost."""
+    """How many demos were given, of which kind, by whom, how far they got, and what each one cost.
+
+    Only demos that have happened count (see HELD_DEMO_SQL); upcoming bookings and no-shows are reported
+    separately. Customers here are customers won through demos, not every customer the event brought in.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         cost = await conn.fetchrow(_COST_SQL, initiative_id)
         if cost is None:
             raise InitiativeNotFoundError
         rows = await conn.fetch(_SUMMARY_SQL, initiative_id)
+        extras = await conn.fetchrow(_DEMO_EXTRAS_SQL, initiative_id)
 
     total = 0
     by_type, by_outcome, by_brand, by_given_by = [], [], [], []
@@ -251,8 +277,14 @@ async def get_demo_summary(initiative_id: UUID) -> dict:
             total = count
 
     expected_cost = round(float(cost["expected_cost"]), 2)
+    actual_cost = round(float(cost["actual_cost"]), 2)
+    companies = extras["named_companies"] + extras["unnamed_demos"]
+    end_date = cost["end_date"]
     return {
         "total": total,
+        "upcoming": extras["upcoming"],
+        "no_shows": extras["no_shows"],
+        "companies_demoed": companies,
         "funnel": {"demos": total, **funnel},
         "follow_up_rate": _rate(funnel["follow_ups"], funnel["with_outcome"]),
         "customer_rate": _rate(funnel["customers"], total),
@@ -261,8 +293,13 @@ async def get_demo_summary(initiative_id: UUID) -> dict:
         "by_brand": sorted(by_brand, key=lambda c: -c["count"]),
         "by_given_by": sorted(by_given_by, key=lambda c: -c["count"]),
         "expected_cost": expected_cost,
+        "actual_cost": actual_cost,
         "currency": cost["currency"],
+        "event_ended": bool(end_date and end_date < date.today()),
         "cost_per_demo": _per(expected_cost, total),
+        "cost_per_company": _per(expected_cost, companies),
         "cost_per_customer": _per(expected_cost, funnel["customers"]),
+        "cost_per_demo_actual": _per(actual_cost, total),
+        "cost_per_customer_actual": _per(actual_cost, funnel["customers"]),
         "mixed_currencies": cost["mixed_currencies"],
     }

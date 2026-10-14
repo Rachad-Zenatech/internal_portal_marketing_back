@@ -226,17 +226,79 @@ def test_high_rating_with_a_positive_return(client, admin, ref, codes):
     assert p["suggested_decision"] == "SCALE"
 
 
-def test_too_early_to_judge(client, admin, ref, codes):
+def test_upcoming_event_has_no_verdict(client, admin, ref, codes):
     upcoming = _event(client, admin, ref, start_date="2030-11-04", end_date="2030-11-06")
     _cost(client, admin, upcoming["id"], codes, 5000)
 
     p = _performance(client, admin, upcoming["id"])
 
+    assert p["stage"] == "UPCOMING"
     assert p["rating"]["code"] == "TEST"
-    assert "Too early to judge" in p["rating"]["reason"]
+    assert p["rating"]["reason"].startswith("Upcoming")
+    assert p["early_read"] is None
     assert p["matures_on"] == "2031-05-05"
     assert p["money_outcome"] == "NO_REVENUE"
     assert p["has_results"] is False
+
+
+def test_early_read_inside_the_maturity_window(client, admin, ref, codes):
+    """Just after an event: an early read on cost per lead now, the final verdict once deals have closed."""
+    from datetime import date, timedelta
+
+    start = date.today() - timedelta(days=12)
+    recent = _event(
+        client, admin, ref, start_date=start.isoformat(), end_date=(start + timedelta(days=2)).isoformat(),
+        sub_channel_id=ref["sub_channels"]["SPONSORSHIPS"], event={"country_code": "AE"},
+    )
+    _cost(client, admin, recent["id"], codes, 10000)
+    _save(client, admin, recent["id"], f"{start.isoformat()[:7]}-01", [{"metric_code": "LEADS", "value": 80}])
+    client.put(f"/api/initiatives/{recent['id']}/evaluation", json={"target_value": 150, "maturity_days": 180}, headers=admin["headers"])
+
+    p = _performance(client, admin, recent["id"])
+
+    assert p["stage"] == "EARLY"
+    assert p["rating"]["code"] == "TEST"
+    assert "final verdict is due on" in p["rating"]["reason"]
+    # $10,000 ÷ 80 leads = $125 per lead, under the $150 target
+    assert p["early_read"]["code"] == "HIGH"
+    assert p["kpi_actual"] == 125
+
+
+def test_kpi_must_fit_the_channel(client, admin, ref):
+    """CPM (cost per thousand ad impressions) can't judge a trade show."""
+    response = client.post(
+        "/api/initiatives",
+        json={"name": "Pytest CPM Expo", "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["EVENTS"],
+              "sub_channel_id": ref["sub_channels"]["IN_PERSON_EVENTS"], "primary_kpi_id": ref["primary_kpis"]["CPM"]},
+        headers=admin["headers"],
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "CPM isn't used to judge Events. Choose another primary KPI."
+
+    event = _event(client, admin, ref)
+    changed = client.patch(f"/api/initiatives/{event['id']}", json={"primary_kpi_id": ref["primary_kpis"]["CTR"]}, headers=admin["headers"])
+    assert changed.status_code == 422
+    allowed = client.patch(f"/api/initiatives/{event['id']}", json={"primary_kpi_id": ref["primary_kpis"]["CP_DEMO"]}, headers=admin["headers"])
+    assert allowed.status_code == 200, allowed.text
+
+
+def test_an_older_mismatched_kpi_falls_back_to_the_default(client, admin, event, ref):
+    # Saved before the rule existed
+    run_sql("UPDATE initiatives SET primary_kpi_id = $2 WHERE id = $1", uuid.UUID(event["id"]), ref["primary_kpis"]["CPM"])
+
+    evaluation = client.get(f"/api/initiatives/{event['id']}/evaluation", headers=admin["headers"]).json()
+
+    assert evaluation["primary_kpi"]["code"] == "CP_DEMO"
+    assert evaluation["kpi_from_default"] is True
+    assert evaluation["kpi_note"].startswith("CPM doesn't apply to Events")
+    # Other fields can still be edited without fixing the KPI first
+    assert client.patch(f"/api/initiatives/{event['id']}", json={"name": "Renamed expo"}, headers=admin["headers"]).status_code == 200
+
+
+def test_kpi_choices_in_reference_data(client, admin):
+    choices = client.get("/api/reference-data", headers=admin["headers"]).json()["kpi_choices_by_channel"]
+    assert "CP_DEMO" in choices["EVENTS"] and "CPM" not in choices["EVENTS"]
+    assert "CPM" in choices["PAID_SEARCH"]
 
 
 def test_other_currencies_are_reported_not_converted(client, admin, event, codes):

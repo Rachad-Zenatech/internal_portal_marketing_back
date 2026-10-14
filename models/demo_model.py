@@ -100,7 +100,13 @@ class DemoFunnel(BaseModel):
 
 
 class DemoSummary(BaseModel):
+    # Demos given: the date has passed and it wasn't a no-show
     total: int
+    # Booked for a later date (counted once they happen), and bookings that never happened
+    upcoming: int
+    no_shows: int
+    # Different companies the demos given reached (a demo with no company counts as one)
+    companies_demoed: int
     funnel: DemoFunnel
     # Follow-ups or further ÷ demos with a known outcome (null until one is known)
     follow_up_rate: float | None = None
@@ -112,9 +118,18 @@ class DemoSummary(BaseModel):
     by_given_by: list[DemoCount]
     # The event's expected total cost (estimates included), in its own currency
     expected_cost: float
+    # What has been invoiced or paid so far
+    actual_cost: float
     currency: str
+    # The event's end date has passed, so actual costs are the ones to judge it on once invoices are in
+    event_ended: bool
+    # On the expected cost
     cost_per_demo: float | None = None
-    # Cost ÷ customers won through demos
+    cost_per_company: float | None = None
+    # Cost ÷ customers won through demos (not every customer the event brought in)
     cost_per_customer: float | None = None
+    # The same on what has been invoiced or paid so far
+    cost_per_demo_actual: float | None = None
+    cost_per_customer_actual: float | None = None
     # True when some costs are in another currency and aren't included
     mixed_currencies: bool

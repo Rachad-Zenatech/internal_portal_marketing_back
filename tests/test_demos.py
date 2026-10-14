@@ -1,6 +1,7 @@
 """Demos at events: /api/initiatives/{id}/demos, /demos/summary and /api/demos/{demo_id}."""
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -253,5 +254,81 @@ def test_reference_data_has_demo_lists(client, admin):
     data = client.get("/api/reference-data", headers=admin["headers"]).json()
     assert [t["code"] for t in data["demo_types"]] == ["BOOTH", "SCHEDULED", "LIVE"]
     ranks = {o["code"]: o["funnel_rank"] for o in data["demo_outcomes"]}
-    assert ranks == {"PENDING": 0, "NOT_A_FIT": 0, "FOLLOW_UP": 1, "DEMO_SCHEDULED": 2, "DEAL_OPENED": 3, "CUSTOMER": 4}
+    assert ranks == {
+        "PENDING": 0, "NO_SHOW": 0, "NOT_A_FIT": 0, "FOLLOW_UP": 1, "DEMO_SCHEDULED": 2, "DEAL_OPENED": 3, "CUSTOMER": 4,
+    }
     assert "DEMO_EQUIPMENT" in {c["code"] for c in data["spend_categories"]}
+
+
+def _summary(client, admin, initiative_id):
+    response = client.get(f"/api/initiatives/{initiative_id}/demos/summary", headers=admin["headers"])
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_only_demos_that_happened_count(client, admin, event, demo_ref):
+    """A demo booked for later counts once it has happened; a no-show never does."""
+    _add_cost(client, admin, event["id"], demo_ref, 1000)
+    _log(client, admin, event["id"], demo_ref)
+    _log(client, admin, event["id"], demo_ref)
+    later = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+    assert _log(client, admin, event["id"], demo_ref, "SCHEDULED", demo_at=later).status_code == 201
+    assert _log(client, admin, event["id"], demo_ref, "SCHEDULED", outcome_id=demo_ref["outcomes"]["NO_SHOW"]).status_code == 201
+
+    summary = _summary(client, admin, event["id"])
+
+    assert (summary["total"], summary["upcoming"], summary["no_shows"]) == (2, 1, 1)
+    assert summary["cost_per_demo"] == 500
+    assert [(t["key"], t["count"]) for t in summary["by_type"]] == [("BOOTH", 2)]
+    # A no-show isn't an outcome of a demo given, so it doesn't lower the follow-up rate
+    assert summary["funnel"]["with_outcome"] == 0
+
+
+def test_companies_demoed(client, admin, event, demo_ref):
+    _add_cost(client, admin, event["id"], demo_ref, 4000)
+    for company in ["Acme", " acme ", "Globex", None, None]:
+        _log(client, admin, event["id"], demo_ref, company=company)
+
+    summary = _summary(client, admin, event["id"])
+
+    # Acme twice is one company; demos with no company recorded count one each
+    assert (summary["total"], summary["companies_demoed"]) == (5, 4)
+    assert (summary["cost_per_demo"], summary["cost_per_company"]) == (800, 1000)
+
+
+def test_costs_on_expected_and_actual(client, admin, ref, demo_ref):
+    past = _create_initiative(client, admin, ref, start_date="2026-01-10", end_date="2026-01-12")
+    _add_cost(client, admin, past["id"], demo_ref, 1000)  # committed, not invoiced yet
+    paid = client.post(
+        f"/api/initiatives/{past['id']}/spend-lines",
+        json={"category_id": demo_ref["categories"]["BOOTH_SPACE"], "amount": 3000, "incurred_on": "2026-01-05",
+              "status": "PAID", "paid_on": "2026-01-20"},
+        headers=admin["headers"],
+    )
+    assert paid.status_code == 201, paid.text
+    _log(client, admin, past["id"], demo_ref, outcome_id=demo_ref["outcomes"]["CUSTOMER"])
+    _log(client, admin, past["id"], demo_ref)
+
+    summary = _summary(client, admin, past["id"])
+
+    assert (summary["expected_cost"], summary["actual_cost"], summary["event_ended"]) == (4000, 3000, True)
+    assert (summary["cost_per_demo"], summary["cost_per_demo_actual"]) == (2000, 1500)
+    assert (summary["cost_per_customer"], summary["cost_per_customer_actual"]) == (4000, 3000)
+
+
+def test_upcoming_event_has_not_ended(client, admin, ref):
+    future = _create_initiative(client, admin, ref, start_date="2099-01-10", end_date="2099-01-12")
+
+    assert _summary(client, admin, future["id"])["event_ended"] is False
+
+
+def test_results_count_only_demos_that_happened(client, admin, event, demo_ref):
+    _log(client, admin, event["id"], demo_ref, demo_at="2025-09-05T10:00:00Z")
+    _log(client, admin, event["id"], demo_ref, demo_at="2025-09-06T10:00:00Z", outcome_id=demo_ref["outcomes"]["NO_SHOW"])
+    _log(client, admin, event["id"], demo_ref, "SCHEDULED", demo_at=(datetime.now(timezone.utc) + timedelta(days=30)).isoformat())
+
+    outcomes = client.get(f"/api/initiatives/{event['id']}/outcomes", headers=admin["headers"]).json()
+    performance = client.get(f"/api/initiatives/{event['id']}/performance", headers=admin["headers"]).json()
+
+    assert [(v["period_start"], v["value"]) for v in outcomes["values"] if v["metric_code"] == "DEMOS"] == [("2025-09-01", 1)]
+    assert performance["totals"]["DEMOS"] == 1

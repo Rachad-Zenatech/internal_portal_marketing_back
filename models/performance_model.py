@@ -65,6 +65,8 @@ class Evaluation(BaseModel):
     # The initiative's own primary KPI, or the sub-channel's default when it has none
     primary_kpi: KpiRef | None = None
     kpi_from_default: bool
+    # Set when the initiative's own KPI doesn't apply to its channel (e.g. CPM on an event) and the default is used
+    kpi_note: str | None = None
     target_value: float | None = None
     maturity_days: int
     revenue_basis: Literal["CLOSED_REVENUE"]
@@ -158,6 +160,11 @@ class Performance(BaseModel):
     evaluation: Evaluation
     kpi_actual: float | None = None
     matures_on: date | None = None
+    # UPCOMING before it starts; EARLY until the maturity window ends (early read only); FINAL after that
+    stage: Literal["UPCOMING", "EARLY", "FINAL"]
+    # Provisional rating on the primary KPI during EARLY; null otherwise
+    early_read: Rating | None = None
+    # The verdict: Test until FINAL
     rating: Rating
     suggested_decision: str
     latest_decision: Decision | None = None

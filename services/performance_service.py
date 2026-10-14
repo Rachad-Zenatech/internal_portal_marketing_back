@@ -15,6 +15,7 @@ import asyncpg
 
 from postgresql_db.database import get_pool
 from services import initiative_metrics as metrics
+from services.demo_service import HELD_DEMO_SQL
 from services.rbac_service import log_audit
 
 OUTCOMES_AUDIT_ENTITY = "Outcomes"
@@ -34,8 +35,9 @@ class InitiativeNotFoundError(Exception):
 
 _INITIATIVE_SQL = """
     SELECT i.id, i.currency, i.start_date, i.end_date, i.sub_channel_id, i.primary_kpi_id,
+           c.code AS channel_code, c.name AS channel_name,
            EXISTS (SELECT 1 FROM event_demos d WHERE d.initiative_id = i.id) AS has_demo_log
-    FROM initiatives i WHERE i.id = $1
+    FROM initiatives i JOIN channels c ON c.id = i.channel_id WHERE i.id = $1
 """
 
 
@@ -59,9 +61,12 @@ _OUTCOMES_SQL = """
 """
 
 # Demos per month from the demo log (months in UTC, like every other date here)
-_DEMO_MONTHS_SQL = """
-    SELECT date_trunc('month', demo_at AT TIME ZONE 'UTC')::date AS period_start, count(*)::float8 AS value
-    FROM event_demos WHERE initiative_id = $1 GROUP BY 1 ORDER BY 1
+# Only demos that have happened count, the same rule as the demo summary (demo_service.HELD_DEMO_SQL)
+_DEMO_MONTHS_SQL = f"""
+    SELECT date_trunc('month', d.demo_at AT TIME ZONE 'UTC')::date AS period_start, count(*)::float8 AS value
+    FROM event_demos d JOIN demo_outcomes o ON o.id = d.outcome_id
+    WHERE d.initiative_id = $1 AND {HELD_DEMO_SQL}
+    GROUP BY 1 ORDER BY 1
 """
 
 
@@ -182,11 +187,18 @@ async def _evaluation(conn, initiative) -> dict:
         default = await conn.fetchrow(
             "SELECT primary_kpi_id, maturity_days FROM evaluation_defaults WHERE sub_channel_id = $1", initiative["sub_channel_id"]
         )
-    kpi_id = initiative["primary_kpi_id"] or (default["primary_kpi_id"] if default else None)
-    kpi = await conn.fetchrow(_KPI_SQL, kpi_id) if kpi_id else None
+    default_kpi_id = default["primary_kpi_id"] if default else None
+    own_kpi = await conn.fetchrow(_KPI_SQL, initiative["primary_kpi_id"]) if initiative["primary_kpi_id"] else None
+    kpi_note = None
+    if own_kpi is not None and not metrics.kpi_fits_channel(own_kpi["code"], initiative["channel_code"]):
+        # e.g. CPM set on a trade show: judge it on the sub-channel's default instead, and say so
+        kpi_note = f"{own_kpi['name']} doesn't apply to {initiative['channel_name']}, so the default KPI is used. Change it with Edit."
+        own_kpi = None
+    kpi = own_kpi or (await conn.fetchrow(_KPI_SQL, default_kpi_id) if default_kpi_id else None)
     return {
         "primary_kpi": _kpi_ref(kpi),
-        "kpi_from_default": initiative["primary_kpi_id"] is None and kpi is not None,
+        "kpi_from_default": own_kpi is None and kpi is not None,
+        "kpi_note": kpi_note,
         "target_value": own["target_value"] if own else None,
         "maturity_days": own["maturity_days"] if own else (default["maturity_days"] if default else _DEFAULT_MATURITY_DAYS),
         "revenue_basis": own["revenue_basis"] if own else "CLOSED_REVENUE",
@@ -300,7 +312,10 @@ async def get_performance(initiative_id: UUID, today: date | None = None) -> dic
         currency = initiative["currency"]
         cost_rows = await conn.fetch(_COSTS_SQL, initiative_id)
         total_rows = await conn.fetch(_TOTALS_SQL, initiative_id)
-        demo_count = await conn.fetchval("SELECT count(*) FROM event_demos WHERE initiative_id = $1", initiative_id)
+        demo_count = await conn.fetchval(
+            f"SELECT count(*) FROM event_demos d JOIN demo_outcomes o ON o.id = d.outcome_id WHERE d.initiative_id = $1 AND {HELD_DEMO_SQL}",
+            initiative_id,
+        )
         evaluation = await _evaluation(conn, initiative)
         latest = await conn.fetchrow(f"{_DECISIONS_SQL} LIMIT 1", initiative_id)
 
@@ -328,18 +343,28 @@ async def get_performance(initiative_id: UUID, today: date | None = None) -> dic
     kpi = evaluation["primary_kpi"]
     actual = metrics.kpi_actual(kpi["code"] if kpi else None, cost, totals, revenue, pipeline)
     matures = metrics.matures_on(initiative["start_date"], initiative["end_date"], evaluation["maturity_days"])
-    rating = metrics.suggest_rating(
-        kpi_code=kpi["code"] if kpi else None,
-        kpi_name=kpi["name"] if kpi else None,
-        actual=actual,
-        target=evaluation["target_value"],
-        matures=matures,
-        maturity_days=evaluation["maturity_days"],
-        today=today,
-        roi=ratios["roi_percent"],
-        revenue_recorded=bool(revenue),
-        currency=currency,
-    )
+    stage = metrics.verdict_stage(initiative["start_date"], matures, today)
+    kpi_args = {
+        "kpi_code": kpi["code"] if kpi else None,
+        "kpi_name": kpi["name"] if kpi else None,
+        "actual": actual,
+        "target": evaluation["target_value"],
+        "currency": currency,
+    }
+    # Before it starts: nothing to judge. Until the window ends: an early read on the KPI, the verdict waits for revenue.
+    early = metrics.early_read(**kpi_args) if stage == "EARLY" else None
+    if stage == "UPCOMING":
+        rating = {"code": "TEST", "name": "Test", "gap_percent": None,
+                  "reason": "Upcoming — the verdict comes after it has happened. For now, keep the expected cost within budget."}
+    elif stage == "EARLY":
+        final_on = f"{matures.day} {matures.strftime('%B %Y')}"
+        rating = {"code": "TEST", "name": "Test", "gap_percent": None,
+                  "reason": f"The final verdict is due on {final_on}, once deals have had time to close."}
+    else:
+        rating = metrics.suggest_rating(
+            **kpi_args, matures=None, maturity_days=evaluation["maturity_days"], today=today,
+            roi=ratios["roi_percent"], revenue_recorded=bool(revenue),
+        )
 
     return {
         "currency": currency,
@@ -357,6 +382,8 @@ async def get_performance(initiative_id: UUID, today: date | None = None) -> dic
         "evaluation": evaluation,
         "kpi_actual": actual,
         "matures_on": matures,
+        "stage": stage,
+        "early_read": early,
         "rating": rating,
         "suggested_decision": metrics.SUGGESTED_DECISION[rating["code"]],
         "latest_decision": dict(latest) if latest else None,

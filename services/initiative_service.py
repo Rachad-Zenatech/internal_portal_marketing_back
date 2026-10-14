@@ -5,6 +5,7 @@ import asyncpg
 
 from models.initiative_model import InitiativeCreate
 from postgresql_db.database import get_pool
+from services.initiative_metrics import kpi_fits_channel
 from services.rbac_service import log_audit
 
 AUDIT_ENTITY = "Initiative"
@@ -204,6 +205,7 @@ async def create_initiative(data: InitiativeCreate, actor_id: UUID) -> dict:
                 )
                 if codes is None:
                     raise InitiativeValidationError(_CONSTRAINT_MESSAGES["initiatives_channel_id_fkey"])
+                await _check_kpi_fits_channel(conn, values["primary_kpi_id"], values["channel_id"])
                 is_event = codes["channel"] == EVENTS_CHANNEL
                 if event is not None and not is_event:
                     raise InitiativeValidationError("Event details can only be added to initiatives in the Events channel.")
@@ -258,6 +260,19 @@ async def _insert_event_details(conn, initiative_id: UUID, event: dict, actor_id
         """,
         initiative_id, *[event[f] for f in _EVENT_FIELDS], actor_id,
     )
+
+
+async def _check_kpi_fits_channel(conn, kpi_id: int | None, channel_id: int) -> None:
+    """A primary KPI has to make sense for the channel, e.g. no CPM (an ad measure) on a trade show."""
+    if kpi_id is None:
+        return
+    row = await conn.fetchrow(
+        "SELECT k.code, k.name, c.code AS channel, c.name AS channel_name "
+        "FROM primary_kpis k CROSS JOIN channels c WHERE k.id = $1 AND c.id = $2",
+        kpi_id, channel_id,
+    )
+    if row is not None and not kpi_fits_channel(row["code"], row["channel"]):
+        raise InitiativeValidationError(f"{row['name']} isn't used to judge {row['channel_name']}. Choose another primary KPI.")
 
 
 async def _apply_event_changes(
@@ -331,6 +346,12 @@ async def update_initiative(initiative_id: UUID, changes: dict, actor_id: UUID) 
                 if new_status and new_status not in STATUS_TRANSITIONS[current["status"]]:
                     raise InitiativeValidationError(
                         f"An initiative can't go from {_STATUS_LABELS[current['status']]} to {_STATUS_LABELS[new_status]}."
+                    )
+
+                # Only checked when the KPI or channel changes, so older initiatives can still be edited
+                if "primary_kpi_id" in changed or "channel_id" in changed:
+                    await _check_kpi_fits_channel(
+                        conn, changed.get("primary_kpi_id", current["primary_kpi_id"]), changed.get("channel_id", current["channel_id"])
                     )
 
                 # Event rules apply to the state after this change

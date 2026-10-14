@@ -70,6 +70,8 @@ class ReferenceDataResponse(BaseModel):
     expense_types: list[ExpenseTypeItem]
     spend_categories: list[SpendCategoryItem]
     outcome_metrics: list[OutcomeMetricItem]
+    # Channel code → primary KPI codes it can use; channels not listed can use any
+    kpi_choices_by_channel: dict[str, list[str]]
     evaluation_defaults: list[EvaluationDefaultItem]
     demo_types: list[ReferenceItem]
     demo_outcomes: list[DemoOutcomeItem]
