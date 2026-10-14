@@ -5,7 +5,8 @@ Usage:
     python scripts/seed_sample_initiatives.py
 
 Refuses to run unless DATABASE_URL points at localhost. Safe to re-run: initiatives
-whose name already exists are skipped. Owner is the first super admin user.
+whose name already exists are skipped, and costs are only added to initiatives that have
+none yet. Owner is the first super admin user.
 """
 import asyncio
 import os
@@ -40,6 +41,33 @@ EVENT_DETAILS = [
     ("Facility Expo 2026 - Booth", "TRADE_SHOW", "Las Vegas Convention Center", "Las Vegas", "US", "NORTH_AMERICA"),
     ("Drone Industry Summit Sponsorship", "CONFERENCE", "Dubai World Trade Centre", "Dubai", "AE", "MIDDLE_EAST"),
     ("Safety Compliance Webinar", None, None, None, None, None),
+]
+
+
+# Costs for the sample trade show, adding up to its $20,000 budget (the CEO example).
+# (initiative, category, description, vendor, status, estimated amount, amount, currency, incurred on,
+#  invoice no., paid on, payment method, source). Cost type comes from the category's default.
+SPEND_LINES = [
+    ("Facility Expo 2026 - Booth", "BOOTH_SPACE", "10x20 booth space", "Facility Expo Organisers", "PAID",
+     None, 8000, "USD", date(2026, 6, 15), "INV-1001", date(2026, 7, 10), "AP_INVOICE", "MANUAL"),
+    ("Facility Expo 2026 - Booth", "BOOTH_BUILD", "Modular booth build", "ExhibitWorks", "INVOICED",
+     4000, 4500, "USD", date(2026, 10, 1), "INV-1002", None, "AP_INVOICE", "MANUAL"),
+    ("Facility Expo 2026 - Booth", "FLOORING", "10x20 grey carpet", "Expo Show Services", "COMMITTED",
+     None, 600, "USD", date(2026, 11, 4), None, None, "AP_INVOICE", "MANUAL"),
+    ("Facility Expo 2026 - Booth", "LIGHTING", "Booth lighting package", "Expo Show Services", "COMMITTED",
+     None, 450, "USD", date(2026, 11, 4), None, None, "AP_INVOICE", "MANUAL"),
+    ("Facility Expo 2026 - Booth", "ELECTRICAL", "Electrical, 2 outlets", "Expo Show Services", "COMMITTED",
+     None, 350, "USD", date(2026, 11, 4), None, None, "AP_INVOICE", "MANUAL"),
+    ("Facility Expo 2026 - Booth", "BADGES_PASSES", "Exhibitor badges x4", "Facility Expo Organisers", "PAID",
+     None, 300, "USD", date(2026, 9, 15), None, date(2026, 9, 15), "CORPORATE_CARD", "MANUAL"),
+    ("Facility Expo 2026 - Booth", "FREIGHT", "Booth freight to Las Vegas", "Expo Freight Co.", "ESTIMATED",
+     1800, 1800, "USD", date(2026, 10, 28), None, None, None, "MANUAL"),
+    ("Facility Expo 2026 - Booth", "PRINT_SIGNAGE", "Banners and brochures", "PrintHouse", "COMMITTED",
+     None, 900, "USD", date(2026, 10, 20), None, None, "AP_INVOICE", "MANUAL"),
+    ("Facility Expo 2026 - Booth", "GIVEAWAYS", "Branded giveaways", "SwagWorks", "COMMITTED",
+     None, 700, "USD", date(2026, 10, 20), None, None, "AP_INVOICE", "MANUAL"),
+    ("Facility Expo 2026 - Booth", "STAFF_TIME", "Staff time: 3 people x 2 days", None, "COMMITTED",
+     None, 2400, "USD", date(2026, 11, 6), None, None, None, "STAFF_CALCULATOR"),
 ]
 
 
@@ -96,8 +124,32 @@ async def seed() -> None:
                 *[list(col) for col in detail_columns],
                 owner_id,
             )
+
+            # Only initiatives without costs yet, so re-running never duplicates them
+            cost_columns = list(zip(*SPEND_LINES))
+            costs = await conn.fetch(
+                """
+                INSERT INTO spend_lines (initiative_id, category_id, description, vendor, status, estimated_amount,
+                                         amount, currency, incurred_on, invoice_ref, paid_on, payment_method,
+                                         source, cost_type, created_by, updated_by)
+                SELECT i.id, sc.id, l.description, l.vendor, l.status, l.estimated_amount, l.amount, l.currency,
+                       l.incurred_on, l.invoice_ref, l.paid_on, l.payment_method, l.source, sc.default_cost_type,
+                       $14, $14
+                FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::numeric[],
+                            $7::numeric[], $8::text[], $9::date[], $10::text[], $11::date[], $12::text[], $13::text[])
+                     AS l(name, category, description, vendor, status, estimated_amount, amount, currency,
+                          incurred_on, invoice_ref, paid_on, payment_method, source)
+                JOIN initiatives i ON i.name = l.name
+                JOIN spend_categories sc ON sc.code = l.category
+                WHERE NOT EXISTS (SELECT 1 FROM spend_lines s WHERE s.initiative_id = i.id)
+                RETURNING amount
+                """,
+                *[list(col) for col in cost_columns],
+                owner_id,
+            )
         print(f"Inserted {len(inserted)} sample initiative(s); {len(SAMPLES) - len(inserted)} already existed.")
         print(f"Added event details for {len(details)} event(s): {', '.join(d['event_code'] for d in details) or 'none'}.")
+        print(f"Added {len(costs)} sample cost(s) totalling {sum(c['amount'] for c in costs):,.2f}.")
     finally:
         await close_pool()
 

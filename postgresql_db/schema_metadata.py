@@ -394,3 +394,62 @@ event_details = sa.Table(
     sa.CheckConstraint("country_code ~ '^[A-Z]{2}$'", name="event_details_country_code_check"),
     sa.CheckConstraint("event_url ~* '^https?://'", name="event_details_event_url_check"),
 )
+
+
+# --- Costs against an initiative ---
+# Supplier costs move ESTIMATED → COMMITTED → INVOICED → PAID. Travel and anything staff claim back
+# come from the travel management system (source TRAVEL_FEED) and are never typed in here.
+# Invoices: only the supplier's invoice number is stored, never the file — Finance keeps the invoices.
+spend_lines = sa.Table(
+    "spend_lines", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column("initiative_id", sa.UUID(), sa.ForeignKey("initiatives.id", name="spend_lines_initiative_id_fkey", ondelete="CASCADE"), nullable=False),
+    sa.Column("category_id", sa.INTEGER(), sa.ForeignKey("spend_categories.id", name="spend_lines_category_id_fkey"), nullable=False),
+    sa.Column("description", sa.VARCHAR(length=255)),
+    sa.Column("vendor", sa.VARCHAR(length=255)),
+    sa.Column("note", sa.TEXT()),
+    sa.Column("status", sa.VARCHAR(length=20), nullable=False, server_default=sa.text("'COMMITTED'")),
+    # The original estimate or quote, kept to show the variance once the actual is known
+    sa.Column("estimated_amount", sa.NUMERIC(precision=14, scale=2)),
+    # The current figure: the estimate until invoiced, then the actual. Negative for refunds and credits.
+    sa.Column("amount", sa.NUMERIC(precision=14, scale=2), nullable=False),
+    sa.Column("currency", sa.CHAR(length=3), nullable=False),
+    # Invoice date, or the expected date while ESTIMATED / COMMITTED; decides the month the cost counts in
+    sa.Column("incurred_on", sa.DATE(), nullable=False),
+    sa.Column("invoice_ref", sa.VARCHAR(length=100)),
+    sa.Column("paid_on", sa.DATE()),
+    sa.Column("payment_method", sa.VARCHAR(length=20)),
+    sa.Column("cost_type", sa.VARCHAR(length=5)),
+    sa.Column("source", sa.VARCHAR(length=30), nullable=False, server_default=sa.text("'MANUAL'")),
+    # The source system's id for this cost, so feeds and imports never create duplicates
+    sa.Column("external_ref", sa.VARCHAR(length=100)),
+    # Filled by the monthly reconciliation (later task)
+    sa.Column("reconciled_month", sa.DATE()),
+    sa.Column("reconciled_at", postgresql.TIMESTAMP(timezone=True)),
+    sa.Column("reconciled_by", sa.UUID(), sa.ForeignKey("users.id", name="spend_lines_reconciled_by_fkey", ondelete="SET NULL")),
+    # Foreign keys added by later tasks: the import that created the line, and the monthly budget it counts against
+    sa.Column("import_batch_id", sa.UUID()),
+    sa.Column("monthly_budget_id", sa.UUID()),
+    sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="spend_lines_created_by_fkey", ondelete="SET NULL")),
+    sa.Column("updated_by", sa.UUID(), sa.ForeignKey("users.id", name="spend_lines_updated_by_fkey", ondelete="SET NULL")),
+    sa.CheckConstraint("amount <> 0", name="spend_lines_amount_check"),
+    sa.CheckConstraint("status <> 'PAID' OR paid_on IS NOT NULL", name="spend_lines_paid_on_check"),
+    sa.CheckConstraint("status IN ('ESTIMATED', 'COMMITTED', 'INVOICED', 'PAID')", name="spend_lines_status_check"),
+    sa.CheckConstraint("currency ~ '^[A-Z]{3}$'", name="spend_lines_currency_check"),
+    sa.CheckConstraint(
+        "source IN ('MANUAL', 'STAFF_CALCULATOR', 'COST_SHEET_UPLOAD', 'TRAVEL_FEED', 'GOOGLE_ADS', 'MICROSOFT_ADS')",
+        name="spend_lines_source_check",
+    ),
+    sa.CheckConstraint("payment_method IN ('AP_INVOICE', 'CORPORATE_CARD', 'OTHER')", name="spend_lines_payment_method_check"),
+    sa.CheckConstraint("cost_type IN ('OPEX', 'CAPEX')", name="spend_lines_cost_type_check"),
+    sa.Index("idx_spend_lines_initiative", "initiative_id"),
+    # One row per record in a source system
+    sa.Index("spend_lines_source_ref_key", "source", "external_ref", unique=True, postgresql_where=sa.text("external_ref IS NOT NULL")),
+    # The same supplier invoice can't be entered twice
+    sa.Index(
+        "spend_lines_vendor_invoice_key", sa.text("lower(vendor)"), "invoice_ref", unique=True,
+        postgresql_where=sa.text("vendor IS NOT NULL AND invoice_ref IS NOT NULL"),
+    ),
+)
