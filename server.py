@@ -50,6 +50,7 @@ from tools.reference_data_router import router as reference_data_router
 
 # FastAPI routers
 from tools.search import router as search_router
+from tools.spend_router import router as spend_router
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -249,6 +250,7 @@ app.include_router(observability_router, prefix="/api", tags=["Observability"])
 app.include_router(graph_router, prefix="/api", tags=["Microsoft Graph"], dependencies=authenticated)
 app.include_router(reference_data_router, prefix="/api", tags=["Reference Data"], dependencies=authenticated)
 app.include_router(initiative_router, prefix="/api", tags=["Initiatives"], dependencies=authenticated)
+app.include_router(spend_router, prefix="/api", tags=["Initiative costs"], dependencies=authenticated)
 
 
 # --- Session Middleware ---

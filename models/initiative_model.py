@@ -41,6 +41,11 @@ class InitiativeListItem(BaseModel):
     region_name: str | None = None
     platform: str | None = None
     event_url: str | None = None
+    # Costs in the initiative's currency: everything expected (estimates included), and invoiced + paid
+    expected_total: float = 0
+    actual_amount: float = 0
+    # Some costs are in another currency and aren't included in the totals above
+    has_mixed_currencies: bool = False
 
 
 class InitiativeListResponse(BaseModel):

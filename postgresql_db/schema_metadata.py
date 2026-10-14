@@ -444,6 +444,8 @@ spend_lines = sa.Table(
     ),
     sa.CheckConstraint("payment_method IN ('AP_INVOICE', 'CORPORATE_CARD', 'OTHER')", name="spend_lines_payment_method_check"),
     sa.CheckConstraint("cost_type IN ('OPEX', 'CAPEX')", name="spend_lines_cost_type_check"),
+    # Only invoiced or paid costs can be reconciled
+    sa.CheckConstraint("reconciled_month IS NULL OR status IN ('INVOICED', 'PAID')", name="spend_lines_reconciled_status_check"),
     sa.Index("idx_spend_lines_initiative", "initiative_id"),
     # One row per record in a source system
     sa.Index("spend_lines_source_ref_key", "source", "external_ref", unique=True, postgresql_where=sa.text("external_ref IS NOT NULL")),

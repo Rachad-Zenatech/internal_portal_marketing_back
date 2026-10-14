@@ -20,6 +20,23 @@ def entity_title_sql(alias: str) -> str:
                 {alias}.new_value->>'name',
                 {alias}.old_value->>'name'
             )
+            -- "Booth space · EVT-2026-0007" (the initiative's name when it isn't an event). Deleted costs fall back
+            -- to the category and initiative recorded in the entry; a deleted initiative leaves just the category.
+            WHEN {alias}.entity_type = 'SpendLine' THEN COALESCE(
+                (SELECT sc.name || ' · ' || COALESCE(ed.event_code, i.name)
+                 FROM spend_lines s
+                 JOIN spend_categories sc ON sc.id = s.category_id
+                 JOIN initiatives i ON i.id = s.initiative_id
+                 LEFT JOIN event_details ed ON ed.initiative_id = i.id
+                 WHERE CAST(s.id AS TEXT) = {alias}.entity_id LIMIT 1),
+                (SELECT sc.name || COALESCE(' · ' || COALESCE(ed.event_code, i.name), '')
+                 FROM spend_categories sc
+                 LEFT JOIN initiatives i
+                        ON CAST(i.id AS TEXT) = COALESCE({alias}.old_value->>'initiative_id', {alias}.new_value->>'initiative_id')
+                 LEFT JOIN event_details ed ON ed.initiative_id = i.id
+                 WHERE CAST(sc.id AS TEXT) = COALESCE({alias}.old_value->>'category_id', {alias}.new_value->>'category_id')
+                 LIMIT 1)
+            )
             ELSE NULL
         END
     """

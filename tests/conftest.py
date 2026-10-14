@@ -107,6 +107,11 @@ def _delete_user(user_id: uuid.UUID) -> None:
     run_sql("DELETE FROM audit_logs WHERE actor_user_id = $1 OR entity_id = $2", user_id, str(user_id))
     run_sql("DELETE FROM login_activity_logs WHERE user_id = $1", user_id)
     run_sql("DELETE FROM initiatives WHERE created_by = $1", user_id)
+    # Temporary roles a test made for this user (code PYTEST_…); their permission rows go with them
+    run_sql(
+        "DELETE FROM roles WHERE code LIKE 'PYTEST\\_%' AND id IN (SELECT role_id FROM user_roles WHERE user_id = $1)",
+        user_id,
+    )
     run_sql("DELETE FROM user_roles WHERE user_id = $1", user_id)
     run_sql("DELETE FROM users WHERE id = $1", user_id)
 

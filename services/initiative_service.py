@@ -23,7 +23,10 @@ _SELECT = """
            i.budget_amount::float8 AS budget_amount, i.currency, i.status,
            ed.event_code, ed.event_type_id, et.name AS event_type_name,
            ed.venue, ed.city, ed.country_code, ed.region_id, r.name AS region_name,
-           ed.platform, ed.event_url
+           ed.platform, ed.event_url,
+           COALESCE(sp.expected_total, 0)::float8 AS expected_total,
+           COALESCE(sp.actual_amount, 0)::float8 AS actual_amount,
+           COALESCE(sp.has_mixed_currencies, false) AS has_mixed_currencies
     FROM initiatives i
     JOIN brands b ON b.id = i.brand_id
     JOIN channels c ON c.id = i.channel_id
@@ -35,6 +38,14 @@ _SELECT = """
     LEFT JOIN event_details ed ON ed.initiative_id = i.id
     LEFT JOIN event_types et ON et.id = ed.event_type_id
     LEFT JOIN regions r ON r.id = ed.region_id
+    -- Cost totals in the initiative's own currency; costs in other currencies are flagged, never converted
+    LEFT JOIN LATERAL (
+        SELECT SUM(amount) FILTER (WHERE currency = i.currency) AS expected_total,
+               SUM(amount) FILTER (WHERE currency = i.currency AND status IN ('INVOICED', 'PAID')) AS actual_amount,
+               bool_or(currency <> i.currency) AS has_mixed_currencies
+        FROM spend_lines
+        WHERE initiative_id = i.id
+    ) sp ON true
 """
 
 # Database rule → message a person can act on
