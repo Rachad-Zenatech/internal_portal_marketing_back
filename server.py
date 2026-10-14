@@ -46,6 +46,7 @@ from tools.initiative_router import router as initiative_router
 from tools.log_router import router as log_router
 from tools.notification_router import notification_router
 from tools.observability import router as observability_router
+from tools.performance_router import router as performance_router
 from tools.rbac_router import get_current_user_id
 from tools.rbac_router import router as rbac_router
 from tools.reference_data_router import router as reference_data_router
@@ -254,6 +255,7 @@ app.include_router(reference_data_router, prefix="/api", tags=["Reference Data"]
 app.include_router(initiative_router, prefix="/api", tags=["Initiatives"], dependencies=authenticated)
 app.include_router(spend_router, prefix="/api", tags=["Initiative costs"], dependencies=authenticated)
 app.include_router(demo_router, prefix="/api", tags=["Event demos"], dependencies=authenticated)
+app.include_router(performance_router, prefix="/api", tags=["Results and performance"], dependencies=authenticated)
 app.include_router(import_router, prefix="/api", tags=["Spreadsheet uploads"], dependencies=authenticated)
 
 

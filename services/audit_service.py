@@ -52,6 +52,21 @@ def entity_title_sql(alias: str) -> str:
                         ON CAST(i.id AS TEXT) = COALESCE({alias}.old_value->>'initiative_id', {alias}.new_value->>'initiative_id')
                  LEFT JOIN event_details ed ON ed.initiative_id = i.id)
             )
+            -- Results and success settings are recorded against the initiative itself: "Results · EVT-2026-0007"
+            WHEN {alias}.entity_type IN ('Outcomes', 'Evaluation') THEN
+                (CASE WHEN {alias}.entity_type = 'Outcomes' THEN 'Results' ELSE 'Success settings' END)
+                || COALESCE(' · ' || (SELECT COALESCE(ed.event_code, i.name)
+                                      FROM initiatives i LEFT JOIN event_details ed ON ed.initiative_id = i.id
+                                      WHERE CAST(i.id AS TEXT) = {alias}.entity_id LIMIT 1), '')
+            -- "Decision: Scale · EVT-2026-0007"
+            WHEN {alias}.entity_type = 'Decision' THEN
+                (SELECT 'Decision: ' || s.name || ' · ' || COALESCE(ed.event_code, i.name)
+                 FROM initiatives i
+                 LEFT JOIN event_details ed ON ed.initiative_id = i.id
+                 LEFT JOIN scale_or_cut_options s
+                        ON CAST(s.id AS TEXT) = COALESCE({alias}.new_value->>'scale_or_cut_id', {alias}.old_value->>'scale_or_cut_id')
+                 WHERE CAST(i.id AS TEXT) = COALESCE({alias}.new_value->>'initiative_id', {alias}.old_value->>'initiative_id')
+                 LIMIT 1)
             -- Spreadsheet uploads: the file name
             WHEN {alias}.entity_type = 'ImportBatch' THEN COALESCE(
                 (SELECT filename FROM import_batches WHERE CAST(id AS TEXT) = {alias}.entity_id LIMIT 1),

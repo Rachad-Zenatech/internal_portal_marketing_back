@@ -36,6 +36,11 @@ _SIMPLE_LISTS = {
         "SELECT id, code, name, expense_type_id, applies_to, manual_entry_allowed, default_cost_type, help_text, "
         "sort_order FROM spend_categories WHERE is_active ORDER BY sort_order, name"
     ),
+    "outcome_metrics": "SELECT id, code, name, unit, sort_order FROM outcome_metrics WHERE is_active ORDER BY sort_order, name",
+    "evaluation_defaults": (
+        "SELECT sub_channel_id, funnel_stage_id, goal_id, primary_kpi_id, maturity_days FROM evaluation_defaults "
+        "ORDER BY sub_channel_id"
+    ),
     "demo_types": "SELECT id, code, name, sort_order FROM demo_types WHERE is_active ORDER BY sort_order, name",
     "demo_outcomes": (
         "SELECT id, code, name, funnel_rank, sort_order FROM demo_outcomes WHERE is_active ORDER BY sort_order, name"

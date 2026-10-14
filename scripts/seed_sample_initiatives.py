@@ -6,7 +6,7 @@ Usage:
 
 Refuses to run unless DATABASE_URL points at localhost. Safe to re-run: initiatives
 whose name already exists are skipped, and costs are only added to initiatives that have
-none yet (likewise demos). Owner is the first super admin user.
+none yet (likewise demos and results). Owner is the first super admin user.
 """
 import asyncio
 import os
@@ -68,6 +68,11 @@ SPEND_LINES = [
      None, 700, "USD", date(2026, 10, 20), None, None, "AP_INVOICE", "MANUAL"),
     ("Facility Expo 2026 - Booth", "STAFF_TIME", "Staff time: 3 people x 2 days", None, "COMMITTED",
      None, 2400, "USD", date(2026, 11, 6), None, None, None, "STAFF_CALCULATOR"),
+    # A finished sponsorship, for a rating that's already final
+    ("Drone Industry Summit Sponsorship", "SPONSORSHIP_PACKAGE", "Gold sponsorship package", "Drone Industry Summit", "PAID",
+     12000, 12000, "USD", date(2026, 3, 1), "DIS-2026-114", date(2026, 3, 20), "AP_INVOICE", "MANUAL"),
+    ("Drone Industry Summit Sponsorship", "BOOTH_CATERING", "Hospitality lounge catering", "Summit Catering", "PAID",
+     1500, 1500, "USD", date(2026, 5, 14), "SC-5521", date(2026, 6, 10), "AP_INVOICE", "MANUAL"),
 ]
 
 
@@ -96,6 +101,29 @@ DEMOS = [
     ("Facility Expo 2026 - Booth", "2026-11-06 11:15-08", "BOOTH", "Pinecrest Hospitality", "Room scheduling", "NOT_A_FIT"),
     ("Facility Expo 2026 - Booth", "2026-11-06 12:30-08", "SCHEDULED", "Alder Systems", "Occupancy analytics", "DEMO_SCHEDULED"),
     ("Facility Expo 2026 - Booth", "2026-11-06 13:20-08", "BOOTH", "Juniper Data Centers", "Desk booking app", "PENDING"),
+]
+
+
+# Results, typed in for the month they happened. (initiative, month, result, value, currency for money)
+# The expo is the CEO example: 200 leads, 2 customers, $20,000 revenue — it broke even, which isn't a success.
+# The sponsorship finished in May and did well: cost per lead under target and a positive return.
+OUTCOMES = [
+    ("Facility Expo 2026 - Booth", date(2026, 11, 1), "VISITORS", 650, None),
+    ("Facility Expo 2026 - Booth", date(2026, 11, 1), "LEADS", 200, None),
+    ("Facility Expo 2026 - Booth", date(2026, 11, 1), "CUSTOMERS", 2, None),
+    ("Facility Expo 2026 - Booth", date(2026, 11, 1), "REVENUE", 20000, "USD"),
+    ("Drone Industry Summit Sponsorship", date(2026, 5, 1), "VISITORS", 900, None),
+    ("Drone Industry Summit Sponsorship", date(2026, 5, 1), "LEADS", 110, None),
+    ("Drone Industry Summit Sponsorship", date(2026, 5, 1), "FOLLOW_UPS", 60, None),
+    ("Drone Industry Summit Sponsorship", date(2026, 6, 1), "SQLS", 14, None),
+    ("Drone Industry Summit Sponsorship", date(2026, 7, 1), "CUSTOMERS", 3, None),
+    ("Drone Industry Summit Sponsorship", date(2026, 7, 1), "REVENUE", 36000, "USD"),
+]
+
+# Success settings: (initiative, target for its primary KPI, maturity window in days)
+EVALUATIONS = [
+    ("Facility Expo 2026 - Booth", 1000, 180),        # CP-Demo ≤ $1,000 (In-Person Events default KPI)
+    ("Drone Industry Summit Sponsorship", 150, 120),  # CPL ≤ $150 (Sponsorships default KPI)
 ]
 
 
@@ -196,7 +224,38 @@ async def seed() -> None:
                 *[list(col) for col in demo_columns[2:]],
                 owner_id,
             )
+
+            outcome_columns = list(zip(*OUTCOMES))
+            outcomes = await conn.fetch(
+                """
+                INSERT INTO outcomes (initiative_id, period_start, metric_id, value, currency, source, recorded_by)
+                SELECT i.id, o.period_start, m.id, o.value, o.currency, 'MANUAL', $6
+                FROM unnest($1::text[], $2::date[], $3::text[], $4::numeric[], $5::text[])
+                     AS o(name, period_start, metric, value, currency)
+                JOIN initiatives i ON i.name = o.name
+                JOIN outcome_metrics m ON m.code = o.metric
+                WHERE NOT EXISTS (SELECT 1 FROM outcomes x WHERE x.initiative_id = i.id)
+                RETURNING id
+                """,
+                *[list(col) for col in outcome_columns],
+                owner_id,
+            )
+
+            evaluation_columns = list(zip(*EVALUATIONS))
+            evaluations = await conn.fetch(
+                """
+                INSERT INTO initiative_evaluations (initiative_id, target_value, maturity_days, updated_by)
+                SELECT i.id, e.target_value, e.maturity_days, $4
+                FROM unnest($1::text[], $2::numeric[], $3::int[]) AS e(name, target_value, maturity_days)
+                JOIN initiatives i ON i.name = e.name
+                ON CONFLICT (initiative_id) DO NOTHING
+                RETURNING initiative_id
+                """,
+                *[list(col) for col in evaluation_columns],
+                owner_id,
+            )
         print(f"Inserted {len(inserted)} sample initiative(s); {len(SAMPLES) - len(inserted)} already existed.")
+        print(f"Added {len(outcomes)} sample result(s) and {len(evaluations)} success setting(s).")
         print(f"Added {len(demos)} sample demo(s).")
         print(f"Added event details for {len(details)} event(s): {', '.join(d['event_code'] for d in details) or 'none'}.")
         print(f"Added {len(costs)} sample cost(s) totalling {sum(c['amount'] for c in costs):,.2f}.")

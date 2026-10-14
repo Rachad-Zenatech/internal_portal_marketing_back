@@ -313,6 +313,13 @@ spend_categories = _reference_table(
     sa.CheckConstraint("applies_to IN ('ALL', 'EVENTS', 'ADS')", name="spend_categories_applies_to_check"),
     sa.CheckConstraint("default_cost_type IN ('OPEX', 'CAPEX')", name="spend_categories_default_cost_type_check"),
 )
+# Funnel metrics recorded as results (impressions … customers, pipeline, revenue)
+outcome_metrics = _reference_table(
+    "outcome_metrics",
+    # COUNT for things counted; MONEY for pipeline and revenue (which carry a currency)
+    sa.Column("unit", sa.VARCHAR(length=10), nullable=False, server_default=sa.text("'COUNT'")),
+    sa.CheckConstraint("unit IN ('COUNT', 'MONEY')", name="outcome_metrics_unit_check"),
+)
 # Demos given at events: booth, scheduled or live
 demo_types = _reference_table("demo_types")
 demo_outcomes = _reference_table(
@@ -403,6 +410,67 @@ event_details = sa.Table(
     sa.CheckConstraint("country_code ~ '^[A-Z]{2}$'", name="event_details_country_code_check"),
     sa.CheckConstraint("event_url ~* '^https?://'", name="event_details_event_url_check"),
     sa.CheckConstraint("booth_size_sqm > 0", name="event_details_booth_size_check"),
+)
+
+# --- Results and "was it worth it?" ---
+
+# Results per initiative per month. Values typed in (MANUAL) and values synced from other tools
+# (HubSpot, ad platforms…) sit side by side; neither overwrites the other.
+outcomes = sa.Table(
+    "outcomes", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column("initiative_id", sa.UUID(), sa.ForeignKey("initiatives.id", name="outcomes_initiative_id_fkey", ondelete="CASCADE"), nullable=False),
+    # Always the first day of a month
+    sa.Column("period_start", sa.DATE(), nullable=False),
+    sa.Column("metric_id", sa.INTEGER(), sa.ForeignKey("outcome_metrics.id", name="outcomes_metric_id_fkey"), nullable=False),
+    sa.Column("value", sa.NUMERIC(precision=16, scale=2), nullable=False),
+    # Pipeline and revenue only
+    sa.Column("currency", sa.CHAR(length=3)),
+    sa.Column("source", sa.VARCHAR(length=30), nullable=False, server_default=sa.text("'MANUAL'")),
+    sa.Column("recorded_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("recorded_by", sa.UUID(), sa.ForeignKey("users.id", name="outcomes_recorded_by_fkey", ondelete="SET NULL")),
+    sa.CheckConstraint("value >= 0", name="outcomes_value_check"),
+    sa.CheckConstraint("extract(day from period_start) = 1", name="outcomes_period_start_check"),
+    sa.CheckConstraint("currency ~ '^[A-Z]{3}$'", name="outcomes_currency_check"),
+    sa.UniqueConstraint("initiative_id", "period_start", "metric_id", "source", name="outcomes_initiative_period_metric_source_key"),
+)
+
+# What success means by default for each sub-channel; pre-fills an initiative's evaluation
+evaluation_defaults = sa.Table(
+    "evaluation_defaults", metadata,
+    sa.Column("sub_channel_id", sa.INTEGER(), sa.ForeignKey("sub_channels.id", name="evaluation_defaults_sub_channel_id_fkey", ondelete="CASCADE"), primary_key=True),
+    sa.Column("funnel_stage_id", sa.INTEGER(), sa.ForeignKey("funnel_stages.id", name="evaluation_defaults_funnel_stage_id_fkey")),
+    sa.Column("goal_id", sa.INTEGER(), sa.ForeignKey("goals.id", name="evaluation_defaults_goal_id_fkey")),
+    sa.Column("primary_kpi_id", sa.INTEGER(), sa.ForeignKey("primary_kpis.id", name="evaluation_defaults_primary_kpi_id_fkey")),
+    # Days after the initiative ends before its rating is final (revenue arrives late)
+    sa.Column("maturity_days", sa.INTEGER(), nullable=False, server_default=sa.text("180")),
+)
+
+# One initiative's success settings: the target for its primary KPI and how long to wait before judging
+initiative_evaluations = sa.Table(
+    "initiative_evaluations", metadata,
+    sa.Column("initiative_id", sa.UUID(), sa.ForeignKey("initiatives.id", name="initiative_evaluations_initiative_id_fkey", ondelete="CASCADE"), primary_key=True),
+    sa.Column("target_value", sa.NUMERIC(precision=14, scale=2)),
+    sa.Column("maturity_days", sa.INTEGER(), nullable=False, server_default=sa.text("180")),
+    sa.Column("revenue_basis", sa.VARCHAR(length=30), nullable=False, server_default=sa.text("'CLOSED_REVENUE'")),
+    sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("updated_by", sa.UUID(), sa.ForeignKey("users.id", name="initiative_evaluations_updated_by_fkey", ondelete="SET NULL")),
+    sa.CheckConstraint("maturity_days BETWEEN 0 AND 730", name="initiative_evaluations_maturity_days_check"),
+    sa.CheckConstraint("target_value >= 0", name="initiative_evaluations_target_value_check"),
+    sa.CheckConstraint("revenue_basis IN ('CLOSED_REVENUE')", name="initiative_evaluations_revenue_basis_check"),
+)
+
+# Marketing's scale-or-cut decisions, newest last; the suggestion at the time is kept beside each one
+initiative_decisions = sa.Table(
+    "initiative_decisions", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column("initiative_id", sa.UUID(), sa.ForeignKey("initiatives.id", name="initiative_decisions_initiative_id_fkey", ondelete="CASCADE"), nullable=False),
+    sa.Column("scale_or_cut_id", sa.INTEGER(), sa.ForeignKey("scale_or_cut_options.id", name="initiative_decisions_scale_or_cut_id_fkey"), nullable=False),
+    sa.Column("suggested_rating", sa.VARCHAR(length=10)),
+    sa.Column("note", sa.TEXT()),
+    sa.Column("decided_by", sa.UUID(), sa.ForeignKey("users.id", name="initiative_decisions_decided_by_fkey", ondelete="SET NULL")),
+    sa.Column("decided_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Index("idx_initiative_decisions_initiative", "initiative_id", "decided_at"),
 )
 
 # One row per demo given at an event. The organisation only: people's details stay in HubSpot.
