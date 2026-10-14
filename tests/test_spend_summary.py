@@ -221,3 +221,13 @@ def test_list_returns_cost_totals(client, admin, make_event, add_cost):
 
     item = response.json()["items"][0]
     assert (item["expected_total"], item["actual_amount"], item["has_mixed_currencies"]) == (5000, 4000, True)
+
+
+def test_cost_per_square_metre(client, admin, make_event, add_cost):
+    with_booth = make_event(event={"city": "Austin", "country_code": "US", "booth_size_sqm": 18.6})
+    without_booth = make_event()
+    for event in (with_booth, without_booth):
+        add_cost(event["id"], "BOOTH_SPACE", 9300, "PAID")
+
+    assert _summary(client, admin, with_booth["id"])["per_sqm"] == 500
+    assert _summary(client, admin, without_booth["id"])["per_sqm"] is None

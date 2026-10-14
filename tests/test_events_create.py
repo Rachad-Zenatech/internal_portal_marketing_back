@@ -218,3 +218,31 @@ def test_database_rejects_non_http_link(client, admin, ref):
     # The API validates first; the database rule is the backstop for anything that skips it
     with pytest.raises(Exception, match="event_details_event_url_check"):
         run_sql("UPDATE event_details SET event_url = 'zoom.us/j/1' WHERE initiative_id = $1", created.json()["id"])
+
+
+def test_in_person_event_stores_booth_size(client, admin, ref):
+    event = {"city": "Las Vegas", "country_code": "US", "booth_size_sqm": 18.58}
+
+    response = client.post("/api/initiatives", json=_event_payload(ref, event=event), headers=admin["headers"])
+
+    assert response.status_code == 201, response.text
+    assert response.json()["booth_size_sqm"] == 18.58
+
+
+@pytest.mark.parametrize("sub_channel", ["WEBINARS", "VIRTUAL_EVENTS"])
+def test_booth_size_rejected_for_virtual_events(client, admin, ref, sub_channel):
+    payload = _event_payload(ref, sub_channel=sub_channel, event={"booth_size_sqm": 18.6})
+
+    response = client.post("/api/initiatives", json=payload, headers=admin["headers"])
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Booth size is for in-person events."
+
+
+@pytest.mark.parametrize("size", [0, -5])
+def test_booth_size_must_be_positive(client, admin, ref, size):
+    payload = _event_payload(ref, event={"city": "Las Vegas", "country_code": "US", "booth_size_sqm": size})
+
+    response = client.post("/api/initiatives", json=payload, headers=admin["headers"])
+
+    assert response.status_code == 422

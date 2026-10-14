@@ -355,7 +355,12 @@ async def get_spend_summary(initiative_id: UUID) -> dict:
     pool = get_pool()
     async with pool.acquire() as conn:
         initiative = await conn.fetchrow(
-            "SELECT budget_amount, currency, start_date, end_date FROM initiatives WHERE id = $1", initiative_id
+            """
+            SELECT i.budget_amount, i.currency, i.start_date, i.end_date, ed.booth_size_sqm
+            FROM initiatives i LEFT JOIN event_details ed ON ed.initiative_id = i.id
+            WHERE i.id = $1
+            """,
+            initiative_id,
         )
         if initiative is None:
             raise InitiativeNotFoundError
@@ -438,6 +443,7 @@ async def get_spend_summary(initiative_id: UUID) -> dict:
         "by_source": {"supplier": expected_from("PORTAL"), "travel": expected_from("TRAVEL_SYSTEM")},
         "by_month": sorted(months, key=lambda m: m["month"]),
         "per_day": _money(expected / days) if days and days > 0 else None,
+        "per_sqm": _money(expected / initiative["booth_size_sqm"]) if initiative["booth_size_sqm"] else None,
         "other_currencies": [
             {"currency": code, **_shape_figures(figures, ("expected_total", "committed", "actual"))}
             for code, figures in sorted(others.items())

@@ -189,6 +189,8 @@ class SpendSummary(BaseModel):
     by_month: list[SpendMonth]
     # Expected total ÷ the event's number of days; null without both dates
     per_day: float | None = None
+    # Expected total ÷ booth size, for comparing in-person events; null without a booth size
+    per_sqm: float | None = None
     # Costs in other currencies, reported separately and never converted
     other_currencies: list[SpendOtherCurrency]
     mixed_currencies: bool

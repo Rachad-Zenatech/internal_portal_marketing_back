@@ -222,3 +222,29 @@ def test_switching_to_in_person_requires_clearing_the_link(client, admin, ref):
     assert rejected.json()["detail"] == "Platform and event link are for virtual events."
     assert accepted.status_code == 200, accepted.text
     assert (accepted.json()["platform"], accepted.json()["event_url"]) == (None, None)
+
+
+def test_patch_changes_booth_size_and_audits_it(client, admin, ref):
+    created = _create(client, admin, ref, sub_channel="SPONSORSHIPS", event={"country_code": "AE", "booth_size_sqm": 9.29})
+
+    unchanged = _patch(client, admin, created["id"], {"event": {"booth_size_sqm": 9.29}})
+    changed = _patch(client, admin, created["id"], {"event": {"booth_size_sqm": 18.58}})
+
+    assert unchanged.status_code == 200 and changed.status_code == 200, changed.text
+    assert changed.json()["booth_size_sqm"] == 18.58
+    audits = _update_audits(created["id"])
+    assert len(audits) == 1  # the unchanged size wasn't audited
+    assert json.loads(audits[0]["old_value"]) == {"event": {"booth_size_sqm": 9.29}}
+    assert json.loads(audits[0]["new_value"]) == {"event": {"booth_size_sqm": 18.58, "event_code": created["event_code"]}}
+
+
+def test_switching_to_a_webinar_requires_clearing_the_booth_size(client, admin, ref):
+    created = _create(client, admin, ref, sub_channel="SPONSORSHIPS", event={"country_code": "AE", "booth_size_sqm": 9.29})
+    webinars = ref["sub_channels"]["WEBINARS"]
+
+    rejected = _patch(client, admin, created["id"], {"sub_channel_id": webinars})
+    accepted = _patch(client, admin, created["id"], {"sub_channel_id": webinars, "event": {"booth_size_sqm": None}})
+
+    assert (rejected.status_code, rejected.json()["detail"]) == (422, "Booth size is for in-person events.")
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["booth_size_sqm"] is None

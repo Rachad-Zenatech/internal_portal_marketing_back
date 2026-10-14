@@ -23,7 +23,7 @@ _SELECT = """
            i.budget_amount::float8 AS budget_amount, i.currency, i.status,
            ed.event_code, ed.event_type_id, et.name AS event_type_name,
            ed.venue, ed.city, ed.country_code, ed.region_id, r.name AS region_name,
-           ed.platform, ed.event_url,
+           ed.platform, ed.event_url, ed.booth_size_sqm::float8 AS booth_size_sqm,
            COALESCE(sp.expected_total, 0)::float8 AS expected_total,
            COALESCE(sp.actual_amount, 0)::float8 AS actual_amount,
            COALESCE(sp.has_mixed_currencies, false) AS has_mixed_currencies
@@ -67,6 +67,7 @@ _CONSTRAINT_MESSAGES = {
     "event_details_region_id_fkey": "Unknown region.",
     "event_details_country_code_check": "Country must be a two-letter code, e.g. US.",
     "event_details_event_url_check": "Event link must start with http:// or https://",
+    "event_details_booth_size_check": "Booth size must be more than zero.",
 }
 
 EVENTS_CHANNEL = "EVENTS"
@@ -83,8 +84,10 @@ EVENT_REQUIRED_FIELDS: dict[str, tuple[tuple[str, ...], str]] = {
 IN_PERSON_SUB_CHANNELS = {"IN_PERSON_EVENTS", "SPONSORSHIPS"}
 _VIRTUAL_ONLY_FIELDS = ("platform", "event_url")
 
-_EVENT_FIELDS = ("event_type_id", "venue", "city", "country_code", "region_id", "platform", "event_url")
+_EVENT_FIELDS = ("event_type_id", "venue", "city", "country_code", "region_id", "platform", "event_url", "booth_size_sqm")
 _EVENT_COLUMNS = ", ".join(_EVENT_FIELDS)
+# The same columns for reading back, with booth size as a float so it compares equal to what the API received
+_EVENT_SELECT_COLUMNS = ", ".join(f"{f}::float8 AS {f}" if f == "booth_size_sqm" else f for f in _EVENT_FIELDS)
 
 
 def _check_event_rules(sub_channel_code: str | None, event: dict) -> None:
@@ -94,6 +97,8 @@ def _check_event_rules(sub_channel_code: str | None, event: dict) -> None:
         raise InitiativeValidationError(message)
     if sub_channel_code in IN_PERSON_SUB_CHANNELS and any(event[f] is not None for f in _VIRTUAL_ONLY_FIELDS):
         raise InitiativeValidationError("Platform and event link are for virtual events.")
+    if event["booth_size_sqm"] is not None and sub_channel_code not in IN_PERSON_SUB_CHANNELS:
+        raise InitiativeValidationError("Booth size is for in-person events.")
 
 
 class InitiativeValidationError(Exception):
@@ -317,7 +322,7 @@ async def update_initiative(initiative_id: UUID, changes: dict, actor_id: UUID) 
                 if current["budget_amount"] is not None:
                     current["budget_amount"] = float(current["budget_amount"])
                 current_event = await conn.fetchrow(
-                    f"SELECT event_code, {_EVENT_COLUMNS} FROM event_details WHERE initiative_id = $1 FOR UPDATE",
+                    f"SELECT event_code, {_EVENT_SELECT_COLUMNS} FROM event_details WHERE initiative_id = $1 FOR UPDATE",
                     initiative_id,
                 )
                 changed = {k: v for k, v in changes.items() if k in _UPDATABLE_COLUMNS and current[k] != v}

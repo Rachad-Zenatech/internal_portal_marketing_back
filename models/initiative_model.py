@@ -41,6 +41,7 @@ class InitiativeListItem(BaseModel):
     region_name: str | None = None
     platform: str | None = None
     event_url: str | None = None
+    booth_size_sqm: float | None = None
     # Costs in the initiative's currency: everything expected (estimates included), and invoiced + paid
     expected_total: float = 0
     actual_amount: float = 0
@@ -66,6 +67,8 @@ class EventDetailsInput(BaseModel):
     # Virtual events and webinars only
     platform: str | None = Field(default=None, max_length=80)
     event_url: str | None = Field(default=None, max_length=500)
+    # In-person events only, always in square metres (the form converts square feet)
+    booth_size_sqm: float | None = Field(default=None, gt=0, le=999_999.99)
 
     @field_validator("venue", "city", "country_code", "platform", "event_url", mode="before")
     @classmethod
