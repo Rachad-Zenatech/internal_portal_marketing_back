@@ -27,7 +27,7 @@ SAMPLES = [
     ("Hybrid Work Retargeting", "OTHERSHIP", "PAID_SOCIAL", "META_ADS", date(2026, 7, 1), date(2026, 8, 15), 2500, "GBP", "PAUSED"),
     ("Workplace Analytics Blog Series", "TBD_ALL", "SEO", "BLOG", date(2026, 6, 1), None, 1200, "USD", "ACTIVE"),
     ("Trial-to-Paid Nurture", "TILLERSTACK", "EMAIL_MARKETING", "EMAIL_NURTURE", date(2026, 9, 1), None, 500, "USD", "ACTIVE"),
-    ("Facility Expo 2026 - Booth", "DESKFLEX", "EVENTS", "IN_PERSON_EVENTS", date(2026, 11, 4), date(2026, 11, 6), 20000, "USD", "PLANNED"),
+    ("Facility Expo 2026 - Booth", "DESKFLEX", "EVENTS", "IN_PERSON_EVENTS", date(2026, 9, 21), date(2026, 9, 23), 20000, "USD", "COMPLETED"),
     ("Safety Compliance Webinar", "WORKAWARE", "EVENTS", "WEBINARS", date(2026, 10, 22), date(2026, 10, 22), 800, "AUD", "PLANNED"),
     ("Drone Industry Summit Sponsorship", "K9SKY", "EVENTS", "SPONSORSHIPS", date(2026, 5, 12), date(2026, 5, 14), 15000, "USD", "COMPLETED"),
     ("Reseller Launch - EMEA", "ZOO_OFFICE", "PARTNERSHIPS", "RESELLERS", date(2026, 10, 15), None, 4000, "GBP", "PLANNED"),
@@ -44,30 +44,31 @@ EVENT_DETAILS = [
 ]
 
 
-# Costs for the sample trade show, adding up to its $20,000 budget (the CEO example).
+# Costs for the sample trade show (Sep 21-23), adding up to its $20,000 budget (the CEO example). The show is
+# over, so most bills are in: $16,900 invoiced or paid; giveaways and staff time ($3,100) are still expected.
 # (initiative, category, description, vendor, status, estimated amount, amount, currency, incurred on,
 #  invoice no., paid on, payment method, source). Cost type comes from the category's default.
 SPEND_LINES = [
     ("Facility Expo 2026 - Booth", "BOOTH_SPACE", "10x20 booth space", "Facility Expo Organisers", "PAID",
      None, 8000, "USD", date(2026, 6, 15), "INV-1001", date(2026, 7, 10), "AP_INVOICE", "MANUAL"),
     ("Facility Expo 2026 - Booth", "BOOTH_BUILD", "Modular booth build", "ExhibitWorks", "INVOICED",
-     4000, 4500, "USD", date(2026, 10, 1), "INV-1002", None, "AP_INVOICE", "MANUAL"),
-    ("Facility Expo 2026 - Booth", "FLOORING", "10x20 grey carpet", "Expo Show Services", "COMMITTED",
-     None, 600, "USD", date(2026, 11, 4), None, None, "AP_INVOICE", "MANUAL"),
-    ("Facility Expo 2026 - Booth", "LIGHTING", "Booth lighting package", "Expo Show Services", "COMMITTED",
-     None, 450, "USD", date(2026, 11, 4), None, None, "AP_INVOICE", "MANUAL"),
-    ("Facility Expo 2026 - Booth", "ELECTRICAL", "Electrical, 2 outlets", "Expo Show Services", "COMMITTED",
-     None, 350, "USD", date(2026, 11, 4), None, None, "AP_INVOICE", "MANUAL"),
+     4000, 4500, "USD", date(2026, 9, 1), "INV-1002", None, "AP_INVOICE", "MANUAL"),
+    ("Facility Expo 2026 - Booth", "FLOORING", "10x20 grey carpet", "Expo Show Services", "INVOICED",
+     None, 600, "USD", date(2026, 9, 21), "ESS-3301", None, "AP_INVOICE", "MANUAL"),
+    ("Facility Expo 2026 - Booth", "LIGHTING", "Booth lighting package", "Expo Show Services", "INVOICED",
+     None, 450, "USD", date(2026, 9, 21), "ESS-3302", None, "AP_INVOICE", "MANUAL"),
+    ("Facility Expo 2026 - Booth", "ELECTRICAL", "Electrical, 2 outlets", "Expo Show Services", "INVOICED",
+     None, 350, "USD", date(2026, 9, 21), "ESS-3303", None, "AP_INVOICE", "MANUAL"),
     ("Facility Expo 2026 - Booth", "BADGES_PASSES", "Exhibitor badges x4", "Facility Expo Organisers", "PAID",
-     None, 300, "USD", date(2026, 9, 15), None, date(2026, 9, 15), "CORPORATE_CARD", "MANUAL"),
-    ("Facility Expo 2026 - Booth", "FREIGHT", "Booth freight to Las Vegas", "Expo Freight Co.", "ESTIMATED",
-     1800, 1800, "USD", date(2026, 10, 28), None, None, None, "MANUAL"),
-    ("Facility Expo 2026 - Booth", "PRINT_SIGNAGE", "Banners and brochures", "PrintHouse", "COMMITTED",
-     None, 900, "USD", date(2026, 10, 20), None, None, "AP_INVOICE", "MANUAL"),
+     None, 300, "USD", date(2026, 8, 25), None, date(2026, 8, 25), "CORPORATE_CARD", "MANUAL"),
+    ("Facility Expo 2026 - Booth", "FREIGHT", "Booth freight to Las Vegas", "Expo Freight Co.", "PAID",
+     1800, 1800, "USD", date(2026, 9, 15), "EFC-0915", date(2026, 10, 5), "AP_INVOICE", "MANUAL"),
+    ("Facility Expo 2026 - Booth", "PRINT_SIGNAGE", "Banners and brochures", "PrintHouse", "PAID",
+     None, 900, "USD", date(2026, 9, 8), "PH-2290", date(2026, 9, 30), "AP_INVOICE", "MANUAL"),
     ("Facility Expo 2026 - Booth", "GIVEAWAYS", "Branded giveaways", "SwagWorks", "COMMITTED",
-     None, 700, "USD", date(2026, 10, 20), None, None, "AP_INVOICE", "MANUAL"),
+     None, 700, "USD", date(2026, 9, 8), None, None, "AP_INVOICE", "MANUAL"),
     ("Facility Expo 2026 - Booth", "STAFF_TIME", "Staff time: 3 people x 2 days", None, "COMMITTED",
-     None, 2400, "USD", date(2026, 11, 6), None, None, None, "STAFF_CALCULATOR"),
+     None, 2400, "USD", date(2026, 9, 23), None, None, None, "STAFF_CALCULATOR"),
     # A finished sponsorship, for a rating that's already final
     ("Drone Industry Summit Sponsorship", "SPONSORSHIP_PACKAGE", "Gold sponsorship package", "Drone Industry Summit", "PAID",
      12000, 12000, "USD", date(2026, 3, 1), "DIS-2026-114", date(2026, 3, 20), "AP_INVOICE", "MANUAL"),
@@ -78,29 +79,34 @@ SPEND_LINES = [
 
 # Demos at the sample trade show — the CEO example: 20 demos on a $20,000 event ($1,000 per demo), 2 of which
 # became customers ($10,000 each). 14 booth, 4 scheduled, 2 live; outcomes 2 customer, 3 deal opened,
-# 2 further demo, 5 follow-up, 4 not a fit, 4 not known yet. Companies are made-up placeholders.
+# 2 further demo, 5 follow-up, 4 not a fit, 4 not known yet. One company came back for a second demo and two
+# live demos had no company, so 17 named companies plus 2 unknown were demoed. Companies are made-up placeholders.
 # (initiative, demo time in Las Vegas, type, company, product, outcome)
 DEMOS = [
-    ("Facility Expo 2026 - Booth", "2026-11-04 10:05-08", "BOOTH", "Northwind Facilities", "Desk booking app", "CUSTOMER"),
-    ("Facility Expo 2026 - Booth", "2026-11-04 10:40-08", "BOOTH", "Lakeside Property Group", "Desk booking app", "FOLLOW_UP"),
-    ("Facility Expo 2026 - Booth", "2026-11-04 11:20-08", "BOOTH", "Summit Workplace Co.", "Room scheduling", "NOT_A_FIT"),
-    ("Facility Expo 2026 - Booth", "2026-11-04 12:10-08", "LIVE", None, "Hybrid office walkthrough", "PENDING"),
-    ("Facility Expo 2026 - Booth", "2026-11-04 13:30-08", "BOOTH", "Harbor Health Offices", "Desk booking app", "DEAL_OPENED"),
-    ("Facility Expo 2026 - Booth", "2026-11-04 14:15-08", "BOOTH", "Granite State Realty", "Occupancy analytics", "FOLLOW_UP"),
-    ("Facility Expo 2026 - Booth", "2026-11-04 15:45-08", "SCHEDULED", "Bluepeak Logistics", "Desk booking app", "DEMO_SCHEDULED"),
-    ("Facility Expo 2026 - Booth", "2026-11-05 09:30-08", "BOOTH", "Cedar & Pine Workspaces", "Room scheduling", "NOT_A_FIT"),
-    ("Facility Expo 2026 - Booth", "2026-11-05 10:10-08", "BOOTH", "Metro Campus Services", "Desk booking app", "FOLLOW_UP"),
-    ("Facility Expo 2026 - Booth", "2026-11-05 11:00-08", "SCHEDULED", "Westbridge Insurance", "Desk booking app", "CUSTOMER"),
-    ("Facility Expo 2026 - Booth", "2026-11-05 11:40-08", "BOOTH", "Riverside Co-Working", "Occupancy analytics", "PENDING"),
-    ("Facility Expo 2026 - Booth", "2026-11-05 13:15-08", "BOOTH", "Oakline Engineering", "Desk booking app", "DEAL_OPENED"),
-    ("Facility Expo 2026 - Booth", "2026-11-05 14:00-08", "LIVE", None, "Hybrid office walkthrough", "PENDING"),
-    ("Facility Expo 2026 - Booth", "2026-11-05 15:20-08", "BOOTH", "Silverline Retail HQ", "Room scheduling", "NOT_A_FIT"),
-    ("Facility Expo 2026 - Booth", "2026-11-05 16:10-08", "BOOTH", "Copperfield University", "Occupancy analytics", "FOLLOW_UP"),
-    ("Facility Expo 2026 - Booth", "2026-11-06 09:45-08", "SCHEDULED", "Brightwater Energy", "Desk booking app", "DEAL_OPENED"),
-    ("Facility Expo 2026 - Booth", "2026-11-06 10:30-08", "BOOTH", "Elmwood Legal LLP", "Desk booking app", "FOLLOW_UP"),
-    ("Facility Expo 2026 - Booth", "2026-11-06 11:15-08", "BOOTH", "Pinecrest Hospitality", "Room scheduling", "NOT_A_FIT"),
-    ("Facility Expo 2026 - Booth", "2026-11-06 12:30-08", "SCHEDULED", "Alder Systems", "Occupancy analytics", "DEMO_SCHEDULED"),
-    ("Facility Expo 2026 - Booth", "2026-11-06 13:20-08", "BOOTH", "Juniper Data Centers", "Desk booking app", "PENDING"),
+    ("Facility Expo 2026 - Booth", "2026-09-21 10:05-08", "BOOTH", "Northwind Facilities", "Desk booking app", "CUSTOMER"),
+    ("Facility Expo 2026 - Booth", "2026-09-21 10:40-08", "BOOTH", "Lakeside Property Group", "Desk booking app", "FOLLOW_UP"),
+    ("Facility Expo 2026 - Booth", "2026-09-21 11:20-08", "BOOTH", "Summit Workplace Co.", "Room scheduling", "NOT_A_FIT"),
+    ("Facility Expo 2026 - Booth", "2026-09-21 12:10-08", "LIVE", None, "Hybrid office walkthrough", "PENDING"),
+    ("Facility Expo 2026 - Booth", "2026-09-21 13:30-08", "BOOTH", "Harbor Health Offices", "Desk booking app", "DEAL_OPENED"),
+    ("Facility Expo 2026 - Booth", "2026-09-21 14:15-08", "BOOTH", "Granite State Realty", "Occupancy analytics", "FOLLOW_UP"),
+    ("Facility Expo 2026 - Booth", "2026-09-21 15:45-08", "SCHEDULED", "Bluepeak Logistics", "Desk booking app", "DEMO_SCHEDULED"),
+    ("Facility Expo 2026 - Booth", "2026-09-22 09:30-08", "BOOTH", "Cedar & Pine Workspaces", "Room scheduling", "NOT_A_FIT"),
+    ("Facility Expo 2026 - Booth", "2026-09-22 10:10-08", "BOOTH", "Metro Campus Services", "Desk booking app", "FOLLOW_UP"),
+    ("Facility Expo 2026 - Booth", "2026-09-22 11:00-08", "SCHEDULED", "Westbridge Insurance", "Desk booking app", "CUSTOMER"),
+    ("Facility Expo 2026 - Booth", "2026-09-22 11:40-08", "BOOTH", "Riverside Co-Working", "Occupancy analytics", "PENDING"),
+    ("Facility Expo 2026 - Booth", "2026-09-22 13:15-08", "BOOTH", "Oakline Engineering", "Desk booking app", "DEAL_OPENED"),
+    ("Facility Expo 2026 - Booth", "2026-09-22 14:00-08", "LIVE", None, "Hybrid office walkthrough", "PENDING"),
+    ("Facility Expo 2026 - Booth", "2026-09-22 15:20-08", "BOOTH", "Silverline Retail HQ", "Room scheduling", "NOT_A_FIT"),
+    ("Facility Expo 2026 - Booth", "2026-09-22 16:10-08", "BOOTH", "Copperfield University", "Occupancy analytics", "FOLLOW_UP"),
+    ("Facility Expo 2026 - Booth", "2026-09-23 09:45-08", "SCHEDULED", "Brightwater Energy", "Desk booking app", "DEAL_OPENED"),
+    ("Facility Expo 2026 - Booth", "2026-09-23 10:30-08", "BOOTH", "Elmwood Legal LLP", "Desk booking app", "FOLLOW_UP"),
+    ("Facility Expo 2026 - Booth", "2026-09-23 11:15-08", "BOOTH", "Pinecrest Hospitality", "Room scheduling", "NOT_A_FIT"),
+    ("Facility Expo 2026 - Booth", "2026-09-23 12:30-08", "SCHEDULED", "Alder Systems", "Occupancy analytics", "DEMO_SCHEDULED"),
+    ("Facility Expo 2026 - Booth", "2026-09-23 13:20-08", "BOOTH", "Riverside Co-Working", "Desk booking app", "PENDING"),
+    # Booked at the show but never happened, and two follow-up demos still to come: none of these count
+    ("Facility Expo 2026 - Booth", "2026-09-23 15:30-08", "SCHEDULED", "Fairhaven Clinics", "Desk booking app", "NO_SHOW"),
+    ("Facility Expo 2026 - Booth", "2026-10-27 10:00-07", "SCHEDULED", "Lakeside Property Group", "Desk booking app", "PENDING"),
+    ("Facility Expo 2026 - Booth", "2026-11-05 14:00-08", "SCHEDULED", "Metro Campus Services", "Occupancy analytics", "PENDING"),
 ]
 
 
@@ -108,10 +114,10 @@ DEMOS = [
 # The expo is the CEO example: 200 leads, 2 customers, $20,000 revenue — it broke even, which isn't a success.
 # The sponsorship finished in May and did well: cost per lead under target and a positive return.
 OUTCOMES = [
-    ("Facility Expo 2026 - Booth", date(2026, 11, 1), "VISITORS", 650, None),
-    ("Facility Expo 2026 - Booth", date(2026, 11, 1), "LEADS", 200, None),
-    ("Facility Expo 2026 - Booth", date(2026, 11, 1), "CUSTOMERS", 2, None),
-    ("Facility Expo 2026 - Booth", date(2026, 11, 1), "REVENUE", 20000, "USD"),
+    ("Facility Expo 2026 - Booth", date(2026, 9, 1), "VISITORS", 650, None),
+    ("Facility Expo 2026 - Booth", date(2026, 9, 1), "LEADS", 200, None),
+    ("Facility Expo 2026 - Booth", date(2026, 9, 1), "CUSTOMERS", 2, None),
+    ("Facility Expo 2026 - Booth", date(2026, 9, 1), "REVENUE", 20000, "USD"),
     ("Drone Industry Summit Sponsorship", date(2026, 5, 1), "VISITORS", 900, None),
     ("Drone Industry Summit Sponsorship", date(2026, 5, 1), "LEADS", 110, None),
     ("Drone Industry Summit Sponsorship", date(2026, 5, 1), "FOLLOW_UPS", 60, None),

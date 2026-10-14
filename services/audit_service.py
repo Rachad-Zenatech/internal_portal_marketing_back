@@ -67,6 +67,16 @@ def entity_title_sql(alias: str) -> str:
                         ON CAST(s.id AS TEXT) = COALESCE({alias}.new_value->>'scale_or_cut_id', {alias}.old_value->>'scale_or_cut_id')
                  WHERE CAST(i.id AS TEXT) = COALESCE({alias}.new_value->>'initiative_id', {alias}.old_value->>'initiative_id')
                  LIMIT 1)
+            -- "Jane Smith · EVT-2026-0007": who was put on (or taken off) which event
+            WHEN {alias}.entity_type = 'EventStaff' THEN
+                (SELECT COALESCE(u.full_name, u.email, 'Staff') || COALESCE(' · ' || COALESCE(ed.event_code, i.name), '')
+                 FROM (SELECT 1) one
+                 LEFT JOIN users u
+                        ON CAST(u.id AS TEXT) = COALESCE((SELECT CAST(s.user_id AS TEXT) FROM event_staff s WHERE CAST(s.id AS TEXT) = {alias}.entity_id),
+                                                         {alias}.old_value->>'user_id', {alias}.new_value->>'user_id')
+                 LEFT JOIN initiatives i
+                        ON CAST(i.id AS TEXT) = COALESCE({alias}.new_value->>'initiative_id', {alias}.old_value->>'initiative_id')
+                 LEFT JOIN event_details ed ON ed.initiative_id = i.id)
             -- Spreadsheet uploads: the file name
             WHEN {alias}.entity_type = 'ImportBatch' THEN COALESCE(
                 (SELECT filename FROM import_batches WHERE CAST(id AS TEXT) = {alias}.entity_id LIMIT 1),

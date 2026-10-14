@@ -244,7 +244,7 @@ def suggest_rating(
     if kpi["code"] in ("HIGH", "TEST"):
         detail = f" {kpi['reason']}" if kpi["code"] == "HIGH" else ""
         return _result("HIGH", f"It made money: ROI {roi:g}%.{detail}", kpi["gap_percent"])
-    return _result("MEDIUM", f"It made money (ROI {roi:g}%), but {kpi['reason'][0].lower()}{kpi['reason'][1:]}", kpi["gap_percent"])
+    return _result("MEDIUM", f"It made money (ROI {roi:g}%), but {kpi['reason']}", kpi["gap_percent"])
 
 
 def money_outcome(cost: float, revenue: float | None, roi: float | None) -> str | None:

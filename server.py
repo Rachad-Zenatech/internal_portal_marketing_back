@@ -40,6 +40,7 @@ from services.logging_service import (
 )
 from tools.auth_router import router as auth_router
 from tools.demo_router import router as demo_router
+from tools.event_management_router import router as event_management_router
 from tools.graph_router import router as graph_router
 from tools.import_router import router as import_router
 from tools.initiative_router import router as initiative_router
@@ -54,6 +55,7 @@ from tools.reference_data_router import router as reference_data_router
 # FastAPI routers
 from tools.search import router as search_router
 from tools.spend_router import router as spend_router
+from tools.travel_integration_router import router as travel_integration_router
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -256,6 +258,9 @@ app.include_router(initiative_router, prefix="/api", tags=["Initiatives"], depen
 app.include_router(spend_router, prefix="/api", tags=["Initiative costs"], dependencies=authenticated)
 app.include_router(demo_router, prefix="/api", tags=["Event demos"], dependencies=authenticated)
 app.include_router(performance_router, prefix="/api", tags=["Results and performance"], dependencies=authenticated)
+app.include_router(event_management_router, prefix="/api", tags=["Event management"], dependencies=authenticated)
+# Service tokens only: the scope guard on each route checks who is calling
+app.include_router(travel_integration_router, prefix="/api", tags=["Travel system integration"])
 app.include_router(import_router, prefix="/api", tags=["Spreadsheet uploads"], dependencies=authenticated)
 
 

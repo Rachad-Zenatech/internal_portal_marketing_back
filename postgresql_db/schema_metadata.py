@@ -473,6 +473,44 @@ initiative_decisions = sa.Table(
     sa.Index("idx_initiative_decisions_initiative", "initiative_id", "decided_at"),
 )
 
+# Staff going to an event, with what the travel management system needs to book them. This portal records who goes
+# and what they need; flights, hotels, Ubers, stipends and cargo are booked in the travel system, which reads these
+# rows (GET /api/integrations/travel/events) and can report back how far booking has got (travel_status).
+event_staff = sa.Table(
+    "event_staff", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column("initiative_id", sa.UUID(), sa.ForeignKey("initiatives.id", name="event_staff_initiative_id_fkey", ondelete="CASCADE"), nullable=False),
+    sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", name="event_staff_user_id_fkey", ondelete="CASCADE"), nullable=False),
+    sa.Column("role", sa.VARCHAR(length=30), nullable=False, server_default=sa.text("'BOOTH_STAFF'")),
+    # False for people who are local or attend online: nothing to book
+    sa.Column("travel_needed", sa.BOOLEAN(), nullable=False, server_default=sa.text("true")),
+    # Where they travel from (city or airport)
+    sa.Column("departs_from", sa.VARCHAR(length=120)),
+    sa.Column("arrive_on", sa.DATE()),
+    sa.Column("depart_on", sa.DATE()),
+    sa.Column("needs_flight", sa.BOOLEAN(), nullable=False, server_default=sa.text("true")),
+    sa.Column("needs_hotel", sa.BOOLEAN(), nullable=False, server_default=sa.text("true")),
+    sa.Column("needs_ground_transport", sa.BOOLEAN(), nullable=False, server_default=sa.text("true")),
+    sa.Column("needs_stipend", sa.BOOLEAN(), nullable=False, server_default=sa.text("true")),
+    # Gear or materials travelling with them (drones, booth kit…), for the travel system's cargo booking
+    sa.Column("cargo_note", sa.VARCHAR(length=255)),
+    sa.Column("notes", sa.TEXT()),
+    # Reported by the travel management system once it picks the assignment up: REQUESTED, BOOKED or CANCELLED
+    sa.Column("travel_status", sa.VARCHAR(length=20)),
+    sa.Column("travel_status_at", postgresql.TIMESTAMP(timezone=True)),
+    sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="event_staff_created_by_fkey", ondelete="SET NULL")),
+    sa.Column("updated_by", sa.UUID(), sa.ForeignKey("users.id", name="event_staff_updated_by_fkey", ondelete="SET NULL")),
+    sa.UniqueConstraint("initiative_id", "user_id", name="event_staff_initiative_user_key"),
+    sa.CheckConstraint(
+        "role IN ('LEAD', 'BOOTH_STAFF', 'DEMO', 'SPEAKER', 'SETUP', 'EXECUTIVE', 'OTHER')", name="event_staff_role_check"
+    ),
+    sa.CheckConstraint("depart_on IS NULL OR arrive_on IS NULL OR depart_on >= arrive_on", name="event_staff_dates_check"),
+    sa.CheckConstraint("travel_status IN ('REQUESTED', 'BOOKED', 'CANCELLED')", name="event_staff_travel_status_check"),
+    sa.Index("idx_event_staff_initiative", "initiative_id"),
+)
+
 # One row per demo given at an event. The organisation only: people's details stay in HubSpot.
 event_demos = sa.Table(
     "event_demos", metadata,

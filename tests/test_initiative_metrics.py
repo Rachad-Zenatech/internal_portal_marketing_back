@@ -128,7 +128,7 @@ def test_final_verdict_leads_with_the_return():
     # Made money but cost far more per lead than planned
     costly = _rating(actual=150.0, roi=20.0, revenue_recorded=True)
     assert costly["code"] == "MEDIUM"
-    assert costly["reason"].startswith("It made money (ROI 20%), but cpl")
+    assert costly["reason"].startswith("It made money (ROI 20%), but CPL USD 150 missed by 50%")
 
 
 def test_verdict_stage():
