@@ -106,6 +106,7 @@ def _delete_user(user_id: uuid.UUID) -> None:
     # Everything the test user did, so local audit logs don't fill up with test entries
     run_sql("DELETE FROM audit_logs WHERE actor_user_id = $1 OR entity_id = $2", user_id, str(user_id))
     run_sql("DELETE FROM login_activity_logs WHERE user_id = $1", user_id)
+    run_sql("DELETE FROM import_batches WHERE created_by = $1", user_id)
     run_sql("DELETE FROM initiatives WHERE created_by = $1", user_id)
     # Temporary roles a test made for this user (code PYTEST_…); their permission rows go with them
     run_sql(

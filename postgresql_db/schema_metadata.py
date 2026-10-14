@@ -399,6 +399,35 @@ event_details = sa.Table(
 )
 
 
+# --- Spreadsheet uploads ---
+# One upload, held between preview and confirm: the parsed, validated rows wait in staged_rows until
+# someone confirms them (then they become real rows, e.g. spend lines) or the preview expires.
+import_batches = sa.Table(
+    "import_batches", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column("kind", sa.VARCHAR(length=30), nullable=False),
+    # Set for uploads that belong to one initiative, like a cost sheet
+    sa.Column("initiative_id", sa.UUID(), sa.ForeignKey("initiatives.id", name="import_batches_initiative_id_fkey", ondelete="CASCADE")),
+    sa.Column("filename", sa.VARCHAR(length=255), nullable=False),
+    sa.Column("status", sa.VARCHAR(length=20), nullable=False, server_default=sa.text("'PREVIEW'")),
+    sa.Column("total_rows", sa.INTEGER(), nullable=False, server_default=sa.text("0")),
+    sa.Column("ready_rows", sa.INTEGER(), nullable=False, server_default=sa.text("0")),
+    sa.Column("error_rows", sa.INTEGER(), nullable=False, server_default=sa.text("0")),
+    sa.Column("duplicate_rows", sa.INTEGER(), nullable=False, server_default=sa.text("0")),
+    sa.Column("imported_rows", sa.INTEGER(), nullable=False, server_default=sa.text("0")),
+    sa.Column("staged_rows", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'[]'::jsonb")),
+    sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="import_batches_created_by_fkey", ondelete="SET NULL")),
+    sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("confirmed_at", postgresql.TIMESTAMP(timezone=True)),
+    sa.Column("confirmed_by", sa.UUID(), sa.ForeignKey("users.id", name="import_batches_confirmed_by_fkey", ondelete="SET NULL")),
+    sa.Column("undone_at", postgresql.TIMESTAMP(timezone=True)),
+    sa.Column("undone_by", sa.UUID(), sa.ForeignKey("users.id", name="import_batches_undone_by_fkey", ondelete="SET NULL")),
+    sa.CheckConstraint("kind IN ('COST_SHEET', 'EVENTS', 'GOOGLE_ADS', 'MICROSOFT_ADS')", name="import_batches_kind_check"),
+    sa.CheckConstraint("status IN ('PREVIEW', 'CONFIRMED', 'UNDONE', 'EXPIRED')", name="import_batches_status_check"),
+    sa.Index("idx_import_batches_initiative", "initiative_id"),
+)
+
+
 # --- Costs against an initiative ---
 # Supplier costs move ESTIMATED → COMMITTED → INVOICED → PAID. Travel and anything staff claim back
 # come from the travel management system (source TRAVEL_FEED) and are never typed in here.
@@ -430,8 +459,9 @@ spend_lines = sa.Table(
     sa.Column("reconciled_month", sa.DATE()),
     sa.Column("reconciled_at", postgresql.TIMESTAMP(timezone=True)),
     sa.Column("reconciled_by", sa.UUID(), sa.ForeignKey("users.id", name="spend_lines_reconciled_by_fkey", ondelete="SET NULL")),
-    # Foreign keys added by later tasks: the import that created the line, and the monthly budget it counts against
-    sa.Column("import_batch_id", sa.UUID()),
+    # The spreadsheet upload that created the line (kept if the batch record is removed)
+    sa.Column("import_batch_id", sa.UUID(), sa.ForeignKey("import_batches.id", name="spend_lines_import_batch_id_fkey", ondelete="SET NULL")),
+    # Foreign key added by a later task: the monthly budget the line counts against
     sa.Column("monthly_budget_id", sa.UUID()),
     sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
