@@ -633,6 +633,111 @@ Build: in the Performance panel, from GET /performance, a vertical ladder — Vi
 Checks: npm run build, npm run lint; the expo with the CEO's numbers shows $100 / $1,000 / $10,000 and ROI 0%.
 ```
 
+### Demo log (8.6–8.9)
+
+Events run demos — booth demos, scheduled demos and live (flight) demos — and the CEO's example judges an event on them: a $20,000 trade show, 200 leads, **20 demos ($1,000 per demo)**, 2 customers ($10,000 each), $20,000 revenue, ROI 0% — broke even, so not a success. A single "Demos" number gives the cost per demo; a **demo log** also shows which products were demoed, by whom, and which demos turned into deals and customers. The log feeds the Demos count, so the two can never disagree. HubSpot stays the record for people: the log stores the company and an optional HubSpot link, never a person's name, email or phone.
+
+### 8.6 Demo log table and demo equipment category
+
+```text
+Repo: internal_portal_marketing_back
+
+Task: a table for the demos given at an event, one row per demo, and a cost category for demo equipment. No API yet.
+
+Build:
+1. Reference table demo_types (reference shape), seeded: BOOTH "Booth demo" (shown to a visitor at the stand), SCHEDULED "Scheduled demo" (a demo meeting booked at or after the event), LIVE "Live demo" (an organised demonstration for a group, e.g. a drone flight).
+2. Reference table demo_outcomes (reference shape plus funnel_rank INT — higher is further along), seeded: PENDING "No outcome yet" (0), NOT_A_FIT "Not a fit" (0), FOLLOW_UP "Follow-up booked" (1), DEMO_SCHEDULED "Further demo scheduled" (2), DEAL_OPENED "Deal opened" (3), CUSTOMER "Became a customer" (4).
+3. Table event_demos:
+   - id UUID pk, initiative_id UUID NOT NULL FK → initiatives ON DELETE CASCADE, index on (initiative_id, demo_at)
+   - demo_at TIMESTAMPTZ NOT NULL
+   - demo_type_id INT NOT NULL FK → demo_types
+   - company VARCHAR(255) NULL — organisation only; no personal names, emails or phones
+   - hubspot_url VARCHAR(500) NULL, check it starts with https:// (event_demos_hubspot_url_check)
+   - brand_id INT NULL FK → brands (the product/brand demoed; defaults to the initiative's brand in the service)
+   - product_note VARCHAR(255) NULL (e.g. "ZenaDrone 1000 flight")
+   - given_by UUID NULL FK → users (the staff member who gave it)
+   - outcome_id INT NOT NULL FK → demo_outcomes (default PENDING)
+   - outcome_updated_at TIMESTAMPTZ NULL
+   - note TEXT NULL
+   - source VARCHAR(20) NOT NULL default 'MANUAL', check in ('MANUAL','MOBILE','HUBSPOT')
+   - created_at/updated_at/created_by/updated_by like initiatives
+4. Add spend category DEMO_EQUIPMENT "Demo equipment" under BOOTH_EXHIBIT (applies_to EVENTS; help: "Units, batteries and spares for demos, demo insurance. Shipping them goes under Freight.") in the same migration.
+5. Add both lists to GET /api/reference-data.
+6. Seed (scripts/seed_sample_initiatives.py) "Facility Expo 2026 - Booth" with exactly the CEO example's demos, safe to re-run:
+   - 20 demos over Nov 4–6: 14 booth, 4 scheduled, 2 live
+   - outcomes: 2 CUSTOMER, 3 DEAL_OPENED, 5 FOLLOW_UP, 2 DEMO_SCHEDULED, 4 NOT_A_FIT, 4 PENDING
+   - companies are realistic placeholder organisations (no people), brand DeskFlex, given_by the seed's owner
+   (Leads 200, customers 2 and revenue $20,000 are seeded as outcomes in 8.7.)
+
+Not part of this task: API, UI.
+Checks: alembic upgrade/downgrade/upgrade, alembic check, seed twice, py_compile, git diff --check. Don't commit.
+```
+
+### 8.7 Demo log API, demos count and the CEO example
+
+```text
+Repo: internal_portal_marketing_back
+
+Task: add, edit and list demos for an initiative; make the Demos result count itself from the log; reproduce the CEO example end to end.
+
+Build (tools/demo_router.py, services/demo_service.py, models/demo_model.py; register the router):
+1. GET /api/initiatives/{id}/demos (INITIATIVES_VIEW) — newest first; each with type, company, hubspot_url, brand, product_note, given_by name, outcome, note, source.
+2. POST /api/initiatives/{id}/demos (INITIATIVES_UPDATE) — demo_at defaults to now; brand defaults to the initiative's; outcome defaults to PENDING. Only for initiatives in the EVENTS channel for now ("Demos can only be logged on events.").
+3. PATCH /api/demos/{demo_id} and DELETE /api/demos/{demo_id} (INITIATIVES_UPDATE). Changing the outcome sets outcome_updated_at.
+4. GET /api/initiatives/{id}/demos/summary (INITIATIVES_VIEW): total; by type; by brand; by given_by; by outcome; follow_up_rate (outcome rank ≥ 1 ÷ total, excluding PENDING from the denominator — say so in the docstring); deals (rank ≥ 3); customers (CUSTOMER).
+5. One source for the Demos count, so it's never counted twice:
+   - When an initiative has any demo log rows, the DEMOS result per month is the number of logged demos in that month (by demo_at). Use this in GET /performance (8.3) and in GET /outcomes (8.2, returned with source DEMO_LOG, read-only).
+   - PUT /outcomes rejects a manual DEMOS value for an initiative that has logged demos: "Demos are counted from the demo log on this event."
+   - With no log rows, a manual DEMOS count works as before.
+6. Performance (8.3) adds a demo block: total demos, cost per demo, lead → demo rate, demo → customer rate (logged CUSTOMER outcomes ÷ demos when the log exists, else customers ÷ demos), and demos by type.
+7. Seed: give the Facility Expo outcomes for November — LEADS 200, CUSTOMERS 2, REVENUE 20,000 (USD) — so with its $20,000 of costs it reproduces the CEO example.
+8. Audit create/update/delete as entity_type "Demo" (values include initiative_id, company, outcome).
+9. Tests (tests/test_demos.py):
+   - CRUD; brand and outcome defaults; non-event initiative → 422; bad hubspot_url → 422
+   - DEMOS count comes from the log (by month), and a manual DEMOS PUT is rejected when the log has rows; accepted when it doesn't
+   - summary counts by type/outcome and follow_up_rate
+   - **CEO example** (on the seeded expo or an equivalent built in the test): cost 20,000, leads 200, 20 logged demos with 2 CUSTOMER outcomes, revenue 20,000 → cost per lead 100, cost per demo 1,000, CAC 10,000, lead → demo 10%, demo → customer 10%, ROI 0.0
+   - viewer can read but not write; deleting the initiative removes its demos
+
+Checks: py_compile, pytest, git diff --check. Don't commit.
+```
+
+### 8.8 Demos section on the event page
+
+```text
+Repo: internal_portal_marketing_front
+
+Task: log and review an event's demos on its page.
+
+Build:
+1. src/types/demos.ts, src/services/demosService.ts, src/hooks/useDemos.ts (queryKeys demos(id), demoSummary(id); mutations also invalidate outcomes(id) and performance(id)).
+2. A "Demos" Section on InitiativeDetail for events (Presentation or MonitorPlay icon), between Results and Performance:
+   - Header figures: "20 demos · $1,000 per demo · 10% became customers" (cost per demo from GET /performance).
+   - A small funnel row across the outcomes: 20 demos → 12 follow-ups or further → 5 deals → 2 customers (the seeded expo's numbers).
+   - Breakdowns as compact bars: by type (Booth / Scheduled / Live), by product, by staff member.
+   - The log table: date & time, type, company (with a HubSpot link icon when set), product, given by, outcome (editable inline with a select — the quickest way to update after the event), note.
+   - "Log a demo" (INITIATIVES_UPDATE) opens DemoDialog: type (segmented), date & time (default now), company, HubSpot link (optional), product/brand, given by (owner picker, default me), outcome, note. Help text under Company: "Company only — keep people's details in HubSpot."
+3. In the Results form (8.4), when the event has logged demos, the Demos field is read-only and says "20 · from the demo log".
+4. Empty state: "No demos logged yet. Log each demo as it happens — the count, cost per demo and conversion to customers fill in automatically."
+
+Checks: npm run build, npm run lint. Open the seeded Facility Expo: 20 demos, $1,000 per demo, 2 customers, and the cost ladder shows $100 → $1,000 → $10,000 with ROI 0% ("Broke even — not a success").
+```
+
+### 8.9 Cost ladder with demos
+
+```text
+Repo: internal_portal_marketing_front
+
+Task: make the cost ladder (8.5) tell the CEO's story from the demo log.
+
+Build:
+1. Ladder steps for events: Booth visitors → Leads → Demos → Customers, each with count, cost per step and the conversion rate on the connector. For the seeded expo: 200 leads ($100 each) → 20 demos ($1,000 each, 10% of leads) → 2 customers ($10,000 each, 10% of demos).
+2. Under the ladder, one plain sentence built from the numbers, e.g. "$20,000 spent. 2 customers brought in $20,000 — this event broke even, which doesn't count as a success." (ROI > 0: "…returned $X for every $1 spent."; no revenue yet inside the maturity window: "Too early to judge — revenue usually arrives within 180 days.").
+3. Clicking the Demos step scrolls to the Demos section.
+
+Checks: npm run build, npm run lint; the sentence and numbers match the CEO example on the seeded expo.
+```
+
 ---
 
 ## Part 9 — "Was it worth it?" (PLAN.md I7)
@@ -774,9 +879,13 @@ Repo: internal_portal_marketing_front
 
 Task: update today's counts during an event from a phone.
 
-Build: on the mobile event screen, "Log results" (INITIATIVES_UPDATE) opens big +/- steppers for Booth visitors, Leads and Demos for the current month, showing the month's saved totals. Save via PUT /outcomes/{period_start}; "Saved" confirmation; on error keep what was typed and offer Retry. Big touch targets, one-handed.
+Build:
+1. On the mobile event screen, "Log results" (INITIATIVES_UPDATE) opens big +/- steppers for Booth visitors and Leads for the current month, showing the month's saved totals. Save via PUT /outcomes/{period_start}; "Saved" confirmation; on error keep what was typed and offer Retry.
+2. "Log a demo" — the fastest path at the booth: one screen with type (Booth / Scheduled / Live as big buttons), company (optional), product (defaults to the event's brand), and Save. Time and "given by" fill in automatically (now, me); source MOBILE. Outcome and HubSpot link can be added later on web. After saving, show "Demo 21 logged" and stay on the screen for the next one.
+3. Today's demo count on the event screen ("7 demos today · 20 this event").
+4. Big touch targets, one-handed; no personal details fields.
 
-Checks: npm run build, npm run lint, emulator: log values, see them on web.
+Checks: npm run build, npm run lint, emulator: log a few demos and results, see them on web.
 ```
 
 ---

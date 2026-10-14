@@ -48,7 +48,7 @@ def test_reference_data_includes_cost_lists(cost_lists):
 
     assert [t["code"] for t in expense_types] == EXPENSE_TYPES  # in display order
     assert {t["code"]: t["source"] for t in expense_types}["TRAVEL_ACCOMMODATION"] == "TRAVEL_SYSTEM"
-    assert len(categories) == 35
+    assert len(categories) == 36  # the cost classification's 35, plus Demo equipment (demo log)
     assert {"expense_type_id", "applies_to", "manual_entry_allowed", "default_cost_type", "help_text"} <= categories[0].keys()
 
 

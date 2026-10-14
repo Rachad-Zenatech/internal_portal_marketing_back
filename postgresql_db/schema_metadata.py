@@ -313,6 +313,13 @@ spend_categories = _reference_table(
     sa.CheckConstraint("applies_to IN ('ALL', 'EVENTS', 'ADS')", name="spend_categories_applies_to_check"),
     sa.CheckConstraint("default_cost_type IN ('OPEX', 'CAPEX')", name="spend_categories_default_cost_type_check"),
 )
+# Demos given at events: booth, scheduled or live
+demo_types = _reference_table("demo_types")
+demo_outcomes = _reference_table(
+    "demo_outcomes",
+    # How far along the funnel the outcome is: 0 none yet / not a fit, 1 follow-up … 4 became a customer
+    sa.Column("funnel_rank", sa.INTEGER(), nullable=False, server_default=sa.text("0")),
+)
 
 channel_sub_channels = sa.Table(
     "channel_sub_channels", metadata,
@@ -396,6 +403,32 @@ event_details = sa.Table(
     sa.CheckConstraint("country_code ~ '^[A-Z]{2}$'", name="event_details_country_code_check"),
     sa.CheckConstraint("event_url ~* '^https?://'", name="event_details_event_url_check"),
     sa.CheckConstraint("booth_size_sqm > 0", name="event_details_booth_size_check"),
+)
+
+# One row per demo given at an event. The organisation only: people's details stay in HubSpot.
+event_demos = sa.Table(
+    "event_demos", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column("initiative_id", sa.UUID(), sa.ForeignKey("initiatives.id", name="event_demos_initiative_id_fkey", ondelete="CASCADE"), nullable=False),
+    sa.Column("demo_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("demo_type_id", sa.INTEGER(), sa.ForeignKey("demo_types.id", name="event_demos_demo_type_id_fkey"), nullable=False),
+    sa.Column("company", sa.VARCHAR(length=255)),
+    sa.Column("hubspot_url", sa.VARCHAR(length=500)),
+    # The brand / product demoed; the event's brand unless someone picks another
+    sa.Column("brand_id", sa.INTEGER(), sa.ForeignKey("brands.id", name="event_demos_brand_id_fkey")),
+    sa.Column("product_note", sa.VARCHAR(length=255)),
+    sa.Column("given_by", sa.UUID(), sa.ForeignKey("users.id", name="event_demos_given_by_fkey", ondelete="SET NULL")),
+    sa.Column("outcome_id", sa.INTEGER(), sa.ForeignKey("demo_outcomes.id", name="event_demos_outcome_id_fkey"), nullable=False),
+    sa.Column("outcome_updated_at", postgresql.TIMESTAMP(timezone=True)),
+    sa.Column("note", sa.TEXT()),
+    sa.Column("source", sa.VARCHAR(length=20), nullable=False, server_default=sa.text("'MANUAL'")),
+    sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="event_demos_created_by_fkey", ondelete="SET NULL")),
+    sa.Column("updated_by", sa.UUID(), sa.ForeignKey("users.id", name="event_demos_updated_by_fkey", ondelete="SET NULL")),
+    sa.CheckConstraint("hubspot_url ~* '^https://'", name="event_demos_hubspot_url_check"),
+    sa.CheckConstraint("source IN ('MANUAL', 'MOBILE', 'HUBSPOT')", name="event_demos_source_check"),
+    sa.Index("idx_event_demos_initiative", "initiative_id", "demo_at"),
 )
 
 

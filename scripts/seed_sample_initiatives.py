@@ -6,12 +6,12 @@ Usage:
 
 Refuses to run unless DATABASE_URL points at localhost. Safe to re-run: initiatives
 whose name already exists are skipped, and costs are only added to initiatives that have
-none yet. Owner is the first super admin user.
+none yet (likewise demos). Owner is the first super admin user.
 """
 import asyncio
 import os
 import sys
-from datetime import date
+from datetime import date, datetime
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -68,6 +68,34 @@ SPEND_LINES = [
      None, 700, "USD", date(2026, 10, 20), None, None, "AP_INVOICE", "MANUAL"),
     ("Facility Expo 2026 - Booth", "STAFF_TIME", "Staff time: 3 people x 2 days", None, "COMMITTED",
      None, 2400, "USD", date(2026, 11, 6), None, None, None, "STAFF_CALCULATOR"),
+]
+
+
+# Demos at the sample trade show — the CEO example: 20 demos on a $20,000 event ($1,000 per demo), 2 of which
+# became customers ($10,000 each). 14 booth, 4 scheduled, 2 live; outcomes 2 customer, 3 deal opened,
+# 2 further demo, 5 follow-up, 4 not a fit, 4 not known yet. Companies are made-up placeholders.
+# (initiative, demo time in Las Vegas, type, company, product, outcome)
+DEMOS = [
+    ("Facility Expo 2026 - Booth", "2026-11-04 10:05-08", "BOOTH", "Northwind Facilities", "Desk booking app", "CUSTOMER"),
+    ("Facility Expo 2026 - Booth", "2026-11-04 10:40-08", "BOOTH", "Lakeside Property Group", "Desk booking app", "FOLLOW_UP"),
+    ("Facility Expo 2026 - Booth", "2026-11-04 11:20-08", "BOOTH", "Summit Workplace Co.", "Room scheduling", "NOT_A_FIT"),
+    ("Facility Expo 2026 - Booth", "2026-11-04 12:10-08", "LIVE", None, "Hybrid office walkthrough", "PENDING"),
+    ("Facility Expo 2026 - Booth", "2026-11-04 13:30-08", "BOOTH", "Harbor Health Offices", "Desk booking app", "DEAL_OPENED"),
+    ("Facility Expo 2026 - Booth", "2026-11-04 14:15-08", "BOOTH", "Granite State Realty", "Occupancy analytics", "FOLLOW_UP"),
+    ("Facility Expo 2026 - Booth", "2026-11-04 15:45-08", "SCHEDULED", "Bluepeak Logistics", "Desk booking app", "DEMO_SCHEDULED"),
+    ("Facility Expo 2026 - Booth", "2026-11-05 09:30-08", "BOOTH", "Cedar & Pine Workspaces", "Room scheduling", "NOT_A_FIT"),
+    ("Facility Expo 2026 - Booth", "2026-11-05 10:10-08", "BOOTH", "Metro Campus Services", "Desk booking app", "FOLLOW_UP"),
+    ("Facility Expo 2026 - Booth", "2026-11-05 11:00-08", "SCHEDULED", "Westbridge Insurance", "Desk booking app", "CUSTOMER"),
+    ("Facility Expo 2026 - Booth", "2026-11-05 11:40-08", "BOOTH", "Riverside Co-Working", "Occupancy analytics", "PENDING"),
+    ("Facility Expo 2026 - Booth", "2026-11-05 13:15-08", "BOOTH", "Oakline Engineering", "Desk booking app", "DEAL_OPENED"),
+    ("Facility Expo 2026 - Booth", "2026-11-05 14:00-08", "LIVE", None, "Hybrid office walkthrough", "PENDING"),
+    ("Facility Expo 2026 - Booth", "2026-11-05 15:20-08", "BOOTH", "Silverline Retail HQ", "Room scheduling", "NOT_A_FIT"),
+    ("Facility Expo 2026 - Booth", "2026-11-05 16:10-08", "BOOTH", "Copperfield University", "Occupancy analytics", "FOLLOW_UP"),
+    ("Facility Expo 2026 - Booth", "2026-11-06 09:45-08", "SCHEDULED", "Brightwater Energy", "Desk booking app", "DEAL_OPENED"),
+    ("Facility Expo 2026 - Booth", "2026-11-06 10:30-08", "BOOTH", "Elmwood Legal LLP", "Desk booking app", "FOLLOW_UP"),
+    ("Facility Expo 2026 - Booth", "2026-11-06 11:15-08", "BOOTH", "Pinecrest Hospitality", "Room scheduling", "NOT_A_FIT"),
+    ("Facility Expo 2026 - Booth", "2026-11-06 12:30-08", "SCHEDULED", "Alder Systems", "Occupancy analytics", "DEMO_SCHEDULED"),
+    ("Facility Expo 2026 - Booth", "2026-11-06 13:20-08", "BOOTH", "Juniper Data Centers", "Desk booking app", "PENDING"),
 ]
 
 
@@ -147,7 +175,29 @@ async def seed() -> None:
                 *[list(col) for col in cost_columns],
                 owner_id,
             )
+
+            # Only events without demos yet, so re-running never duplicates them
+            demo_columns = list(zip(*DEMOS))
+            demos = await conn.fetch(
+                """
+                INSERT INTO event_demos (initiative_id, demo_at, demo_type_id, company, brand_id, product_note,
+                                         given_by, outcome_id, outcome_updated_at, source, created_by, updated_by)
+                SELECT i.id, d.demo_at, dt.id, d.company, i.brand_id, d.product, $7, o.id,
+                       CASE WHEN o.code <> 'PENDING' THEN d.demo_at + interval '14 days' END, 'MANUAL', $7, $7
+                FROM unnest($1::text[], $2::timestamptz[], $3::text[], $4::text[], $5::text[], $6::text[])
+                     AS d(name, demo_at, demo_type, company, product, outcome)
+                JOIN initiatives i ON i.name = d.name
+                JOIN demo_types dt ON dt.code = d.demo_type
+                JOIN demo_outcomes o ON o.code = d.outcome
+                WHERE NOT EXISTS (SELECT 1 FROM event_demos e WHERE e.initiative_id = i.id)
+                RETURNING id
+                """,
+                list(demo_columns[0]), [datetime.fromisoformat(t.replace(" ", "T")) for t in demo_columns[1]],
+                *[list(col) for col in demo_columns[2:]],
+                owner_id,
+            )
         print(f"Inserted {len(inserted)} sample initiative(s); {len(SAMPLES) - len(inserted)} already existed.")
+        print(f"Added {len(demos)} sample demo(s).")
         print(f"Added event details for {len(details)} event(s): {', '.join(d['event_code'] for d in details) or 'none'}.")
         print(f"Added {len(costs)} sample cost(s) totalling {sum(c['amount'] for c in costs):,.2f}.")
     finally:

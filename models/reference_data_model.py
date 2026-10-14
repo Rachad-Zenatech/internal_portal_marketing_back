@@ -36,6 +36,11 @@ class SpendCategoryItem(ReferenceItem):
     help_text: str | None = None
 
 
+class DemoOutcomeItem(ReferenceItem):
+    # How far along the funnel: 0 no outcome yet / not a fit, 1 follow-up … 4 became a customer
+    funnel_rank: int
+
+
 class ReferenceDataResponse(BaseModel):
     brands: list[ReferenceItem]
     channels: list[ChannelItem]
@@ -49,3 +54,5 @@ class ReferenceDataResponse(BaseModel):
     event_types: list[ReferenceItem]
     expense_types: list[ExpenseTypeItem]
     spend_categories: list[SpendCategoryItem]
+    demo_types: list[ReferenceItem]
+    demo_outcomes: list[DemoOutcomeItem]

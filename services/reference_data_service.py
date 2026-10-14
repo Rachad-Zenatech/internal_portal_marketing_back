@@ -36,6 +36,10 @@ _SIMPLE_LISTS = {
         "SELECT id, code, name, expense_type_id, applies_to, manual_entry_allowed, default_cost_type, help_text, "
         "sort_order FROM spend_categories WHERE is_active ORDER BY sort_order, name"
     ),
+    "demo_types": "SELECT id, code, name, sort_order FROM demo_types WHERE is_active ORDER BY sort_order, name",
+    "demo_outcomes": (
+        "SELECT id, code, name, funnel_rank, sort_order FROM demo_outcomes WHERE is_active ORDER BY sort_order, name"
+    ),
 }
 
 _CHANNELS_SQL = """

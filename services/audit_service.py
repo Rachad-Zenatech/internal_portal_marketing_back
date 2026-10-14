@@ -37,6 +37,21 @@ def entity_title_sql(alias: str) -> str:
                  WHERE CAST(sc.id AS TEXT) = COALESCE({alias}.old_value->>'category_id', {alias}.new_value->>'category_id')
                  LIMIT 1)
             )
+            -- "Booth demo · Acme Facilities · EVT-2026-0007"; deleted demos fall back to the event in the entry
+            WHEN {alias}.entity_type = 'Demo' THEN COALESCE(
+                (SELECT dt.name || COALESCE(' · ' || d.company, '') || ' · ' || COALESCE(ed.event_code, i.name)
+                 FROM event_demos d
+                 JOIN demo_types dt ON dt.id = d.demo_type_id
+                 JOIN initiatives i ON i.id = d.initiative_id
+                 LEFT JOIN event_details ed ON ed.initiative_id = i.id
+                 WHERE CAST(d.id AS TEXT) = {alias}.entity_id LIMIT 1),
+                (SELECT 'Demo' || COALESCE(' · ' || COALESCE({alias}.old_value->>'company', {alias}.new_value->>'company'), '')
+                        || COALESCE(' · ' || COALESCE(ed.event_code, i.name), '')
+                 FROM (SELECT 1) one
+                 LEFT JOIN initiatives i
+                        ON CAST(i.id AS TEXT) = COALESCE({alias}.old_value->>'initiative_id', {alias}.new_value->>'initiative_id')
+                 LEFT JOIN event_details ed ON ed.initiative_id = i.id)
+            )
             -- Spreadsheet uploads: the file name
             WHEN {alias}.entity_type = 'ImportBatch' THEN COALESCE(
                 (SELECT filename FROM import_batches WHERE CAST(id AS TEXT) = {alias}.entity_id LIMIT 1),

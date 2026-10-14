@@ -550,9 +550,9 @@ async def build_template() -> bytes:
     today = date.today()
     show = today + timedelta(days=60)
     examples = [
-        ("10x20 booth space", "Booth space", "Space & sponsorship", "Show organiser", 8000, 8000, "Paid", "INV-1001",
+        ("10x20 booth space", "Booth space", "Space & sponsorship", "Show organiser", 8000, 8000, "Paid", "EX-INV-001",
          today, today + timedelta(days=14), "AP invoice", "", "", "Deposit paid when booking"),
-        ("Modular booth build", "Booth build or rental", "Booth / exhibit", "ExhibitWorks", 4000, 4500, "Invoiced", "INV-1002",
+        ("Modular booth build", "Booth build or rental", "Booth / exhibit", "ExhibitWorks", 4000, 4500, "Invoiced", "EX-INV-002",
          today + timedelta(days=30), None, "", "", "", ""),
         ("10x20 grey carpet", "Carpet & flooring", "Show services", "Expo Show Services", 600, None, "Committed", "",
          show, None, "", "", "", ""),
