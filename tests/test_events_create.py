@@ -157,3 +157,64 @@ def test_audit_entry_includes_event_code(client, admin, ref):
     logged_event = json.loads(audit[0]["new_value"])["event"]
     assert logged_event["event_code"] == _details(initiative_id)["event_code"]
     assert logged_event["city"] == "Las Vegas"
+
+
+def test_webinar_stores_platform_and_link(client, admin, ref):
+    event = {"platform": " Zoom ", "event_url": "https://zoom.us/j/123456"}
+
+    response = client.post("/api/initiatives", json=_event_payload(ref, sub_channel="WEBINARS", event=event), headers=admin["headers"])
+
+    assert response.status_code == 201, response.text
+    assert (response.json()["platform"], response.json()["event_url"]) == ("Zoom", "https://zoom.us/j/123456")
+
+
+@pytest.mark.parametrize("url", ["zoom.us/j/123", "ftp://example.com/event", "javascript:alert(1)"])
+def test_event_link_must_be_http(client, admin, ref, url):
+    payload = _event_payload(ref, sub_channel="VIRTUAL_EVENTS", event={"event_url": url})
+
+    response = client.post("/api/initiatives", json=payload, headers=admin["headers"])
+
+    assert response.status_code == 422
+    assert "Event link must start with http:// or https://" in response.text
+
+
+def test_blank_event_link_is_saved_as_empty(client, admin, ref):
+    payload = _event_payload(ref, sub_channel="WEBINARS", event={"platform": "", "event_url": "   "})
+
+    response = client.post("/api/initiatives", json=payload, headers=admin["headers"])
+
+    assert response.status_code == 201, response.text
+    assert (response.json()["platform"], response.json()["event_url"]) == (None, None)
+
+
+@pytest.mark.parametrize(
+    ("sub_channel", "event"),
+    [
+        ("IN_PERSON_EVENTS", {"city": "Las Vegas", "country_code": "US", "platform": "Zoom"}),
+        ("SPONSORSHIPS", {"country_code": "AE", "event_url": "https://example.com/live"}),
+    ],
+)
+def test_platform_and_link_rejected_for_in_person_events(client, admin, ref, sub_channel, event):
+    response = client.post("/api/initiatives", json=_event_payload(ref, sub_channel=sub_channel, event=event), headers=admin["headers"])
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Platform and event link are for virtual events."
+    assert run_sql("SELECT 1 FROM initiatives WHERE created_by = $1", admin["id"]) == []
+
+
+def test_virtual_event_may_have_a_location(client, admin, ref):
+    event = {"platform": "Teams", "city": "Toronto", "country_code": "CA"}
+
+    response = client.post("/api/initiatives", json=_event_payload(ref, sub_channel="WEBINARS", event=event), headers=admin["headers"])
+
+    assert response.status_code == 201, response.text
+    assert response.json()["city"] == "Toronto"
+
+
+def test_database_rejects_non_http_link(client, admin, ref):
+    created = client.post("/api/initiatives", json=_event_payload(ref, sub_channel="WEBINARS"), headers=admin["headers"])
+    assert created.status_code == 201, created.text
+
+    # The API validates first; the database rule is the backstop for anything that skips it
+    with pytest.raises(Exception, match="event_details_event_url_check"):
+        run_sql("UPDATE event_details SET event_url = 'zoom.us/j/1' WHERE initiative_id = $1", created.json()["id"])

@@ -1,4 +1,4 @@
-"""Marketing reference data (brands, channels, funnel stages, goals, KPIs, ratings).
+"""Marketing reference data (brands, channels, funnel stages, goals, KPIs, ratings, cost classification).
 
 Read-mostly lookup lists, served from master_data_cache. Any future write to these
 tables must call emit_cache_invalidation(scope="master_data", key=REFERENCE_DATA_CACHE_KEY).
@@ -28,6 +28,14 @@ _SIMPLE_LISTS = {
     ),
     "regions": "SELECT id, code, name, sort_order FROM regions WHERE is_active ORDER BY sort_order, name",
     "event_types": "SELECT id, code, name, sort_order FROM event_types WHERE is_active ORDER BY sort_order, name",
+    "expense_types": (
+        "SELECT id, code, name, description, source, sort_order FROM expense_types "
+        "WHERE is_active ORDER BY sort_order, name"
+    ),
+    "spend_categories": (
+        "SELECT id, code, name, expense_type_id, applies_to, manual_entry_allowed, default_cost_type, help_text, "
+        "sort_order FROM spend_categories WHERE is_active ORDER BY sort_order, name"
+    ),
 }
 
 _CHANNELS_SQL = """

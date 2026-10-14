@@ -124,6 +124,25 @@ Each task is small and built end to end (database → backend → web → mobile
 
 Agreed phasing: **Phase 1 initiatives and events** → **Phase 2 ads** → **Phase 3 connecting external tools** (the largest piece; the whole team works on it once Marketing confirms what they want). The **travel management system** is a separate project being built in parallel; this platform only receives its costs.
 
+### Current focus — search ads, events and the monthly budget tracker
+Agreed scope for now: **search engine ads (Google Ads, Microsoft/Bing Ads)**, **events**, and a **monthly budget tracker** that replaces Marketing's budget-tracking sheet. **Initiatives are linked to monthly budgets** so spend rolls up into the right month. Budget approvals are on hold (see below).
+
+How the pieces fit:
+- A **monthly budget** = month + brand (or TBD/All) + market (+ optional channel) with an amount and currency. Example: *Sep · DeskFlex · North America · $12,000*.
+- An **initiative** (a Google Ads campaign, an event, …) records **spend lines** — date, amount, currency, category, source.
+- Each spend line counts against **one monthly budget**: suggested automatically from the initiative's brand + market and the spend's month, changeable by the user. An initiative that runs across months draws from each month's budget.
+- The tracker **calculates** spent, remaining and progress per monthly budget — no hand-typed totals.
+
+Tasks, in order:
+- [ ] **B1** — Markets: a reference list of markets (London, North America, Germany, Australia, Korea, …) and an optional market on initiatives (form, detail, list filter).
+- [ ] **I5** — Spend lines per initiative (date, amount, currency, category, source, note); add / edit / delete on the initiative page; budget vs spent in the Performance panel. *Event costs (E2) use the same spend lines with event categories.*
+- [ ] **B2** — Monthly budgets: table and API; create / edit; a **budget tracker** page by month (brand, market, budget, spent, remaining, progress, notes) that looks like Marketing's sheet.
+- [ ] **B3** — Link spend to monthly budgets: auto-match by month + brand + market, editable; tracker drills down to the initiatives and spend behind each budget; the initiative page shows which monthly budgets it draws from.
+- [ ] **A1** — Search ads import: upload Google Ads and Microsoft Ads exports (per campaign and period: spend, impressions, clicks, conversions); map each campaign to an initiative; imported spend becomes spend lines (source = Google Ads / Microsoft Ads); CTR, CPC, conversion rate and cost per conversion calculated.
+- [ ] **A2** — Search ads view: Google vs Bing per brand and market — spend, clicks, conversions, cost per conversion, against the monthly budget.
+- [ ] **B4** — Carryover and transfers: unspent rolls into next month; explicit transfers between budgets (e.g. TBD/All → Othership). *Rules to confirm with Marketing first.*
+- [ ] **X2a** — Google Ads and Microsoft Advertising APIs replace the A1 upload (needs developer tokens — request early).
+
 ### Phase 1 — Initiatives and events
 Focus on the **Events** channel working end to end, built on the shared initiatives core — so by the end of Phase 1 an initiative can be created (or uploaded) for **any** channel. The budget and spend work is the base Phase 2 (ads) builds on.
 - [x] **I1** — Initiatives list: `initiatives` table (name, brand, channel, sub-channel, owner, start/end dates, budget + currency, status); rename Events → Initiatives in navigation and permissions; list API with channel / sub-channel / brand / status filters; web list; sample data across several channels.
@@ -131,7 +150,7 @@ Focus on the **Events** channel working end to end, built on the shared initiati
 - [ ] **I3b** — Upload initiatives: import a spreadsheet of initiatives (any channel), with a preview and validation before saving.
 - [x] **I4** — Initiative detail, edit and status (Planned → Active → Completed / Paused / Cancelled), recorded in the audit log.
 - [ ] **I5** — Budget and spend: spend lines per initiative by category and period, with currency and source; budget vs spend shown.
-- [ ] **E1** — Event details for event initiatives, in-person and virtual in one table (no separate "hybrid"). The sub-channel decides the format — In-Person Events and Sponsorships are in-person; Virtual Events and Webinars are virtual — so there is no extra "virtual" flag to keep in sync. Shared: event code, event type, region. In-person adds venue, city, country; virtual adds platform and event link.
+- [x] **E1** — Event details for event initiatives, in-person and virtual in one table (no separate "hybrid"). The sub-channel decides the format — In-Person Events and Sponsorships are in-person; Virtual Events and Webinars are virtual — so there is no extra "virtual" flag to keep in sync. Shared: event code, event type, region. In-person adds venue, city, country; virtual adds platform and event link. *Done: codes, type, venue, city, country, region, and platform + event link for virtual events, on create / edit / detail / Events list.*
 - [ ] **E2** — Event costs: categories (booth/space, materials, staff time, travel, other); travel-cost file upload matched by event code until the travel management system feeds it.
 - [ ] **I6** — Outcomes: funnel metrics per initiative per period — manual entry, with source tracking ready for later syncs.
 - [ ] **I7** — "Worth it" view: evaluation settings, cost-per-outcome ladder, ROI, suggested performance rating, recorded scale-or-cut decision.
@@ -154,6 +173,7 @@ Focus on the **Events** channel working end to end, built on the shared initiati
 
 ### On hold
 - [ ] **I2** — Manage sub-channels (add, rename, deactivate; choose their channels). *Marketing hasn't asked for this — confirm before building. Until then, sub-channel changes are a small migration.*
+- [ ] **B5** — Budget approvals: approval status (awaiting sign-off → approved → on hold → cancelled), effective date, change history with reasons, per-brand status inside a shared TBD/All budget, agreed local-currency amount (e.g. $10k = £7,500), "copy last month's budgets". *Replaces Marketing's approved-budgets sheet; on hold until the tracker is in use.*
 
 ### Supporting
 - [ ] Microsoft sign-in on mobile.
@@ -182,6 +202,10 @@ Columns: Brand, Market/Region, Period Start, Period End, Channel, Sub-Channel, C
 9. Confirm which sub-channels belong to which channel (current links proposed in migration `898548e5a993`).
 10. Which roles should see Initiatives by default? Today only Super Admin has access.
 11. Events: is a finer type needed (trade show, conference, roadshow, …), and do events already have codes the travel system will use?
+12. Monthly budgets: only for paid ads, or do events and other channels draw from them too?
+13. Carryover: does unspent always roll into next month, or only when approved? Does an overspend reduce next month?
+14. A shared budget (e.g. TBD/All · North America · $25k used by WorkAware and DeskFlex): is that common, and should the tracker show each brand's share?
+15. Google Ads / Microsoft Ads: one campaign per initiative, or several campaigns rolled into one? What counts as a conversion?
 
 ## Known issues (from the template)
 

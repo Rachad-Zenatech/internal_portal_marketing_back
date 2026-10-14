@@ -39,6 +39,8 @@ class InitiativeListItem(BaseModel):
     country_code: str | None = None
     region_id: int | None = None
     region_name: str | None = None
+    platform: str | None = None
+    event_url: str | None = None
 
 
 class InitiativeListResponse(BaseModel):
@@ -56,8 +58,11 @@ class EventDetailsInput(BaseModel):
     city: str | None = Field(default=None, max_length=120)
     country_code: str | None = None
     region_id: int | None = None
+    # Virtual events and webinars only
+    platform: str | None = Field(default=None, max_length=80)
+    event_url: str | None = Field(default=None, max_length=500)
 
-    @field_validator("venue", "city", "country_code", mode="before")
+    @field_validator("venue", "city", "country_code", "platform", "event_url", mode="before")
     @classmethod
     def blank_to_none(cls, value: object) -> object:
         if isinstance(value, str):
@@ -73,6 +78,13 @@ class EventDetailsInput(BaseModel):
         value = value.upper()
         if not re.fullmatch(r"[A-Z]{2}", value):
             raise ValueError("Country must be a two-letter code, e.g. US")
+        return value
+
+    @field_validator("event_url")
+    @classmethod
+    def check_event_url(cls, value: str | None) -> str | None:
+        if value is not None and not value.lower().startswith(("http://", "https://")):
+            raise ValueError("Event link must start with http:// or https://")
         return value
 
 

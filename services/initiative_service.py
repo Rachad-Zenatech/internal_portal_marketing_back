@@ -22,7 +22,8 @@ _SELECT = """
            i.start_date, i.end_date,
            i.budget_amount::float8 AS budget_amount, i.currency, i.status,
            ed.event_code, ed.event_type_id, et.name AS event_type_name,
-           ed.venue, ed.city, ed.country_code, ed.region_id, r.name AS region_name
+           ed.venue, ed.city, ed.country_code, ed.region_id, r.name AS region_name,
+           ed.platform, ed.event_url
     FROM initiatives i
     JOIN brands b ON b.id = i.brand_id
     JOIN channels c ON c.id = i.channel_id
@@ -54,6 +55,7 @@ _CONSTRAINT_MESSAGES = {
     "event_details_event_type_id_fkey": "Unknown event type.",
     "event_details_region_id_fkey": "Unknown region.",
     "event_details_country_code_check": "Country must be a two-letter code, e.g. US.",
+    "event_details_event_url_check": "Event link must start with http:// or https://",
 }
 
 EVENTS_CHANNEL = "EVENTS"
@@ -65,7 +67,22 @@ EVENT_REQUIRED_FIELDS: dict[str, tuple[tuple[str, ...], str]] = {
     "SPONSORSHIPS": (("country_code",), "Sponsorships need a country."),
 }
 
-_EVENT_FIELDS = ("event_type_id", "venue", "city", "country_code", "region_id")
+# In-person sub-channels can't have a platform or event link. Virtual ones may still have a location
+# (some webinars are hosted from an office), so location fields are never blocked.
+IN_PERSON_SUB_CHANNELS = {"IN_PERSON_EVENTS", "SPONSORSHIPS"}
+_VIRTUAL_ONLY_FIELDS = ("platform", "event_url")
+
+_EVENT_FIELDS = ("event_type_id", "venue", "city", "country_code", "region_id", "platform", "event_url")
+_EVENT_COLUMNS = ", ".join(_EVENT_FIELDS)
+
+
+def _check_event_rules(sub_channel_code: str | None, event: dict) -> None:
+    """Raise if an event's details (as they'll be saved) break the sub-channel's rules."""
+    required, message = EVENT_REQUIRED_FIELDS.get(sub_channel_code, ((), ""))
+    if any(event[field] is None for field in required):
+        raise InitiativeValidationError(message)
+    if sub_channel_code in IN_PERSON_SUB_CHANNELS and any(event[f] is not None for f in _VIRTUAL_ONLY_FIELDS):
+        raise InitiativeValidationError("Platform and event link are for virtual events.")
 
 
 class InitiativeValidationError(Exception):
@@ -177,9 +194,7 @@ async def create_initiative(data: InitiativeCreate, actor_id: UUID) -> dict:
                 if is_event:
                     # Every event gets a details row (and so a code), even with no details sent
                     event = event or dict.fromkeys(_EVENT_FIELDS)
-                    required, message = EVENT_REQUIRED_FIELDS.get(codes["sub_channel"], ((), ""))
-                    if any(event[field] is None for field in required):
-                        raise InitiativeValidationError(message)
+                    _check_event_rules(codes["sub_channel"], event)
 
                 initiative_id = await conn.fetchval(
                     """
@@ -196,16 +211,7 @@ async def create_initiative(data: InitiativeCreate, actor_id: UUID) -> dict:
                     values["status"], actor_id,
                 )
                 if is_event:
-                    event_code = await conn.fetchval(
-                        """
-                        INSERT INTO event_details (initiative_id, event_type_id, venue, city, country_code, region_id,
-                                                   created_by, updated_by)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
-                        RETURNING event_code
-                        """,
-                        initiative_id, event["event_type_id"], event["venue"], event["city"],
-                        event["country_code"], event["region_id"], actor_id,
-                    )
+                    event_code = await _insert_event_details(conn, initiative_id, event, actor_id)
                     values["event"] = {**event, "event_code": event_code}
                 await log_audit(conn, actor_id, "CREATE", AUDIT_ENTITY, initiative_id, new_value=values)
         except (asyncpg.ForeignKeyViolationError, asyncpg.CheckViolationError) as exc:
@@ -222,6 +228,20 @@ async def get_initiative(initiative_id: UUID) -> dict:
     if row is None:
         raise InitiativeNotFoundError
     return dict(row)
+
+
+async def _insert_event_details(conn, initiative_id: UUID, event: dict, actor_id: UUID) -> str:
+    """Create an initiative's event details row; the database generates and returns the event code."""
+    placeholders = ", ".join(f"${n}" for n in range(2, len(_EVENT_FIELDS) + 2))
+    actor = f"${len(_EVENT_FIELDS) + 2}"
+    return await conn.fetchval(
+        f"""
+        INSERT INTO event_details (initiative_id, {_EVENT_COLUMNS}, created_by, updated_by)
+        VALUES ($1, {placeholders}, {actor}, {actor})
+        RETURNING event_code
+        """,
+        initiative_id, *[event[f] for f in _EVENT_FIELDS], actor_id,
+    )
 
 
 async def _apply_event_changes(
@@ -251,23 +271,11 @@ async def _apply_event_changes(
 
     before = {f: current_event[f] for f in _EVENT_FIELDS} if current_event else dict.fromkeys(_EVENT_FIELDS)
     after = {**before, **event_changes}
-    required, message = EVENT_REQUIRED_FIELDS.get(codes["sub_channel"], ((), ""))
-    if any(after[field] is None for field in required):
-        raise InitiativeValidationError(message)
+    _check_event_rules(codes["sub_channel"], after)
 
     if current_event is None:
         # Moving into Events: create the details row, which generates the code
-        event_code = await conn.fetchval(
-            """
-            INSERT INTO event_details (initiative_id, event_type_id, venue, city, country_code, region_id,
-                                       created_by, updated_by)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
-            RETURNING event_code
-            """,
-            initiative_id, after["event_type_id"], after["venue"], after["city"],
-            after["country_code"], after["region_id"], actor_id,
-        )
-        return None, after, event_code
+        return None, after, await _insert_event_details(conn, initiative_id, after, actor_id)
 
     fields = [f for f in _EVENT_FIELDS if after[f] != before[f]]
     if not fields:
@@ -298,7 +306,7 @@ async def update_initiative(initiative_id: UUID, changes: dict, actor_id: UUID) 
                 if current["budget_amount"] is not None:
                     current["budget_amount"] = float(current["budget_amount"])
                 current_event = await conn.fetchrow(
-                    f"SELECT event_code, {', '.join(_EVENT_FIELDS)} FROM event_details WHERE initiative_id = $1 FOR UPDATE",
+                    f"SELECT event_code, {_EVENT_COLUMNS} FROM event_details WHERE initiative_id = $1 FOR UPDATE",
                     initiative_id,
                 )
                 changed = {k: v for k, v in changes.items() if k in _UPDATABLE_COLUMNS and current[k] != v}

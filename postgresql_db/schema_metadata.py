@@ -293,6 +293,27 @@ scale_or_cut_options = _reference_table("scale_or_cut_options", sa.Column("descr
 regions = _reference_table("regions")
 event_types = _reference_table("event_types")
 
+# Classifying costs: expense types group categories for reporting; a category is picked on each cost
+expense_types = _reference_table(
+    "expense_types",
+    sa.Column("description", sa.TEXT()),
+    # Where costs of this type come from: entered in this portal, or fed by the travel management system
+    sa.Column("source", sa.VARCHAR(length=20), nullable=False),
+    sa.CheckConstraint("source IN ('PORTAL', 'TRAVEL_SYSTEM')", name="expense_types_source_check"),
+)
+spend_categories = _reference_table(
+    "spend_categories",
+    sa.Column("expense_type_id", sa.INTEGER(), sa.ForeignKey("expense_types.id", name="spend_categories_expense_type_id_fkey"), nullable=False),
+    sa.Column("applies_to", sa.VARCHAR(length=20), nullable=False, server_default=sa.text("'ALL'")),
+    # False for categories that only arrive from another system (e.g. travel)
+    sa.Column("manual_entry_allowed", sa.BOOLEAN(), nullable=False, server_default=sa.text("true")),
+    sa.Column("default_cost_type", sa.VARCHAR(length=5)),
+    # Shown under the category picker
+    sa.Column("help_text", sa.VARCHAR(length=255)),
+    sa.CheckConstraint("applies_to IN ('ALL', 'EVENTS', 'ADS')", name="spend_categories_applies_to_check"),
+    sa.CheckConstraint("default_cost_type IN ('OPEX', 'CAPEX')", name="spend_categories_default_cost_type_check"),
+)
+
 channel_sub_channels = sa.Table(
     "channel_sub_channels", metadata,
     sa.Column("channel_id", sa.INTEGER(), sa.ForeignKey("channels.id", name="channel_sub_channels_channel_id_fkey", ondelete="CASCADE"), primary_key=True),
@@ -362,10 +383,14 @@ event_details = sa.Table(
     sa.Column("city", sa.VARCHAR(length=120)),
     sa.Column("country_code", sa.CHAR(length=2)),
     sa.Column("region_id", sa.INTEGER(), sa.ForeignKey("regions.id", name="event_details_region_id_fkey")),
+    # Virtual events and webinars only (e.g. "Zoom", "ON24")
+    sa.Column("platform", sa.VARCHAR(length=80)),
+    sa.Column("event_url", sa.VARCHAR(length=500)),
     sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="event_details_created_by_fkey", ondelete="SET NULL")),
     sa.Column("updated_by", sa.UUID(), sa.ForeignKey("users.id", name="event_details_updated_by_fkey", ondelete="SET NULL")),
     sa.UniqueConstraint("event_code", name="event_details_event_code_key"),
     sa.CheckConstraint("country_code ~ '^[A-Z]{2}$'", name="event_details_country_code_check"),
+    sa.CheckConstraint("event_url ~* '^https?://'", name="event_details_event_url_check"),
 )

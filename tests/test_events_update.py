@@ -182,3 +182,43 @@ def test_viewer_cannot_patch_event_details(client, admin, viewer, ref):
 
     assert response.status_code == 403
     assert client.get(f"/api/initiatives/{created['id']}", headers=admin["headers"]).json()["city"] == "Dubai"
+
+
+def test_patch_changes_event_link_and_audits_it(client, admin, ref):
+    created = _create(client, admin, ref, event={"platform": "Zoom", "event_url": "https://zoom.us/j/1"})
+
+    response = _patch(client, admin, created["id"], {"event": {"platform": "ON24", "event_url": "https://on24.com/e/2"}})
+
+    assert response.status_code == 200, response.text
+    assert (response.json()["platform"], response.json()["event_url"]) == ("ON24", "https://on24.com/e/2")
+    audits = _update_audits(created["id"])
+    assert json.loads(audits[0]["old_value"]) == {"event": {"platform": "Zoom", "event_url": "https://zoom.us/j/1"}}
+    assert json.loads(audits[0]["new_value"]) == {
+        "event": {"platform": "ON24", "event_url": "https://on24.com/e/2", "event_code": created["event_code"]},
+    }
+
+
+def test_patch_rejects_bad_event_link(client, admin, ref):
+    created = _create(client, admin, ref)
+
+    response = _patch(client, admin, created["id"], {"event": {"event_url": "on24.com/e/2"}})
+
+    assert response.status_code == 422
+    assert "Event link must start with http:// or https://" in response.text
+
+
+def test_switching_to_in_person_requires_clearing_the_link(client, admin, ref):
+    created = _create(client, admin, ref, event={"platform": "Zoom", "event_url": "https://zoom.us/j/1"})
+    in_person = ref["sub_channels"]["IN_PERSON_EVENTS"]
+    location = {"city": "Toronto", "country_code": "CA"}
+
+    rejected = _patch(client, admin, created["id"], {"sub_channel_id": in_person, "event": location})
+    accepted = _patch(
+        client, admin, created["id"],
+        {"sub_channel_id": in_person, "event": {**location, "platform": None, "event_url": None}},
+    )
+
+    assert rejected.status_code == 422
+    assert rejected.json()["detail"] == "Platform and event link are for virtual events."
+    assert accepted.status_code == 200, accepted.text
+    assert (accepted.json()["platform"], accepted.json()["event_url"]) == (None, None)
