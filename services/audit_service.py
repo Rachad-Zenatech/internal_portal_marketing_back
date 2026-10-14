@@ -37,6 +37,12 @@ def entity_title_sql(alias: str) -> str:
                  WHERE CAST(sc.id AS TEXT) = COALESCE({alias}.old_value->>'category_id', {alias}.new_value->>'category_id')
                  LIMIT 1)
             )
+            -- Spreadsheet uploads: the file name
+            WHEN {alias}.entity_type = 'ImportBatch' THEN COALESCE(
+                (SELECT filename FROM import_batches WHERE CAST(id AS TEXT) = {alias}.entity_id LIMIT 1),
+                {alias}.new_value->>'filename',
+                {alias}.old_value->>'filename'
+            )
             ELSE NULL
         END
     """

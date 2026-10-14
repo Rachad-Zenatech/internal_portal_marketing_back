@@ -40,6 +40,7 @@ from services.logging_service import (
 )
 from tools.auth_router import router as auth_router
 from tools.graph_router import router as graph_router
+from tools.import_router import router as import_router
 from tools.initiative_router import router as initiative_router
 from tools.log_router import router as log_router
 from tools.notification_router import notification_router
@@ -251,6 +252,7 @@ app.include_router(graph_router, prefix="/api", tags=["Microsoft Graph"], depend
 app.include_router(reference_data_router, prefix="/api", tags=["Reference Data"], dependencies=authenticated)
 app.include_router(initiative_router, prefix="/api", tags=["Initiatives"], dependencies=authenticated)
 app.include_router(spend_router, prefix="/api", tags=["Initiative costs"], dependencies=authenticated)
+app.include_router(import_router, prefix="/api", tags=["Spreadsheet uploads"], dependencies=authenticated)
 
 
 # --- Session Middleware ---

@@ -103,7 +103,38 @@ def _with_lock_info(row) -> dict:
 
 
 class SpendValidationError(Exception):
-    """A request that breaks a cost rule; the message is safe to show to users."""
+    """A request that breaks a cost rule; the message is safe to show to users.
+
+    `code` names the rule, so callers such as the spreadsheet import can word it for their own context.
+    """
+
+    def __init__(self, message: str, code: str | None = None):
+        super().__init__(message)
+        self.code = code
+
+
+# --- Rule checks without database access, shared by the API and the cost sheet import ---
+
+def check_category(category, channel_code: str | None) -> None:
+    """Raise if a category (manual_entry_allowed, applies_to) can't be used on an initiative in this channel."""
+    if not category["manual_entry_allowed"]:
+        raise SpendValidationError("Travel and staff expenses come from the travel management system.", code="MANUAL_ENTRY_NOT_ALLOWED")
+    if category["applies_to"] != "ALL" and category["applies_to"] != _CHANNEL_GROUPS.get(channel_code):
+        raise SpendValidationError("That category isn't used for this channel.", code="CATEGORY_NOT_FOR_CHANNEL")
+
+
+def check_paid_date(status: str, paid_on) -> None:
+    """A paid cost needs the date it was paid."""
+    if status == "PAID" and paid_on is None:
+        raise SpendValidationError("Add the date it was paid.", code="PAID_NEEDS_DATE")
+
+
+def duplicate_invoice_message(invoice_ref: str, vendor: str, initiative_name: str | None, event_code: str | None) -> str:
+    """Name the initiative that already has this supplier invoice, so people can find it."""
+    if initiative_name is None:
+        return f"Invoice {invoice_ref} from {vendor} is already recorded."
+    where = f"{event_code} · {initiative_name}" if event_code else initiative_name
+    return f"Invoice {invoice_ref} from {vendor} is already recorded on {where}."
 
 
 class SpendLineNotFoundError(Exception):
@@ -122,10 +153,7 @@ async def _category_rules(conn, category_id: int, channel_code: str) -> dict:
     )
     if category is None:
         raise SpendValidationError("Unknown category.")
-    if not category["manual_entry_allowed"]:
-        raise SpendValidationError("Travel and staff expenses come from the travel management system.")
-    if category["applies_to"] != "ALL" and category["applies_to"] != _CHANNEL_GROUPS.get(channel_code):
-        raise SpendValidationError("That category isn't used for this channel.")
+    check_category(category, channel_code)
     return dict(category)
 
 
@@ -143,9 +171,8 @@ async def _duplicate_invoice_error(conn, vendor: str, invoice_ref: str, line_id:
         vendor, invoice_ref, line_id,
     )
     if other is None:
-        return SpendValidationError(f"Invoice {invoice_ref} from {vendor} is already recorded.")
-    where = f"{other['event_code']} · {other['name']}" if other["event_code"] else other["name"]
-    return SpendValidationError(f"Invoice {invoice_ref} from {other['vendor']} is already recorded on {where}.")
+        return SpendValidationError(duplicate_invoice_message(invoice_ref, vendor, None, None))
+    return SpendValidationError(duplicate_invoice_message(invoice_ref, other["vendor"], other["name"], other["event_code"]))
 
 
 async def _translate_db_error(conn, exc: asyncpg.PostgresError, vendor: str | None, invoice_ref: str | None, line_id: UUID | None):
@@ -184,8 +211,7 @@ async def create_spend_line(initiative_id: UUID, data: SpendLineCreate, actor_id
                 if values["status"] == "ESTIMATED" and values["estimated_amount"] is None:
                     # Keep the estimate so the variance shows once the invoice arrives
                     values["estimated_amount"] = values["amount"]
-                if values["status"] == "PAID" and values["paid_on"] is None:
-                    raise SpendValidationError("Add the date it was paid.")
+                check_paid_date(values["status"], values["paid_on"])
 
                 line_id = await conn.fetchval(
                     """
@@ -246,8 +272,7 @@ async def update_spend_line(line_id: UUID, changes: dict, actor_id: UUID) -> dic
                     await _category_rules(conn, changed["category_id"], current["channel"])
 
                 after = {**dict(current), **changed}
-                if after["status"] == "PAID" and after["paid_on"] is None:
-                    raise SpendValidationError("Add the date it was paid.")
+                check_paid_date(after["status"], after["paid_on"])
 
                 if changed:
                     # estimated_amount is only ever changed when sent, so moving to INVOICED or PAID keeps the estimate
