@@ -371,7 +371,7 @@ initiatives = sa.Table(
     ),
     sa.CheckConstraint("goal_id IS NULL OR funnel_stage_id IS NOT NULL", name="initiatives_goal_requires_stage_check"),
     sa.CheckConstraint(
-        "status IN ('PLANNED', 'ACTIVE', 'COMPLETED', 'PAUSED', 'CANCELLED')",
+        "status IN ('DRAFT', 'PLANNED', 'ACTIVE', 'COMPLETED', 'PAUSED', 'CANCELLED')",
         name="initiatives_status_check",
     ),
     sa.CheckConstraint("end_date IS NULL OR start_date IS NULL OR end_date >= start_date", name="initiatives_dates_check"),

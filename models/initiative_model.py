@@ -5,7 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-InitiativeStatus = Literal["PLANNED", "ACTIVE", "COMPLETED", "PAUSED", "CANCELLED"]
+# DRAFT: saved part-way to finish later; the event rules (e.g. city and country) apply once it leaves Draft
+InitiativeStatus = Literal["DRAFT", "PLANNED", "ACTIVE", "COMPLETED", "PAUSED", "CANCELLED"]
 
 
 class InitiativeListItem(BaseModel):

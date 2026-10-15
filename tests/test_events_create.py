@@ -246,3 +246,54 @@ def test_booth_size_must_be_positive(client, admin, ref, size):
     response = client.post("/api/initiatives", json=payload, headers=admin["headers"])
 
     assert response.status_code == 422
+
+
+# --- Drafts ---
+
+
+def test_draft_event_can_skip_required_fields(client, admin, ref):
+    """Saved part-way: an in-person event with no city or country yet still gets its details row and code."""
+    response = client.post("/api/initiatives", json=_event_payload(ref, status="DRAFT"), headers=admin["headers"])
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["status"] == "DRAFT"
+    assert CODE_PATTERN.match(body["event_code"])
+
+
+def test_finishing_a_draft_applies_the_event_rules(client, admin, ref):
+    draft = client.post("/api/initiatives", json=_event_payload(ref, status="DRAFT"), headers=admin["headers"]).json()
+    url = f"/api/initiatives/{draft['id']}"
+
+    # Still a draft: other edits are fine without a city
+    assert client.patch(url, json={"name": "Pytest Event (draft)"}, headers=admin["headers"]).status_code == 200
+
+    missing = client.patch(url, json={"status": "PLANNED"}, headers=admin["headers"])
+    assert missing.status_code == 422
+    assert missing.json()["detail"] == "In-person events need a city and a country."
+
+    finished = client.patch(
+        url, json={"status": "PLANNED", "event": {"city": "Las Vegas", "country_code": "US"}}, headers=admin["headers"]
+    )
+    assert finished.status_code == 200, finished.text
+    assert finished.json()["status"] == "PLANNED"
+
+
+def test_nothing_goes_back_to_draft(client, admin, ref):
+    created = client.post(
+        "/api/initiatives", json=_event_payload(ref, event={"city": "Las Vegas", "country_code": "US"}), headers=admin["headers"]
+    ).json()
+
+    response = client.patch(f"/api/initiatives/{created['id']}", json={"status": "DRAFT"}, headers=admin["headers"])
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "An initiative can't go from Planned to Draft."
+
+
+def test_drafts_can_be_listed(client, admin, ref):
+    created = client.post("/api/initiatives", json=_event_payload(ref, status="DRAFT"), headers=admin["headers"]).json()
+
+    listed = client.get("/api/initiatives", params={"status": "DRAFT", "limit": 200}, headers=admin["headers"]).json()
+
+    assert created["id"] in {item["id"] for item in listed["items"]}
+    assert {item["status"] for item in listed["items"]} == {"DRAFT"}

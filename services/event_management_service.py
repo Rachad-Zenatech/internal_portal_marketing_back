@@ -322,7 +322,8 @@ _FEED_EVENTS_SQL = f"""
     JOIN brands b ON b.id = i.brand_id
     LEFT JOIN sub_channels sc ON sc.id = i.sub_channel_id
     LEFT JOIN users u ON u.id = i.owner_user_id
-    WHERE i.end_date IS NULL OR i.end_date >= CURRENT_DATE - 90
+    -- Drafts aren't sent until they're finished, so nobody books travel for a half-entered event
+    WHERE i.status <> 'DRAFT' AND (i.end_date IS NULL OR i.end_date >= CURRENT_DATE - 90)
 """
 
 

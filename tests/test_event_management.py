@@ -211,6 +211,18 @@ def test_travel_feed(client, admin, event, colleague):
     assert person["cargo_note"] == "Booth kit, 2 crates"
 
 
+def test_travel_feed_leaves_out_drafts(client, admin, ref):
+    """Nobody books travel for an event that's still being entered; it appears once it's finished."""
+    draft = _event(client, admin, ref, date.today() + timedelta(days=30), status="DRAFT")
+
+    codes = {e["event_code"] for e in client.get("/api/integrations/travel/events", headers=_travel_headers()).json()}
+    assert draft["event_code"] not in codes
+
+    client.patch(f"/api/initiatives/{draft['id']}", json={"status": "PLANNED"}, headers=admin["headers"])
+    codes = {e["event_code"] for e in client.get("/api/integrations/travel/events", headers=_travel_headers()).json()}
+    assert draft["event_code"] in codes
+
+
 def test_travel_feed_leaves_out_people_who_dont_travel(client, admin, event, colleague):
     _add(client, admin, event["id"], colleague["id"], travel_needed=False)
     feed = {e["event_code"]: e for e in client.get("/api/integrations/travel/events", headers=_travel_headers()).json()}

@@ -91,10 +91,13 @@ _EVENT_COLUMNS = ", ".join(_EVENT_FIELDS)
 _EVENT_SELECT_COLUMNS = ", ".join(f"{f}::float8 AS {f}" if f == "booth_size_sqm" else f for f in _EVENT_FIELDS)
 
 
-def _check_event_rules(sub_channel_code: str | None, event: dict) -> None:
-    """Raise if an event's details (as they'll be saved) break the sub-channel's rules."""
+def _check_event_rules(sub_channel_code: str | None, event: dict, *, draft: bool = False) -> None:
+    """Raise if an event's details (as they'll be saved) break the sub-channel's rules.
+
+    A draft can leave required fields empty; they're checked when it's finished.
+    """
     required, message = EVENT_REQUIRED_FIELDS.get(sub_channel_code, ((), ""))
-    if any(event[field] is None for field in required):
+    if not draft and any(event[field] is None for field in required):
         raise InitiativeValidationError(message)
     if sub_channel_code in IN_PERSON_SUB_CHANNELS and any(event[f] is not None for f in _VIRTUAL_ONLY_FIELDS):
         raise InitiativeValidationError("Platform and event link are for virtual events.")
@@ -111,7 +114,9 @@ class InitiativeNotFoundError(Exception):
 
 
 # Allowed status changes. Completed and Cancelled can be reopened so a mistake isn't permanent.
+# A draft can be finished into any status, but nothing goes back to being a draft.
 STATUS_TRANSITIONS: dict[str, set[str]] = {
+    "DRAFT": {"PLANNED", "ACTIVE", "COMPLETED", "PAUSED", "CANCELLED"},
     "PLANNED": {"ACTIVE", "CANCELLED"},
     "ACTIVE": {"PAUSED", "COMPLETED", "CANCELLED"},
     "PAUSED": {"ACTIVE", "CANCELLED"},
@@ -119,7 +124,7 @@ STATUS_TRANSITIONS: dict[str, set[str]] = {
     "CANCELLED": {"PLANNED"},
 }
 
-_STATUS_LABELS = {"PLANNED": "Planned", "ACTIVE": "Active", "COMPLETED": "Completed", "PAUSED": "Paused", "CANCELLED": "Cancelled"}
+_STATUS_LABELS = {"DRAFT": "Draft", "PLANNED": "Planned", "ACTIVE": "Active", "COMPLETED": "Completed", "PAUSED": "Paused", "CANCELLED": "Cancelled"}
 
 # Columns a PATCH may set, in a fixed order (keeps the generated SQL safe from field-name injection)
 _UPDATABLE_COLUMNS = (
@@ -212,7 +217,7 @@ async def create_initiative(data: InitiativeCreate, actor_id: UUID) -> dict:
                 if is_event:
                     # Every event gets a details row (and so a code), even with no details sent
                     event = event or dict.fromkeys(_EVENT_FIELDS)
-                    _check_event_rules(codes["sub_channel"], event)
+                    _check_event_rules(codes["sub_channel"], event, draft=values["status"] == "DRAFT")
 
                 initiative_id = await conn.fetchval(
                     """
@@ -292,7 +297,7 @@ async def _check_results_fit_channel(conn, initiative_id: UUID, channel_id: int)
 
 async def _apply_event_changes(
     conn, initiative_id: UUID, actor_id: UUID, *,
-    channel_id: int, sub_channel_id: int | None, current_event: dict | None, event_changes: dict,
+    channel_id: int, sub_channel_id: int | None, current_event: dict | None, event_changes: dict, draft: bool,
 ) -> tuple[dict | None, dict | None, str | None]:
     """Validate and save an initiative's event details as part of an update.
 
@@ -317,7 +322,7 @@ async def _apply_event_changes(
 
     before = {f: current_event[f] for f in _EVENT_FIELDS} if current_event else dict.fromkeys(_EVENT_FIELDS)
     after = {**before, **event_changes}
-    _check_event_rules(codes["sub_channel"], after)
+    _check_event_rules(codes["sub_channel"], after, draft=draft)
 
     if current_event is None:
         # Moving into Events: create the details row, which generates the code
@@ -378,6 +383,7 @@ async def update_initiative(initiative_id: UUID, changes: dict, actor_id: UUID) 
                     sub_channel_id=changed.get("sub_channel_id", current["sub_channel_id"]),
                     current_event=dict(current_event) if current_event else None,
                     event_changes=changes.get("event") or {},
+                    draft=changed.get("status", current["status"]) == "DRAFT",
                 )
 
                 if changed:
