@@ -14,7 +14,7 @@ flowchart TD
         ThirdParty[External REST Integrations]
     end
 
-    subgraph APIGateway [FastAPI HTTP Engine :8006]
+    subgraph APIGateway [FastAPI HTTP Engine :8002]
         CORS[CORS & Security Headers Middleware]
         RateLimit[In-Memory Sliding-Window Rate Limiter]
         AuthRouter[Auth & Microsoft SSO Router]
@@ -57,7 +57,7 @@ flowchart TD
 
 | Category | Technology | Description |
 | :--- | :--- | :--- |
-| **Framework & Engine** | [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/) | High-concurrency ASGI web framework running on port `8006` |
+| **Framework & Engine** | [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/) | High-concurrency ASGI web framework running on port `8002` |
 | **Language** | Python 3.12+ | Strongly typed with Pydantic v2 schemas and async event loops |
 | **Database & Pooling** | [PostgreSQL](https://www.postgresql.org/), [asyncpg](https://github.com/MagicStack/asyncpg) | Direct binary wire protocol, synchronous pool manager `get_pool()`, atomic `UNNEST` batch queries |
 | **Database Migrations**| [Alembic](https://alembic.sqlalchemy.org/) | Declarative schema revision management |
@@ -141,7 +141,7 @@ pip install -r requirements.txt
 
 ### 3. Environment Variables (.env)
 ```env
-PORT=8006
+PORT=8002
 FRONTEND_URL=http://localhost:5177
 DATABASE_URL=postgresql://postgres:postgres@localhost:3006/marketing_portal_dev
 DATABASE_SSL=false
@@ -154,9 +154,9 @@ GEMINI_API_KEY=your-gemini-api-key
 
 ### 4. Run Development Server
 ```bash
-uvicorn server:app --host 0.0.0.0 --port 8006 --reload
+uvicorn server:app --host 0.0.0.0 --port 8002 --reload
 ```
-Open API docs at `http://localhost:8006/docs`.
+Open API docs at `http://localhost:8002/docs`.
 
 
 ## Local Database (Docker), DataGrip & Migrations

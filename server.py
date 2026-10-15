@@ -38,6 +38,8 @@ from services.logging_service import (
     log_background_task_result,
     request_id_ctx,
 )
+from services.travel_cost_sync_job import travel_cost_sync_enabled, travel_cost_sync_loop
+from services.travel_integration_service import cancel_recovery_tasks as cancel_travel_recovery_tasks
 from tools.auth_router import router as auth_router
 from tools.budget_router import router as budget_router
 from tools.demo_router import router as demo_router
@@ -57,6 +59,7 @@ from tools.reference_data_router import router as reference_data_router
 from tools.search import router as search_router
 from tools.spend_router import router as spend_router
 from tools.travel_integration_router import router as travel_integration_router
+from tools.travel_sync_router import router as travel_sync_router
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -68,6 +71,17 @@ def _graph_background_sync_enabled() -> bool:
 
 def _env_flag(name: str, default: str) -> bool:
     return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _messaging_default() -> str:
+    """MQTT presence and RabbitMQ, set up exactly as in the admin portal: on by default in production, off locally,
+    where there's usually no broker (RabbitMQ would spend ~30s retrying before falling back to memory)."""
+    return "true" if os.getenv("APP_ENV", "development").lower() == "production" else "false"
+
+
+def _presence_instance_id() -> str:
+    """marketing-01-<pid>: each worker process announces itself separately (production runs 2 workers)."""
+    return f"{os.getenv('SERVICE_INSTANCE_ID', 'marketing-01')}-{os.getpid()}"
 
 
 @asynccontextmanager
@@ -111,14 +125,64 @@ async def lifespan(app: FastAPI):
             extra={"event": "graph_sync_disabled"},
         )
 
-    logger.info("Application startup complete", extra={"event": "application_started"})
+    # Pull approved travel costs (flights, hotels, Ubers, stipends, cargo) into event costs, if enabled
+    if travel_cost_sync_enabled():
+        travel_sync_task = asyncio.create_task(travel_cost_sync_loop(), name="travel-cost-sync")
+        travel_sync_task.add_done_callback(partial(log_background_task_result, task_name="travel-cost-sync"))
+        background_tasks.append(travel_sync_task)
+    else:
+        logger.info(
+            "Travel cost sync disabled (set TRAVEL_COST_SYNC_ENABLED=true to enable)",
+            extra={"event": "travel_cost_sync_disabled"},
+        )
+
+    presence = None
+    rabbitmq = None
     try:
+        # 4. Announce this service online/offline over MQTT, as admin does. Each worker process gets its own
+        # instance id (e.g. marketing-01-4242), so one worker restarting never marks the whole service offline
+        if _env_flag("MQTT_PRESENCE_ENABLED", _messaging_default()):
+            from services.mqtt_presence import MqttServicePresence
+
+            presence = MqttServicePresence(
+                service_name=os.getenv("SERVICE_NAME", "marketing"),
+                instance_id=_presence_instance_id(),
+            )
+            await presence.start()
+        else:
+            logger.info("MQTT presence disabled (set MQTT_PRESENCE_ENABLED=true to enable)", extra={"event": "mqtt_presence_disabled"})
+
+        # 5. Connect to RabbitMQ and declare the shared topology, as admin does (nothing is published yet).
+        # In the background, so a broker that's down never delays startup (its retries can take ~30s)
+        if _env_flag("RABBITMQ_ENABLED", _messaging_default()):
+            from services.rabbitmq_service import rabbitmq_manager
+
+            rabbitmq = rabbitmq_manager
+            rabbitmq_task = asyncio.create_task(rabbitmq.connect(), name="rabbitmq-connect")
+            rabbitmq_task.add_done_callback(partial(log_background_task_result, task_name="rabbitmq-connect"))
+            background_tasks.append(rabbitmq_task)
+        else:
+            logger.info("RabbitMQ disabled (set RABBITMQ_ENABLED=true to enable)", extra={"event": "rabbitmq_disabled"})
+
+        logger.info("Application startup complete", extra={"event": "application_started"})
         yield
     finally:
         logger.info("Application shutdown beginning", extra={"event": "application_stopping"})
+        if presence is not None:
+            try:
+                await presence.stop()
+            except Exception:
+                logger.exception("MQTT presence did not stop cleanly", extra={"event": "mqtt_presence_stop_failed"})
         for task in background_tasks:
             task.cancel()
         await asyncio.gather(*background_tasks, return_exceptions=True)
+        # A catch-up travel sync queued when the travel system came back online
+        await cancel_travel_recovery_tasks()
+        if rabbitmq is not None:
+            try:
+                await rabbitmq.close()
+            except Exception:
+                logger.exception("RabbitMQ did not close cleanly", extra={"event": "rabbitmq_close_failed"})
         await close_pool()
         loop.set_exception_handler(previous_exception_handler)
         logger.info("Application shutdown complete", extra={"event": "application_stopped"})
@@ -264,6 +328,8 @@ app.include_router(budget_router, prefix="/api", tags=["Monthly budgets"], depen
 # Service tokens only: the scope guard on each route checks who is calling
 app.include_router(travel_integration_router, prefix="/api", tags=["Travel system integration"])
 app.include_router(import_router, prefix="/api", tags=["Spreadsheet uploads"], dependencies=authenticated)
+# People asking for a travel cost sync and its status (signed-in users; the travel system's own routes are above)
+app.include_router(travel_sync_router, prefix="/api", tags=["Travel cost sync"], dependencies=authenticated)
 
 
 # --- Session Middleware ---

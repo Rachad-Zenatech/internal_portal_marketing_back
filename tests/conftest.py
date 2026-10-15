@@ -22,6 +22,13 @@ os.environ.setdefault("APP_ENV", "development")
 # Raise it for the test run only (read when server.py is imported); real limits are unchanged.
 for _limit in ("RATE_LIMIT_AUTH_PER_WINDOW", "RATE_LIMIT_REQUESTS_PER_WINDOW", "RATE_LIMIT_IP_CEILING_PER_WINDOW"):
     os.environ.setdefault(_limit, "1000000")
+# database.py reloads .env and .env.local (with override) when first imported, so import it now and force the
+# test-only settings after it: tests never connect to brokers or call a real travel system from the background loop
+import postgresql_db.database  # noqa: E402,F401
+
+os.environ["MQTT_PRESENCE_ENABLED"] = "false"
+os.environ["RABBITMQ_ENABLED"] = "false"
+os.environ["TRAVEL_COST_SYNC_ENABLED"] = "false"
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 

@@ -2,6 +2,7 @@ services:
   db:
     image: postgres:16
     container_name: marketing_db_local
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

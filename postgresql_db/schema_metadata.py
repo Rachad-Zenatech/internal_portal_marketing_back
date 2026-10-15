@@ -699,3 +699,19 @@ budget_comments = sa.Table(
     sa.Index("idx_budget_comments_budget", "budget_id", "created_at"),
     sa.Index("idx_budget_comments_month", "month", "created_at"),
 )
+
+
+# --- Syncs with other systems ---
+# One row per sync (e.g. 'travel_costs'): where the last fully successful run got to, and how the last run went.
+integration_sync_state = sa.Table(
+    "integration_sync_state", metadata,
+    sa.Column("name", sa.TEXT(), primary_key=True),
+    # The other system's time at the end of the last fully successful run; the next run asks for changes since then
+    sa.Column("cursor", postgresql.TIMESTAMP(timezone=True)),
+    sa.Column("last_attempt_at", postgresql.TIMESTAMP(timezone=True)),
+    sa.Column("last_success_at", postgresql.TIMESTAMP(timezone=True)),
+    # Why the last run failed; cleared by a successful run
+    sa.Column("last_error", sa.TEXT()),
+    # Counts from the last run, e.g. {"fetched": 12, "created": 3, ...}
+    sa.Column("last_run_summary", postgresql.JSONB(astext_type=sa.Text())),
+)

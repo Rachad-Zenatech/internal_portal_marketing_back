@@ -24,6 +24,11 @@ aiohttp>=3.10.0
 aiofiles>=24.1.0
 python-dotenv>=1.0.0
 
+# Service messaging, same versions as the admin portal
+# paho-mqtt announces this service online/offline; aio-pika connects to the shared RabbitMQ topology
+paho-mqtt==2.1.0
+aio-pika==9.5.4
+
 # File uploads & spreadsheets
 # python-multipart parses form posts (e.g. the logout beacon) and file uploads
 python-multipart==0.0.32
