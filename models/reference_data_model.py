@@ -67,6 +67,8 @@ class ReferenceDataResponse(BaseModel):
     scale_or_cut_options: list[DescribedReferenceItem]
     regions: list[ReferenceItem]
     event_types: list[ReferenceItem]
+    # Budget markets (London, North America, ...); Unassigned last
+    markets: list[ReferenceItem]
     expense_types: list[ExpenseTypeItem]
     spend_categories: list[SpendCategoryItem]
     outcome_metrics: list[OutcomeMetricItem]

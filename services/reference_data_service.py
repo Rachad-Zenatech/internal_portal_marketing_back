@@ -29,6 +29,7 @@ _SIMPLE_LISTS = {
     ),
     "regions": "SELECT id, code, name, sort_order FROM regions WHERE is_active ORDER BY sort_order, name",
     "event_types": "SELECT id, code, name, sort_order FROM event_types WHERE is_active ORDER BY sort_order, name",
+    "markets": "SELECT id, code, name, sort_order FROM markets WHERE is_active ORDER BY sort_order, name",
     "expense_types": (
         "SELECT id, code, name, description, source, sort_order FROM expense_types "
         "WHERE is_active ORDER BY sort_order, name"

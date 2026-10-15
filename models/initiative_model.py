@@ -26,6 +26,9 @@ class InitiativeListItem(BaseModel):
     primary_kpi_name: str | None = None
     owner_user_id: UUID | None = None
     owner_name: str | None = None
+    # The market whose monthly budget its costs count against; empty counts as Unassigned
+    market_id: int | None = None
+    market_name: str | None = None
     start_date: date | None = None
     end_date: date | None = None
     budget_amount: float | None = None
@@ -112,6 +115,7 @@ class InitiativeCreate(BaseModel):
     funnel_stage_id: int | None = None
     goal_id: int | None = None
     primary_kpi_id: int | None = None
+    market_id: int | None = None
     # Defaults to the user creating the initiative
     owner_user_id: UUID | None = None
     start_date: date | None = None
@@ -154,6 +158,7 @@ class InitiativeUpdate(BaseModel):
     funnel_stage_id: int | None = None
     goal_id: int | None = None
     primary_kpi_id: int | None = None
+    market_id: int | None = None
     owner_user_id: UUID | None = None
     start_date: date | None = None
     end_date: date | None = None

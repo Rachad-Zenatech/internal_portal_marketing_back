@@ -20,6 +20,7 @@ _SELECT = """
            i.goal_id, g.name AS goal_name,
            i.primary_kpi_id, k.name AS primary_kpi_name,
            i.owner_user_id, u.full_name AS owner_name,
+           i.market_id, mk.name AS market_name,
            i.start_date, i.end_date,
            i.budget_amount::float8 AS budget_amount, i.currency, i.status,
            ed.event_code, ed.event_type_id, et.name AS event_type_name,
@@ -36,6 +37,7 @@ _SELECT = """
     LEFT JOIN goals g ON g.id = i.goal_id
     LEFT JOIN primary_kpis k ON k.id = i.primary_kpi_id
     LEFT JOIN users u ON u.id = i.owner_user_id
+    LEFT JOIN markets mk ON mk.id = i.market_id
     LEFT JOIN event_details ed ON ed.initiative_id = i.id
     LEFT JOIN event_types et ON et.id = ed.event_type_id
     LEFT JOIN regions r ON r.id = ed.region_id
@@ -61,6 +63,7 @@ _CONSTRAINT_MESSAGES = {
     "initiatives_goal_requires_stage_check": "Choose a funnel stage before choosing a goal.",
     "initiatives_primary_kpi_id_fkey": "Unknown main KPI.",
     "initiatives_owner_user_id_fkey": "Unknown owner.",
+    "initiatives_market_id_fkey": "Unknown market.",
     "initiatives_dates_check": "End date can't be before the start date.",
     "initiatives_budget_check": "Budget can't be negative.",
     "initiatives_status_check": "Unknown status.",
@@ -129,7 +132,7 @@ _STATUS_LABELS = {"DRAFT": "Draft", "PLANNED": "Planned", "ACTIVE": "Active", "C
 # Columns a PATCH may set, in a fixed order (keeps the generated SQL safe from field-name injection)
 _UPDATABLE_COLUMNS = (
     "name", "brand_id", "channel_id", "sub_channel_id", "funnel_stage_id", "goal_id", "primary_kpi_id",
-    "owner_user_id", "start_date", "end_date", "budget_amount", "currency", "status",
+    "owner_user_id", "start_date", "end_date", "budget_amount", "currency", "status", "market_id",
 )
 
 
@@ -143,6 +146,7 @@ async def list_initiatives(
     channel_id: int | None = None,
     sub_channel_id: int | None = None,
     brand_id: int | None = None,
+    market_id: int | None = None,
     status: str | None = None,
     search: str | None = None,
     limit: int = 50,
@@ -162,6 +166,9 @@ async def list_initiatives(
         add("i.sub_channel_id = ${n}", sub_channel_id)
     if brand_id is not None:
         add("i.brand_id = ${n}", brand_id)
+    if market_id is not None:
+        # No market counts as Unassigned, as it does for budgets
+        add("COALESCE(i.market_id, (SELECT id FROM markets WHERE code = 'UNASSIGNED')) = ${n}", market_id)
     if status:
         add("i.status = ${n}", status)
     if search and search.strip():
@@ -224,14 +231,14 @@ async def create_initiative(data: InitiativeCreate, actor_id: UUID) -> dict:
                     INSERT INTO initiatives (name, brand_id, channel_id, sub_channel_id,
                                              funnel_stage_id, goal_id, primary_kpi_id, owner_user_id,
                                              start_date, end_date, budget_amount, currency, status,
-                                             created_by, updated_by)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
+                                             market_id, created_by, updated_by)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)
                     RETURNING id
                     """,
                     values["name"], values["brand_id"], values["channel_id"], values["sub_channel_id"],
                     values["funnel_stage_id"], values["goal_id"], values["primary_kpi_id"], values["owner_user_id"],
                     values["start_date"], values["end_date"], values["budget_amount"], values["currency"],
-                    values["status"], actor_id,
+                    values["status"], values["market_id"], actor_id,
                 )
                 if is_event:
                     event_code = await _insert_event_details(conn, initiative_id, event, actor_id)

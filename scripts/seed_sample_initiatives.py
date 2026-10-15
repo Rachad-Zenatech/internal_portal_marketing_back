@@ -6,12 +6,14 @@ Usage:
 
 Refuses to run unless DATABASE_URL points at localhost. Safe to re-run: initiatives
 whose name already exists are skipped, and costs are only added to initiatives that have
-none yet (likewise demos and results). Owner is the first super admin user.
+none yet (likewise demos and results). Markets are only set where none is set yet, and
+monthly budgets, money moves and budget comments are only added when they don't exist.
+Owner is the first super admin user.
 """
 import asyncio
 import os
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -20,6 +22,7 @@ from postgresql_db.database import close_pool, create_pool, get_pool
 # (name, brand, channel, sub-channel, start, end, budget, currency, status)
 SAMPLES = [
     ("London - Wfinder - LP1", "OTHERSHIP", "PAID_SEARCH", "GOOGLE_ADS", date(2026, 8, 3), date(2026, 8, 31), 4850, "GBP", "COMPLETED"),
+    ("London - Wfinder - LP2", "OTHERSHIP", "PAID_SEARCH", "GOOGLE_ADS", date(2026, 9, 1), date(2026, 9, 21), 7500, "GBP", "PAUSED"),
     ("NA - Desk Booking - Main LP", "DESKFLEX", "PAID_SEARCH", "GOOGLE_ADS", date(2026, 9, 1), date(2026, 10, 1), 9000, "USD", "ACTIVE"),
     ("NA - Desk Booking - Main LP (Bing)", "DESKFLEX", "PAID_SEARCH", "BING_ADS", date(2026, 9, 21), None, 3000, "USD", "ACTIVE"),
     ("AU - Safety Mgm Software - Main LP", "WORKAWARE", "PAID_SEARCH", "GOOGLE_ADS", date(2026, 9, 19), None, 7800, "AUD", "ACTIVE"),
@@ -32,6 +35,23 @@ SAMPLES = [
     ("Drone Industry Summit Sponsorship", "K9SKY", "EVENTS", "SPONSORSHIPS", date(2026, 5, 12), date(2026, 5, 14), 15000, "USD", "COMPLETED"),
     ("Reseller Launch - EMEA", "ZOO_OFFICE", "PARTNERSHIPS", "RESELLERS", date(2026, 10, 15), None, 4000, "GBP", "PLANNED"),
     ("Creator Program Pilot", "PACE_PLUS", "INFLUENCER_MARKETING", "COMMUNITY", date(2026, 8, 1), date(2026, 9, 30), 3500, "USD", "CANCELLED"),
+]
+
+
+# Where each sample initiative is aimed, so its costs count against that market's monthly budget.
+# Not listed: no market, so their costs count against Unassigned.
+INITIATIVE_MARKETS = [
+    ("London - Wfinder - LP1", "LONDON"),
+    ("London - Wfinder - LP2", "LONDON"),
+    ("Hybrid Work Retargeting", "LONDON"),
+    ("Reseller Launch - EMEA", "LONDON"),
+    ("NA - Desk Booking - Main LP", "NORTH_AMERICA"),
+    ("NA - Desk Booking - Main LP (Bing)", "NORTH_AMERICA"),
+    ("Facilities Managers - LinkedIn Lead Gen", "NORTH_AMERICA"),
+    ("Facility Expo 2026 - Booth", "NORTH_AMERICA"),
+    ("AU - Safety Mgm Software - Main LP", "AUSTRALIA"),
+    ("Safety Compliance Webinar", "AUSTRALIA"),
+    ("Trial-to-Paid Nurture", "GERMANY"),
 ]
 
 
@@ -74,6 +94,47 @@ SPEND_LINES = [
      12000, 12000, "USD", date(2026, 3, 1), "DIS-2026-114", date(2026, 3, 20), "AP_INVOICE", "MANUAL"),
     ("Drone Industry Summit Sponsorship", "BOOTH_CATERING", "Hospitality lounge catering", "Summit Catering", "PAID",
      1500, 1500, "USD", date(2026, 5, 14), "SC-5521", date(2026, 6, 10), "AP_INVOICE", "MANUAL"),
+    # Ad spend and other costs behind the sample monthly budgets (Aug-Oct 2026), modelled on Marketing's budget sheet.
+    # Othership London, August: £9,700 against £7,500, the SEO team's campaign having run on; the pool covers the rest
+    ("London - Wfinder - LP1", "MEDIA_ADS", "Google Ads, Aug 1-15", "Google Ads", "PAID",
+     None, 4300, "GBP", date(2026, 8, 15), "GADS-0815-UK", date(2026, 8, 20), "CORPORATE_CARD", "MANUAL"),
+    ("London - Wfinder - LP1", "MEDIA_ADS", "SEO team's ad campaign, left running in early August", "Google Ads", "PAID",
+     None, 1550, "GBP", date(2026, 8, 10), "GADS-0810-UK", date(2026, 8, 12), "CORPORATE_CARD", "MANUAL"),
+    ("London - Wfinder - LP1", "MEDIA_ADS", "Google Ads, Aug 16-31", "Google Ads", "INVOICED",
+     None, 3850, "GBP", date(2026, 8, 31), "GADS-0831-UK", None, "CORPORATE_CARD", "MANUAL"),
+    # Othership London, September: paused on Sep 21
+    ("London - Wfinder - LP2", "MEDIA_ADS", "Google Ads, Sep 1-15", "Google Ads", "PAID",
+     None, 5200, "GBP", date(2026, 9, 15), "GADS-0915-UK", date(2026, 9, 18), "CORPORATE_CARD", "MANUAL"),
+    ("London - Wfinder - LP2", "MEDIA_ADS", "Google Ads, Sep 16-21 (paused)", "Google Ads", "INVOICED",
+     None, 3550, "GBP", date(2026, 9, 21), "GADS-0921-UK", None, "CORPORATE_CARD", "MANUAL"),
+    # DeskFlex North America search: Google and Bing under one budget
+    ("NA - Desk Booking - Main LP", "MEDIA_ADS", "Google Ads, September", "Google Ads", "PAID",
+     None, 9000, "USD", date(2026, 9, 30), "GADS-0930-NA", date(2026, 10, 5), "CORPORATE_CARD", "MANUAL"),
+    ("NA - Desk Booking - Main LP", "MEDIA_ADS", "Google Ads, Oct 1", "Google Ads", "INVOICED",
+     None, 300, "USD", date(2026, 10, 1), "GADS-1001-NA", None, "CORPORATE_CARD", "MANUAL"),
+    ("NA - Desk Booking - Main LP (Bing)", "MEDIA_ADS", "Microsoft Ads, Sep 21-30", "Microsoft Ads", "PAID",
+     None, 2400, "USD", date(2026, 9, 30), "MSADS-0930", date(2026, 10, 5), "CORPORATE_CARD", "MANUAL"),
+    ("NA - Desk Booking - Main LP (Bing)", "MEDIA_ADS", "Microsoft Ads, Oct 1-14", "Microsoft Ads", "INVOICED",
+     None, 1900, "USD", date(2026, 10, 14), "MSADS-1014", None, "CORPORATE_CARD", "MANUAL"),
+    ("Facilities Managers - LinkedIn Lead Gen", "MEDIA_ADS", "LinkedIn Ads, Oct 1-14", "LinkedIn", "INVOICED",
+     None, 1250, "USD", date(2026, 10, 14), "LI-1014", None, "CORPORATE_CARD", "MANUAL"),
+    # WorkAware Australia, in Australian dollars
+    ("AU - Safety Mgm Software - Main LP", "MEDIA_ADS", "Google Ads, Sep 19-30", "Google Ads", "PAID",
+     None, 4200, "AUD", date(2026, 9, 30), "GADS-0930-AU", date(2026, 10, 3), "CORPORATE_CARD", "MANUAL"),
+    ("AU - Safety Mgm Software - Main LP", "MEDIA_ADS", "Google Ads, Oct 1-14", "Google Ads", "INVOICED",
+     None, 3600, "AUD", date(2026, 10, 14), "GADS-1014-AU", None, "CORPORATE_CARD", "MANUAL"),
+    # No market: these count against the TBD/All Unassigned pool
+    ("Workplace Analytics Blog Series", "AGENCY_FEES", "Freelance writer, August posts", "Copy Collective", "PAID",
+     None, 400, "USD", date(2026, 8, 28), "CC-0828", date(2026, 9, 2), "AP_INVOICE", "MANUAL"),
+    ("Workplace Analytics Blog Series", "AGENCY_FEES", "Freelance writer, September posts", "Copy Collective", "PAID",
+     None, 400, "USD", date(2026, 9, 28), "CC-0928", date(2026, 10, 2), "AP_INVOICE", "MANUAL"),
+    ("Workplace Analytics Blog Series", "AGENCY_FEES", "Freelance writer, October posts", "Copy Collective", "COMMITTED",
+     None, 400, "USD", date(2026, 10, 28), None, None, "AP_INVOICE", "MANUAL"),
+    ("Creator Program Pilot", "AGENCY_FEES", "Creator fees, first month", "Creator Collective", "PAID",
+     None, 3000, "USD", date(2026, 8, 20), "CRP-001", date(2026, 8, 30), "AP_INVOICE", "MANUAL"),
+    # London, but no budget covers Zoo Office: shows as spend without a budget
+    ("Reseller Launch - EMEA", "OTHER", "Reseller launch kit", "PrintHouse", "COMMITTED",
+     None, 1500, "GBP", date(2026, 10, 15), None, None, "AP_INVOICE", "MANUAL"),
 ]
 
 
@@ -126,6 +187,63 @@ OUTCOMES = [
     ("Drone Industry Summit Sponsorship", date(2026, 7, 1), "REVENUE", 36000, "USD"),
 ]
 
+# Monthly budgets, modelled on Marketing's budget sheet: (month, brand (None = TBD/All), market, channel (None = all),
+# amount, currency, status). London is budgeted in pounds and Australia in Australian dollars, so nothing is converted.
+MONTHLY_BUDGETS = [
+    (date(2026, 8, 1), "OTHERSHIP", "LONDON", None, 7500, "GBP", "APPROVED"),
+    (date(2026, 8, 1), None, "LONDON", None, 7500, "GBP", "APPROVED"),
+    (date(2026, 8, 1), None, "UNASSIGNED", None, 10000, "USD", "APPROVED"),
+    (date(2026, 9, 1), "OTHERSHIP", "LONDON", None, 7500, "GBP", "APPROVED"),
+    (date(2026, 9, 1), None, "LONDON", None, 7500, "GBP", "NOT_COMMITTED"),
+    (date(2026, 9, 1), "DESKFLEX", "NORTH_AMERICA", "PAID_SEARCH", 11000, "USD", "APPROVED"),  # over budget
+    (date(2026, 9, 1), "DESKFLEX", "NORTH_AMERICA", "EVENTS", 12000, "USD", "APPROVED"),
+    (date(2026, 9, 1), "OTHERSHIP", "NORTH_AMERICA", None, 10000, "USD", "CANCELLED"),
+    (date(2026, 9, 1), "WORKAWARE", "AUSTRALIA", "PAID_SEARCH", 15000, "AUD", "APPROVED"),
+    (date(2026, 9, 1), "TILLERSTACK", "GERMANY", None, 8000, "EUR", "APPROVED"),
+    (date(2026, 9, 1), None, "KOREA", None, 10000, "USD", "APPROVED"),
+    (date(2026, 9, 1), None, "UNASSIGNED", None, 10000, "USD", "APPROVED"),
+    (date(2026, 10, 1), "OTHERSHIP", "LONDON", None, 7500, "GBP", "NOT_COMMITTED"),
+    (date(2026, 10, 1), "DESKFLEX", "NORTH_AMERICA", "PAID_SEARCH", 12000, "USD", "APPROVED"),
+    (date(2026, 10, 1), "DESKFLEX", "NORTH_AMERICA", "PAID_SOCIAL", 6000, "USD", "APPROVED"),
+    (date(2026, 10, 1), "WORKAWARE", "AUSTRALIA", "PAID_SEARCH", 15000, "AUD", "APPROVED"),
+    (date(2026, 10, 1), "WORKAWARE", "AUSTRALIA", "EVENTS", 1000, "AUD", "APPROVED"),
+    (date(2026, 10, 1), "TILLERSTACK", "GERMANY", None, 8000, "EUR", "APPROVED"),
+    (date(2026, 10, 1), None, "KOREA", None, 10000, "USD", "APPROVED"),
+    (date(2026, 10, 1), None, "UNASSIGNED", None, 10000, "USD", "APPROVED"),
+]
+
+# Money moved between budgets (same currency): (from budget, to budget, amount, note, when), each budget given as
+# (month, brand, market, channel). Overspend covered from the pool, and unspent money carried into the next month.
+BUDGET_MOVES = [
+    ((date(2026, 8, 1), None, "LONDON", None), (date(2026, 8, 1), "OTHERSHIP", "LONDON", None), 2200,
+     "Covers the SEO team's ad campaign that ran on in early August.", datetime(2026, 9, 2, 10, 0)),
+    ((date(2026, 8, 1), None, "LONDON", None), (date(2026, 9, 1), "OTHERSHIP", "LONDON", None), 1250,
+     "Carryover: the rest of August's London pool covers September's overspend.", datetime(2026, 9, 23, 9, 30)),
+    ((date(2026, 8, 1), None, "UNASSIGNED", None), (date(2026, 9, 1), None, "UNASSIGNED", None), 6600,
+     "Carryover: unspent August pool.", datetime(2026, 9, 2, 10, 15)),
+    ((date(2026, 9, 1), "TILLERSTACK", "GERMANY", None), (date(2026, 10, 1), "TILLERSTACK", "GERMANY", None), 8000,
+     "Carryover: September never started while the strategy update is pending.", datetime(2026, 10, 1, 9, 0)),
+]
+
+# Comments, like the sheet's Notes column: (budget (month, brand, market, channel), or None for the whole month,
+# month, comment, when)
+BUDGET_COMMENTS = [
+    ((date(2026, 8, 1), "OTHERSHIP", "LONDON", None), date(2026, 8, 1),
+     "Includes about £1,550 on the SEO team's ad campaign, which was left running in early August.", datetime(2026, 9, 2, 9, 45)),
+    ((date(2026, 9, 1), "OTHERSHIP", "LONDON", None), date(2026, 9, 1),
+     "Campaign paused Sep 21 per management decision to stop further spending on this brand.", datetime(2026, 9, 22, 11, 0)),
+    ((date(2026, 9, 1), "DESKFLEX", "NORTH_AMERICA", "PAID_SEARCH"), date(2026, 9, 1),
+     "$9k Google Ads, $2.4k Bing (Bing started Sep 21).", datetime(2026, 9, 30, 16, 0)),
+    ((date(2026, 9, 1), "OTHERSHIP", "NORTH_AMERICA", None), date(2026, 9, 1),
+     "Cancelled: no North America push for Othership this quarter.", datetime(2026, 9, 22, 11, 5)),
+    ((date(2026, 9, 1), "TILLERSTACK", "GERMANY", None), date(2026, 9, 1),
+     "Not started. Waiting on the strategy update before anything goes live.", datetime(2026, 9, 14, 14, 0)),
+    ((date(2026, 10, 1), "OTHERSHIP", "LONDON", None), date(2026, 10, 1),
+     "Not committed until management decides whether Othership ads restart.", datetime(2026, 10, 1, 9, 10)),
+    (None, date(2026, 9, 1), "Copied from August, with an Events budget added for the Facility Expo.", datetime(2026, 8, 28, 15, 0)),
+    (None, date(2026, 10, 1), "LinkedIn Lead Gen added for DeskFlex North America.", datetime(2026, 9, 29, 15, 0)),
+]
+
 # Success settings: (initiative, target for its primary KPI, maturity window in days)
 EVALUATIONS = [
     ("Facility Expo 2026 - Booth", 1000, 180),        # CP-Demo ≤ $1,000 (In-Person Events default KPI)
@@ -137,6 +255,92 @@ def _require_local_database() -> None:
     url = os.environ.get("DATABASE_URL", "")
     if not any(host in url for host in ("localhost", "127.0.0.1", "host.docker.internal")):
         sys.exit("Refusing to seed sample data: DATABASE_URL is not a local database.")
+
+
+# One budget by its (month, brand, market, channel); brand and channel may be NULL (TBD/All, all channels)
+_BUDGET_ID_SQL = """
+    (SELECT b.id FROM monthly_budgets b
+     JOIN markets mk ON mk.id = b.market_id AND mk.code = {market}
+     LEFT JOIN brands br ON br.id = b.brand_id
+     LEFT JOIN channels ch ON ch.id = b.channel_id
+     WHERE b.month = {month} AND br.code IS NOT DISTINCT FROM {brand} AND ch.code IS NOT DISTINCT FROM {channel})
+"""
+
+
+def _budget_id_sql(prefix: str) -> str:
+    return _BUDGET_ID_SQL.format(**{k: f"x.{prefix}_{k}" for k in ("month", "brand", "market", "channel")})
+
+
+async def _seed_budgets(conn, owner_id) -> tuple[int, int, int]:
+    """Monthly budgets, money moves and comments, each only if it doesn't exist yet. Returns how many were added."""
+    budget_columns = list(zip(*MONTHLY_BUDGETS))
+    budgets = await conn.fetch(
+        """
+        INSERT INTO monthly_budgets (month, brand_id, market_id, channel_id, amount, currency, status,
+                                     created_at, updated_at, created_by, updated_by)
+        -- Approved a few days before the month starts
+        SELECT x.month, br.id, mk.id, ch.id, x.amount, x.currency, x.status,
+               x.month - interval '4 days' + interval '10 hours', x.month - interval '4 days' + interval '10 hours', $8, $8
+        FROM unnest($1::date[], $2::text[], $3::text[], $4::text[], $5::numeric[], $6::text[], $7::text[])
+             AS x(month, brand, market, channel, amount, currency, status)
+        JOIN markets mk ON mk.code = x.market
+        LEFT JOIN brands br ON br.code = x.brand
+        LEFT JOIN channels ch ON ch.code = x.channel
+        WHERE NOT EXISTS (
+            SELECT 1 FROM monthly_budgets b
+            WHERE b.month = x.month AND b.brand_id IS NOT DISTINCT FROM br.id AND b.market_id = mk.id
+              AND b.channel_id IS NOT DISTINCT FROM ch.id
+        )
+        RETURNING id
+        """,
+        *[list(col) for col in budget_columns],
+        owner_id,
+    )
+
+    sources, targets = [m[0] for m in BUDGET_MOVES], [m[1] for m in BUDGET_MOVES]
+    from_cols, to_cols = list(zip(*sources)), list(zip(*targets))
+    moves = await conn.fetch(
+        f"""
+        INSERT INTO budget_transfers (from_budget_id, to_budget_id, amount, note, created_at, created_by)
+        SELECT f.id, t.id, x.amount, x.note, x.at, $12
+        FROM unnest($1::date[], $2::text[], $3::text[], $4::text[], $5::date[], $6::text[], $7::text[], $8::text[],
+                    $9::numeric[], $10::text[], $11::timestamptz[])
+             AS x(from_month, from_brand, from_market, from_channel, to_month, to_brand, to_market, to_channel,
+                  amount, note, at)
+        CROSS JOIN LATERAL (SELECT {_budget_id_sql("from")} AS id) f
+        CROSS JOIN LATERAL (SELECT {_budget_id_sql("to")} AS id) t
+        WHERE f.id IS NOT NULL AND t.id IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM budget_transfers bt
+                          WHERE bt.from_budget_id = f.id AND bt.to_budget_id = t.id AND bt.note = x.note)
+        RETURNING id
+        """,
+        *[list(c) for c in from_cols], *[list(c) for c in to_cols],
+        [m[2] for m in BUDGET_MOVES], [m[3] for m in BUDGET_MOVES],
+        [m[4].replace(tzinfo=timezone.utc) for m in BUDGET_MOVES],
+        owner_id,
+    )
+
+    on_budget = [c[0] or (None, None, None, None) for c in BUDGET_COMMENTS]
+    key_cols = list(zip(*on_budget))
+    comments = await conn.fetch(
+        f"""
+        INSERT INTO budget_comments (budget_id, month, body, author_id, created_at)
+        SELECT b.id, x.month, x.body, $8, x.at
+        FROM unnest($1::date[], $2::text[], $3::text[], $4::text[], $5::date[], $6::text[], $7::timestamptz[])
+             AS x(budget_month, budget_brand, budget_market, budget_channel, month, body, at)
+        CROSS JOIN LATERAL (SELECT {_budget_id_sql("budget")} AS id) b
+        -- A comment on a budget needs that budget; a whole-month note has none
+        WHERE (x.budget_month IS NULL) = (b.id IS NULL)
+          AND NOT EXISTS (SELECT 1 FROM budget_comments c
+                          WHERE c.month = x.month AND c.body = x.body AND c.budget_id IS NOT DISTINCT FROM b.id)
+        RETURNING id
+        """,
+        *[list(c) for c in key_cols],
+        [c[1] for c in BUDGET_COMMENTS], [c[2] for c in BUDGET_COMMENTS],
+        [c[3].replace(tzinfo=timezone.utc) for c in BUDGET_COMMENTS],
+        owner_id,
+    )
+    return len(budgets), len(moves), len(comments)
 
 
 async def seed() -> None:
@@ -166,6 +370,19 @@ async def seed() -> None:
                 """,
                 *[list(col) for col in columns],
                 owner_id,
+            )
+
+            # Markets only where none is set, so a market someone chose is never overwritten
+            market_columns = list(zip(*INITIATIVE_MARKETS))
+            markets_set = await conn.fetch(
+                """
+                UPDATE initiatives i SET market_id = mk.id
+                FROM unnest($1::text[], $2::text[]) AS m(name, market)
+                JOIN markets mk ON mk.code = m.market
+                WHERE i.name = m.name AND i.market_id IS NULL
+                RETURNING i.id
+                """,
+                *[list(col) for col in market_columns],
             )
 
             # Only events without details yet, so re-running never uses up event code numbers
@@ -260,7 +477,10 @@ async def seed() -> None:
                 *[list(col) for col in evaluation_columns],
                 owner_id,
             )
+            budgets, moves, comments = await _seed_budgets(conn, owner_id)
         print(f"Inserted {len(inserted)} sample initiative(s); {len(SAMPLES) - len(inserted)} already existed.")
+        print(f"Set the market on {len(markets_set)} initiative(s).")
+        print(f"Added {budgets} monthly budget(s), {moves} money move(s) and {comments} budget comment(s).")
         print(f"Added {len(outcomes)} sample result(s) and {len(evaluations)} success setting(s).")
         print(f"Added {len(demos)} sample demo(s).")
         print(f"Added event details for {len(details)} event(s): {', '.join(d['event_code'] for d in details) or 'none'}.")

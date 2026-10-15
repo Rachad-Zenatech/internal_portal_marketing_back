@@ -5,6 +5,28 @@ from uuid import UUID
 from postgresql_db.database import get_pool
 
 
+def _budget_label(budget_id_text: str | None, key_json: str | None) -> str:
+    """SQL for a budget's name, "Sep 2026 · Othership · London" (plus " · Paid Search" for one channel).
+
+    From the budget row whose id (as text) is budget_id_text, or from the month, brand_id, market_id and
+    channel_id recorded in the JSON key_json. NULL when neither is found.
+    """
+    if budget_id_text is not None:
+        return f"""(SELECT to_char(b.month, 'Mon YYYY') || ' · ' || COALESCE(br.name, 'TBD/All') || ' · ' || mk.name
+                       || COALESCE(' · ' || ch.name, '')
+                FROM monthly_budgets b
+                LEFT JOIN brands br ON br.id = b.brand_id
+                JOIN markets mk ON mk.id = b.market_id
+                LEFT JOIN channels ch ON ch.id = b.channel_id
+                WHERE CAST(b.id AS TEXT) = {budget_id_text} LIMIT 1)"""
+    return f"""(SELECT to_char(CAST(({key_json})->>'month' AS DATE), 'Mon YYYY') || ' · ' || COALESCE(br.name, 'TBD/All')
+                       || ' · ' || mk.name || COALESCE(' · ' || ch.name, '')
+                FROM markets mk
+                LEFT JOIN brands br ON CAST(br.id AS TEXT) = ({key_json})->>'brand_id'
+                LEFT JOIN channels ch ON CAST(ch.id AS TEXT) = ({key_json})->>'channel_id'
+                WHERE CAST(mk.id AS TEXT) = ({key_json})->>'market_id' LIMIT 1)"""
+
+
 def entity_title_sql(alias: str) -> str:
     """SQL expression giving a readable name for the audited item (e.g. the initiative's name).
 
@@ -82,6 +104,19 @@ def entity_title_sql(alias: str) -> str:
                 (SELECT filename FROM import_batches WHERE CAST(id AS TEXT) = {alias}.entity_id LIMIT 1),
                 {alias}.new_value->>'filename',
                 {alias}.old_value->>'filename'
+            )
+            -- "Budget · Sep 2026 · Othership · London"; deleted budgets fall back to the key recorded in the entry
+            WHEN {alias}.entity_type = 'MonthlyBudget' THEN 'Budget' || COALESCE(' · ' || COALESCE(
+                {_budget_label(f"{alias}.entity_id", None)},
+                {_budget_label(None, f"COALESCE({alias}.new_value, {alias}.old_value)")}
+            ), '')
+            -- "Move money to Sep 2026 · Othership · London"
+            WHEN {alias}.entity_type = 'BudgetTransfer' THEN 'Move money' || COALESCE(' to ' || {_budget_label(
+                f"COALESCE({alias}.new_value->>'to_budget_id', {alias}.old_value->>'to_budget_id')", None)}, '')
+            -- "Comment · Sep 2026 · Othership · London", or "Comment · Sep 2026" for a note on the whole month
+            WHEN {alias}.entity_type = 'BudgetComment' THEN 'Comment · ' || COALESCE(
+                {_budget_label(f"COALESCE({alias}.new_value->>'budget_id', {alias}.old_value->>'budget_id')", None)},
+                to_char(CAST(COALESCE({alias}.new_value->>'month', {alias}.old_value->>'month') AS DATE), 'Mon YYYY')
             )
             ELSE NULL
         END

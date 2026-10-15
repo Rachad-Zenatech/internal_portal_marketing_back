@@ -292,6 +292,12 @@ scale_or_cut_options = _reference_table("scale_or_cut_options", sa.Column("descr
 # Used by event details
 regions = _reference_table("regions")
 event_types = _reference_table("event_types")
+# Where a budget's money is meant to be spent (Marketing's budget sheet: London, North America, ...).
+# region_id is for grouping markets under regions later; it's left empty for now.
+markets = _reference_table(
+    "markets",
+    sa.Column("region_id", sa.INTEGER(), sa.ForeignKey("regions.id", name="markets_region_id_fkey")),
+)
 
 # Classifying costs: expense types group categories for reporting; a category is picked on each cost
 expense_types = _reference_table(
@@ -353,6 +359,8 @@ initiatives = sa.Table(
     sa.Column("funnel_stage_id", sa.INTEGER(), sa.ForeignKey("funnel_stages.id", name="initiatives_funnel_stage_id_fkey")),
     sa.Column("goal_id", sa.INTEGER(), sa.ForeignKey("goals.id", name="initiatives_goal_id_fkey")),
     sa.Column("primary_kpi_id", sa.INTEGER(), sa.ForeignKey("primary_kpis.id", name="initiatives_primary_kpi_id_fkey")),
+    # The market whose monthly budget the initiative's costs count against; empty counts as Unassigned
+    sa.Column("market_id", sa.INTEGER(), sa.ForeignKey("markets.id", name="initiatives_market_id_fkey")),
     sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="initiatives_created_by_fkey", ondelete="SET NULL")),
@@ -379,6 +387,7 @@ initiatives = sa.Table(
     sa.Index("idx_initiatives_channel", "channel_id"),
     sa.Index("idx_initiatives_brand", "brand_id"),
     sa.Index("idx_initiatives_status", "status"),
+    sa.Index("idx_initiatives_market", "market_id"),
 )
 
 
@@ -626,4 +635,67 @@ spend_lines = sa.Table(
         "spend_lines_vendor_invoice_key", sa.text("lower(vendor)"), "invoice_ref", unique=True,
         postgresql_where=sa.text("vendor IS NOT NULL AND invoice_ref IS NOT NULL"),
     ),
+)
+
+
+# --- Monthly budgets ---
+# One approved amount per month for a brand (empty = TBD/All), a market and a channel (empty = all channels).
+# Which budget a cost counts against is worked out when read (services/budget_service.py), never stored.
+monthly_budgets = sa.Table(
+    "monthly_budgets", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    # Always the 1st of the month
+    sa.Column("month", sa.DATE(), nullable=False),
+    sa.Column("brand_id", sa.INTEGER(), sa.ForeignKey("brands.id", name="monthly_budgets_brand_id_fkey")),
+    sa.Column("market_id", sa.INTEGER(), sa.ForeignKey("markets.id", name="monthly_budgets_market_id_fkey"), nullable=False),
+    sa.Column("channel_id", sa.INTEGER(), sa.ForeignKey("channels.id", name="monthly_budgets_channel_id_fkey")),
+    sa.Column("amount", sa.NUMERIC(precision=14, scale=2), nullable=False),
+    sa.Column("currency", sa.CHAR(length=3), nullable=False),
+    sa.Column("status", sa.VARCHAR(length=20), nullable=False, server_default=sa.text("'APPROVED'")),
+    sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="monthly_budgets_created_by_fkey", ondelete="SET NULL")),
+    sa.Column("updated_by", sa.UUID(), sa.ForeignKey("users.id", name="monthly_budgets_updated_by_fkey", ondelete="SET NULL")),
+    sa.CheckConstraint("EXTRACT(DAY FROM month) = 1", name="monthly_budgets_month_check"),
+    sa.CheckConstraint("amount >= 0", name="monthly_budgets_amount_check"),
+    sa.CheckConstraint("currency ~ '^[A-Z]{3}$'", name="monthly_budgets_currency_check"),
+    sa.CheckConstraint("status IN ('APPROVED', 'NOT_COMMITTED', 'CANCELLED')", name="monthly_budgets_status_check"),
+    # One budget per month, brand, market and channel (an empty brand or channel counts as one value)
+    sa.Index(
+        "monthly_budgets_key", "month", sa.text("COALESCE(brand_id, 0)"), "market_id", sa.text("COALESCE(channel_id, 0)"),
+        unique=True,
+    ),
+)
+
+# "Move money": carryover from one month to the next, or borrowing between budgets. Same currency only.
+budget_transfers = sa.Table(
+    "budget_transfers", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column("from_budget_id", sa.UUID(), sa.ForeignKey("monthly_budgets.id", name="budget_transfers_from_budget_id_fkey"), nullable=False),
+    sa.Column("to_budget_id", sa.UUID(), sa.ForeignKey("monthly_budgets.id", name="budget_transfers_to_budget_id_fkey"), nullable=False),
+    sa.Column("amount", sa.NUMERIC(precision=14, scale=2), nullable=False),
+    # Why the money moved
+    sa.Column("note", sa.TEXT(), nullable=False),
+    sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="budget_transfers_created_by_fkey", ondelete="SET NULL")),
+    sa.CheckConstraint("amount > 0", name="budget_transfers_amount_check"),
+    sa.CheckConstraint("from_budget_id <> to_budget_id", name="budget_transfers_different_budgets_check"),
+    sa.Index("idx_budget_transfers_from", "from_budget_id"),
+    sa.Index("idx_budget_transfers_to", "to_budget_id"),
+)
+
+# Notes on a budget, or on a whole month (budget_id empty)
+budget_comments = sa.Table(
+    "budget_comments", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column("budget_id", sa.UUID(), sa.ForeignKey("monthly_budgets.id", name="budget_comments_budget_id_fkey", ondelete="CASCADE")),
+    # The budget's month, or the month a month-level note is about
+    sa.Column("month", sa.DATE(), nullable=False),
+    sa.Column("body", sa.TEXT(), nullable=False),
+    sa.Column("author_id", sa.UUID(), sa.ForeignKey("users.id", name="budget_comments_author_id_fkey", ondelete="SET NULL")),
+    sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.CheckConstraint("EXTRACT(DAY FROM month) = 1", name="budget_comments_month_check"),
+    sa.CheckConstraint("char_length(body) BETWEEN 1 AND 2000", name="budget_comments_body_check"),
+    sa.Index("idx_budget_comments_budget", "budget_id", "created_at"),
+    sa.Index("idx_budget_comments_month", "month", "created_at"),
 )
