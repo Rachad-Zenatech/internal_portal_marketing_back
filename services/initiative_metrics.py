@@ -222,7 +222,7 @@ def _result(code: str, reason: str, gap: float | None = None) -> dict:
 def _kpi_rating(kpi_code: str | None, kpi_name: str | None, actual: float | None, target: float | None, currency: str) -> dict:
     """The primary KPI against its target: High when met, Medium within 20%, Low beyond — or Test without what it needs."""
     if not kpi_code:
-        return _result("TEST", "Choose a primary KPI to get a rating.")
+        return _result("TEST", "Choose a main KPI to get a rating.")
     if kpi_code in UNSUPPORTED_KPIS or kpi_code not in KPI_DEFINITIONS:
         return _result("TEST", f"{kpi_name or kpi_code} isn't calculated yet, so there's no rating.")
     if target is None:
@@ -246,8 +246,8 @@ def _kpi_rating(kpi_code: str | None, kpi_name: str | None, actual: float | None
     if gap <= MEDIUM_BAND + 1e-9:
         return _result("MEDIUM", f"{kpi_name} {shown_actual} is within {MEDIUM_BAND:.0%} of the target of {shown_target} "
                                  f"(missed by {gap_percent:g}%).", gap_percent)
-    missed = f"missed by {gap_percent:g}%" if gap_percent is not None else "missed it"
-    return _result("LOW", f"{kpi_name} {shown_actual} {missed} against the target of {shown_target}.", gap_percent)
+    by = f" by {gap_percent:g}%" if gap_percent is not None else ""
+    return _result("LOW", f"{kpi_name} {shown_actual} missed the target of {shown_target}{by}.", gap_percent)
 
 
 def verdict_stage(start: date | None, matures: date | None, today: date) -> str:
@@ -286,14 +286,14 @@ def suggest_rating(
     if matures and today < matures:
         days = (matures - today).days
         final_on = f"{matures.day} {matures.strftime('%B %Y')}"
-        return _result("TEST", f"Too early to judge — {days} {'day' if days == 1 else 'days'} left in the {maturity_days}-day window "
-                               f"(final on {final_on}).")
+        return _result("TEST", f"Too early to judge. {days} {'day' if days == 1 else 'days'} left in the "
+                               f"{maturity_days}-day waiting period, until {final_on}.")
     kpi = _kpi_rating(kpi_code, kpi_name, actual, target, currency)
     if not (revenue_recorded and roi is not None):
         return kpi
     if roi <= 0 and BREAK_EVEN_IS_LOW:
         verdict = "broke even" if roi == 0 else "lost money"
-        return _result("LOW", f"It {verdict} (ROI {roi:g}%) — not a success, whatever the KPI says.")
+        return _result("LOW", f"It {verdict} (ROI {roi:g}%), so it's not a success, whatever the KPI says.")
     if kpi["code"] in ("HIGH", "TEST"):
         detail = f" {kpi['reason']}" if kpi["code"] == "HIGH" else ""
         return _result("HIGH", f"It made money: ROI {roi:g}%.{detail}", kpi["gap_percent"])

@@ -259,7 +259,7 @@ def test_upcoming_event_has_no_verdict(client, admin, ref, codes):
 
     assert p["stage"] == "UPCOMING"
     assert p["rating"]["code"] == "TEST"
-    assert p["rating"]["reason"].startswith("Upcoming")
+    assert p["rating"]["reason"].startswith("Not started yet.")
     assert p["early_read"] is None
     assert p["matures_on"] == "2031-05-05"
     assert p["money_outcome"] == "NO_REVENUE"
@@ -298,7 +298,7 @@ def test_kpi_must_fit_the_channel(client, admin, ref):
         headers=admin["headers"],
     )
     assert response.status_code == 422
-    assert response.json()["detail"] == "CPM isn't used to judge Events. Choose another primary KPI."
+    assert response.json()["detail"] == "CPM isn't used to judge Events. Choose another main KPI."
 
     event = _event(client, admin, ref)
     changed = client.patch(f"/api/initiatives/{event['id']}", json={"primary_kpi_id": ref["primary_kpis"]["CTR"]}, headers=admin["headers"])

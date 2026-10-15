@@ -24,7 +24,7 @@ class UserBase(BaseModel):
         if not v:
             return None
         if not re.match(r"^[a-zA-Z\s]+$", v):
-            raise ValueError("Full Name can only contain letters and spaces (no numbers or symbols allowed).")
+            raise ValueError("Full name can only contain letters and spaces.")
         return v
 
 class UserCreate(UserBase):
@@ -47,7 +47,7 @@ class UserUpdate(BaseModel):
         if not v:
             return None
         if not re.match(r"^[a-zA-Z\s]+$", v):
-            raise ValueError("Full Name can only contain letters and spaces (no numbers or symbols allowed).")
+            raise ValueError("Full name can only contain letters and spaces.")
         return v
 
 class User(UserBase):

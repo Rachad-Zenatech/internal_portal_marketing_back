@@ -97,7 +97,7 @@ def test_repeated_headers_are_kept_apart():
 def test_too_many_rows():
     data = ("Item,Amount\n" + "Carpet,1\n" * (MAX_ROWS + 1)).encode()
 
-    with pytest.raises(ImportFileError, match="limit is 5,000"):
+    with pytest.raises(ImportFileError, match="more than the 5,000 limit"):
         read_table("big.csv", data, KNOWN)
 
 

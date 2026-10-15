@@ -111,14 +111,14 @@ def test_rating_when_higher_is_better(actual, expected):
 def test_rating_is_test_inside_the_maturity_window():
     rating = _rating(matures=date(2026, 11, 13))
     assert rating["code"] == "TEST"
-    assert "30 days left in the 180-day window" in rating["reason"]
+    assert "30 days left in the 180-day waiting period" in rating["reason"]
     assert "13 November 2026" in rating["reason"]
 
 
 @pytest.mark.parametrize(
     "overrides, phrase",
     [
-        ({"kpi_code": None, "kpi_name": None}, "Choose a primary KPI"),
+        ({"kpi_code": None, "kpi_name": None}, "Choose a main KPI"),
         ({"kpi_code": "CONVERSION_RATE", "kpi_name": "Conversion Rate"}, "isn't calculated yet"),
         ({"target": None}, "Set a target"),
         ({"actual": None}, "Not enough results"),
@@ -152,7 +152,7 @@ def test_final_verdict_leads_with_the_return():
     # Made money but cost far more per lead than planned
     costly = _rating(actual=150.0, roi=20.0, revenue_recorded=True)
     assert costly["code"] == "MEDIUM"
-    assert costly["reason"].startswith("It made money (ROI 20%), but CPL USD 150 missed by 50%")
+    assert costly["reason"].startswith("It made money (ROI 20%), but CPL USD 150 missed the target of USD 100 by 50%")
 
 
 def test_verdict_stage():

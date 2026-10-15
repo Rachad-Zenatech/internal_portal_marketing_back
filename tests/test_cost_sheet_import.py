@@ -160,13 +160,13 @@ def test_invalid_rows_list_every_problem(client, admin, event):
 
     rows = _rows(preview)
     assert all(row["status"] == "INVALID" for row in preview["rows"])
-    assert rows[2]["messages"] == ["Unknown category 'Booth stuff' — choose one from the template's Categories sheet"]
-    assert rows[3]["messages"] == ["Travel comes from the travel management system — leave it out of the sheet."]
+    assert rows[2]["messages"] == ["Unknown category 'Booth stuff'. Choose one from the template's Categories sheet."]
+    assert rows[3]["messages"] == ["Travel comes from the travel management system. Leave it out of the sheet."]
     assert rows[4]["messages"] == [
         "Lighting is under Show services, not Shipping & logistics",
         "Estimate: #N/A is a spreadsheet error, not an amount",
         "Date: 'not a date' isn't a date. Use DD/MM/YYYY or YYYY-MM-DD.",
-        "Unknown status 'Sorted' — use Estimate, Committed, Invoiced or Paid",
+        "Unknown status 'Sorted'. Use Estimate, Committed, Invoiced or Paid.",
     ]
     assert rows[5]["messages"] == ["Add an estimate or an actual amount"]
     assert rows[6]["messages"] == ["Media / ads: That category isn't used for this channel."]
@@ -211,7 +211,7 @@ def test_missing_date_uses_the_event_start_with_a_warning(client, admin, event):
     row = _upload(client, admin, event["id"], sheet).json()["rows"][0]
 
     assert (row["status"], row["date"], row["messages"]) == (
-        "READY_WITH_WARNINGS", "2026-11-04", ["No date — used the event's start date"],
+        "READY_WITH_WARNINGS", "2026-11-04", ["No date, so the event's start date was used."],
     )
 
 
@@ -344,7 +344,7 @@ def test_undo_blocked_by_a_reconciled_line(client, admin, event):
     response = client.post(f"/api/imports/{preview['batch_id']}/undo", headers=admin["headers"])
 
     assert (response.status_code, response.json()["detail"]) == (
-        409, "1 of these costs is already reconciled — ask Finance to reopen them first.",
+        409, "1 of these costs is already reconciled. Ask Finance to reopen them first.",
     )
     assert len(run_sql("SELECT 1 FROM spend_lines WHERE initiative_id = $1", event["id"])) == 2
 

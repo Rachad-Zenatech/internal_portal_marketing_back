@@ -125,7 +125,7 @@ async def microsoft_callback(request: Request):
     claims['email'] = email
 
     if not email:
-        raise HTTPException(status_code=403, detail="Email not provided by Microsoft")
+        raise HTTPException(status_code=403, detail="Microsoft didn't share your email address.")
 
     ip_address = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
@@ -137,7 +137,7 @@ async def microsoft_callback(request: Request):
         user_domain = email.split("@")[-1].lower() if "@" in email else ""
         if user_domain not in allowed_domains:
             await log_login_activity(email, None, False, f"Domain @{user_domain} is not authorized", ip_address, user_agent)
-            raise HTTPException(status_code=403, detail=f"Email domain @{user_domain} is not authorized for this application")
+            raise HTTPException(status_code=403, detail=f"@{user_domain} email addresses can't sign in to this portal.")
 
     # Connect Microsoft Entra identity to local RBAC
     user = await upsertMicrosoftUser(claims, graph_profile)
@@ -217,7 +217,7 @@ async def heartbeat(
             user_id,
         )
     if not user:
-        raise HTTPException(status_code=401, detail="User is inactive or no longer exists")
+        raise HTTPException(status_code=401, detail="Your account is inactive or has been removed.")
     refreshed_token = create_access_token(user_id, bool(user["is_super_admin"]))
     set_access_token_cookie(response, refreshed_token)
     return {"status": "ok"}

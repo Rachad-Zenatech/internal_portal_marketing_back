@@ -59,7 +59,7 @@ _CONSTRAINT_MESSAGES = {
     "initiatives_goal_id_fkey": "Unknown goal.",
     "initiatives_goal_funnel_stage_fkey": "That goal isn't allowed for the chosen funnel stage.",
     "initiatives_goal_requires_stage_check": "Choose a funnel stage before choosing a goal.",
-    "initiatives_primary_kpi_id_fkey": "Unknown primary KPI.",
+    "initiatives_primary_kpi_id_fkey": "Unknown main KPI.",
     "initiatives_owner_user_id_fkey": "Unknown owner.",
     "initiatives_dates_check": "End date can't be before the start date.",
     "initiatives_budget_check": "Budget can't be negative.",
@@ -272,7 +272,7 @@ async def _check_kpi_fits_channel(conn, kpi_id: int | None, channel_id: int) -> 
         kpi_id, channel_id,
     )
     if row is not None and not kpi_fits_channel(row["code"], row["channel"]):
-        raise InitiativeValidationError(f"{row['name']} isn't used to judge {row['channel_name']}. Choose another primary KPI.")
+        raise InitiativeValidationError(f"{row['name']} isn't used to judge {row['channel_name']}. Choose another main KPI.")
 
 
 async def _check_results_fit_channel(conn, initiative_id: UUID, channel_id: int) -> None:

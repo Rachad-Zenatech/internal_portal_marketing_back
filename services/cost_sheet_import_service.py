@@ -81,7 +81,7 @@ _PAYMENT_WORDS = {
     "other": "OTHER",
 }
 _PAYMENT_LABELS = {"AP_INVOICE": "AP invoice", "CORPORATE_CARD": "Corporate card", "OTHER": "Other"}
-_TRAVEL_IN_SHEET = "Travel comes from the travel management system — leave it out of the sheet."
+_TRAVEL_IN_SHEET = "Travel comes from the travel management system. Leave it out of the sheet."
 
 
 class ImportNotFoundError(Exception):
@@ -151,7 +151,7 @@ def _check_row(row: dict, ctx: _Context) -> tuple[dict, dict | None]:
     else:
         category = ctx.categories.get(normalise_header(raw_category))
         if category is None:
-            errors.append(f"Unknown category '{raw_category}' — choose one from the template's Categories sheet")
+            errors.append(f"Unknown category '{raw_category}'. Choose one from the template's Categories sheet.")
     raw_type = _cell(row, ctx, "expense_type")
     if category:
         if raw_type and normalise_header(raw_type) not in (normalise_header(category["type_name"]), normalise_header(category["type_code"])):
@@ -196,12 +196,12 @@ def _check_row(row: dict, ctx: _Context) -> tuple[dict, dict | None]:
     if raw_status:
         status = _STATUS_WORDS.get(normalise_header(raw_status))
         if status is None:
-            errors.append(f"Unknown status '{raw_status}' — use Estimate, Committed, Invoiced or Paid")
+            errors.append(f"Unknown status '{raw_status}'. Use Estimate, Committed, Invoiced or Paid.")
     else:
         # Blank status: worked out from what's filled in
         status = "PAID" if paid_on else "INVOICED" if actual is not None else "ESTIMATED"
     if status in ("INVOICED", "PAID") and actual is None and estimate is not None:
-        warnings.append("No actual amount — used the estimate")
+        warnings.append("No actual amount, so the estimate was used.")
     if status:
         try:
             check_paid_date(status, paid_on)
@@ -214,10 +214,10 @@ def _check_row(row: dict, ctx: _Context) -> tuple[dict, dict | None]:
     if incurred_on is None and not _cell(row, ctx, "date"):
         if ctx.start_date:
             incurred_on = ctx.start_date
-            warnings.append("No date — used the event's start date")
+            warnings.append("No date, so the event's start date was used.")
         else:
             incurred_on = datetime.now(timezone.utc).date()
-            warnings.append("No date — used today's date")
+            warnings.append("No date, so today's date was used.")
 
     try:
         currency = parse_currency(_cell(row, ctx, "currency"), ctx.currency)
@@ -228,7 +228,7 @@ def _check_row(row: dict, ctx: _Context) -> tuple[dict, dict | None]:
     raw_method = _cell(row, ctx, "payment_method")
     payment_method = _PAYMENT_WORDS.get(normalise_header(raw_method)) if raw_method else None
     if raw_method and payment_method is None:
-        errors.append(f"Unknown payment method '{raw_method}' — use AP invoice, Corporate card or Other")
+        errors.append(f"Unknown payment method '{raw_method}'. Use AP invoice, Corporate card or Other.")
 
     raw_cost_type = _cell(row, ctx, "cost_type").upper()
     if raw_cost_type and raw_cost_type not in ("OPEX", "CAPEX"):
@@ -489,7 +489,7 @@ async def undo_import(batch_id: UUID, actor_id: UUID) -> dict:
             )
             if reconciled:
                 verb = "is" if reconciled == 1 else "are"
-                raise ImportConflictError(f"{reconciled} of these costs {verb} already reconciled — ask Finance to reopen them first.")
+                raise ImportConflictError(f"{reconciled} of these costs {verb} already reconciled. Ask Finance to reopen them first.")
             gone = await conn.fetch("DELETE FROM spend_lines WHERE import_batch_id = $1 RETURNING *", batch_id)
             removed = len(gone)
             for line in gone:

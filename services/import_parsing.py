@@ -129,7 +129,7 @@ def read_table(filename: str, data: bytes, known_columns: Iterable[str] | None =
 
     data_rows = numbered[header_index + 1:]
     if len(data_rows) > MAX_ROWS:
-        raise ImportFileError(f"The file has {len(data_rows):,} rows; the limit is {MAX_ROWS:,}. Split it into smaller files.")
+        raise ImportFileError(f"The file has {len(data_rows):,} rows, more than the {MAX_ROWS:,} limit. Split it into smaller files.")
 
     table = []
     for row_number, row in data_rows:

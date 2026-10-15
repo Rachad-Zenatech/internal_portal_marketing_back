@@ -95,7 +95,7 @@ async def list_outcomes(initiative_id: UUID) -> dict:
 async def save_outcomes(initiative_id: UUID, period_start: date, values: list[dict], actor_id: UUID) -> dict:
     """Save the typed-in results for one month: set the values sent, remove those sent as null. Synced values are untouched."""
     if period_start.day != 1:
-        raise PerformanceValidationError("Results are recorded per month — use the first day of the month.")
+        raise PerformanceValidationError("Results are recorded per month. Use the first day of the month.")
     codes = [v["metric_code"] for v in values]
     if len(codes) != len(set(codes)):
         raise PerformanceValidationError("Each result can only be sent once per month.")
@@ -366,7 +366,7 @@ async def get_performance(initiative_id: UUID, today: date | None = None) -> dic
     early = metrics.early_read(**kpi_args) if stage == "EARLY" else None
     if stage == "UPCOMING":
         rating = {"code": "TEST", "name": "Test", "gap_percent": None,
-                  "reason": "Upcoming — the verdict comes after it has happened. For now, keep the expected cost within budget."}
+                  "reason": "Not started yet. The verdict comes after it happens. For now, keep the expected cost within budget."}
     elif stage == "EARLY":
         final_on = f"{matures.day} {matures.strftime('%B %Y')}"
         rating = {"code": "TEST", "name": "Test", "gap_percent": None,
