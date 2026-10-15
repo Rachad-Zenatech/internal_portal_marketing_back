@@ -251,3 +251,29 @@ def test_travel_system_reports_booking_status(client, admin, event, colleague):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert missing.status_code == 404
+
+
+def test_changing_travel_after_booking_clears_the_status(client, admin, event, colleague):
+    person = _add(client, admin, event["id"], colleague["id"], departs_from="Toronto").json()
+    run_sql("UPDATE event_staff SET travel_status = 'BOOKED', travel_status_at = now() WHERE id = $1", person["id"])
+
+    # A note isn't something the travel system books from: still booked
+    kept = client.patch(f"/api/event-staff/{person['id']}", json={"notes": "Bring badges"}, headers=admin["headers"]).json()
+    assert kept["readiness"] == "BOOKED"
+
+    moved = client.patch(f"/api/event-staff/{person['id']}", json={"departs_from": "Montreal"}, headers=admin["headers"]).json()
+    assert moved["readiness"] == "READY"
+    assert moved["travel_status_at"] is None
+
+
+def test_travel_feed_returns_an_event_after_someone_is_removed(client, admin, event, colleague):
+    person = _add(client, admin, event["id"], colleague["id"], departs_from="Toronto").json()
+    # A naive time is taken as UTC (no 500)
+    since = run_sql("SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US') AS t")[0]["t"]
+
+    assert client.delete(f"/api/event-staff/{person['id']}", headers=admin["headers"]).status_code == 204
+
+    response = client.get("/api/integrations/travel/events", params={"updated_since": since}, headers=_travel_headers())
+    assert response.status_code == 200, response.text
+    feed = {e["event_code"]: e for e in response.json()}
+    assert feed[event["event_code"]]["staff"] == []

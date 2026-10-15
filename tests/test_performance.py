@@ -169,6 +169,31 @@ def test_demos_can_be_typed_in_without_a_log(client, admin, event):
     assert _performance(client, admin, event["id"])["totals"]["DEMOS"] == 20
 
 
+def test_typed_in_demos_stop_counting_once_there_is_a_log(client, admin, event, codes):
+    _save(client, admin, event["id"], "2025-09-01", [{"metric_code": "DEMOS", "value": 50}])
+    # Only a booking for later so far: nothing has happened, and the typed-in 50 no longer counts
+    client.post(
+        f"/api/initiatives/{event['id']}/demos",
+        json={"demo_type_id": codes["demo_types"]["SCHEDULED"], "demo_at": "2099-01-05T10:00:00Z"},
+        headers=admin["headers"],
+    )
+
+    p = _performance(client, admin, event["id"])
+    assert "DEMOS" not in p["totals"]
+    assert p["demos_from_log"] is True
+
+
+def test_zero_revenue_counts_as_revenue(client, admin, event, codes):
+    """Revenue recorded as 0 once the window is over: it lost money, not "no revenue yet"."""
+    _cost(client, admin, event["id"], codes, 5000)
+    _save(client, admin, event["id"], "2025-09-01", [{"metric_code": "LEADS", "value": 100}, {"metric_code": "REVENUE", "value": 0}])
+
+    p = _performance(client, admin, event["id"])
+    assert p["roi_percent"] == -100.0
+    assert p["money_outcome"] == "LOST_MONEY"
+    assert p["rating"]["code"] == "LOW"
+
+
 # --- Performance ---
 
 

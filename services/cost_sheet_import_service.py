@@ -13,6 +13,7 @@ from uuid import UUID
 
 import asyncpg
 
+from models.spend_model import _MAX_AMOUNT
 from postgresql_db.database import get_pool
 from services.import_parsing import (
     ROW_NUMBER,
@@ -27,6 +28,7 @@ from services.import_parsing import (
     uses_decimal_comma,
 )
 from services.rbac_service import log_audit
+from services.spend_service import AUDIT_ENTITY as SPEND_AUDIT_ENTITY
 from services.spend_service import (
     InitiativeNotFoundError,
     SpendValidationError,
@@ -50,8 +52,10 @@ COLUMN_ALIASES: dict[str, list[str]] = {
     "estimate": ["Estimate", "Quote", "Budgeted", "Planned"],
     "actual": ["Actual", "Invoiced", "Final"],
     "status": ["Status"],
-    "invoice_ref": ["Invoice", "Invoice #", "Invoice No", "Invoice Number"],
-    "date": ["Date", "Invoice date", "Due date", "Expected date"],
+    # Card purchases come with a receipt rather than an invoice; either number goes here
+    "invoice_ref": ["Invoice", "Invoice #", "Invoice No", "Invoice Number", "Receipt", "Receipt #", "Receipt No",
+                    "Receipt Number", "Invoice or receipt #", "Invoice / receipt #", "Invoice/receipt #"],
+    "date": ["Date", "Invoice date", "Receipt date", "Bill date", "Due date", "Expected date"],
     "paid_on": ["Paid On", "Paid date", "Date paid"],
     "payment_method": ["Payment Method"],
     "currency": ["Currency"],
@@ -60,7 +64,7 @@ COLUMN_ALIASES: dict[str, list[str]] = {
 }
 # The template's columns, in order
 TEMPLATE_COLUMNS = [
-    "Item", "Category", "Expense type", "Vendor", "Estimate", "Actual", "Status", "Invoice #",
+    "Item", "Category", "Expense type", "Vendor", "Estimate", "Actual", "Status", "Invoice or receipt #",
     "Date", "Paid On", "Payment Method", "Currency", "OPEX/CAPEX", "Notes",
 ]
 
@@ -159,10 +163,15 @@ def _check_row(row: dict, ctx: _Context) -> tuple[dict, dict | None]:
 
     def amount(field: str, label: str) -> Decimal | None:
         try:
-            return parse_amount(_cell(row, ctx, field), decimal_comma=ctx.decimal_comma)
+            value = parse_amount(_cell(row, ctx, field), decimal_comma=ctx.decimal_comma)
         except InvalidValueError as exc:
             errors.append(f"{label}: {exc}")
             return None
+        # The same limit as a cost typed in by hand
+        if value is not None and abs(value) > _MAX_AMOUNT:
+            errors.append(f"{label}: too large")
+            return None
+        return value
 
     estimate = amount("estimate", "Estimate")
     actual = amount("actual", "Actual")
@@ -426,7 +435,7 @@ async def confirm_import(batch_id: UUID, actor_id: UUID) -> dict:
                                   incurred_on, invoice_ref, paid_on, payment_method, cost_type)
                         -- Someone may have recorded the same supplier invoice since the preview: skip those rows
                         ON CONFLICT (lower(vendor), invoice_ref) WHERE vendor IS NOT NULL AND invoice_ref IS NOT NULL DO NOTHING
-                        RETURNING id
+                        RETURNING *
                         """,
                         batch["initiative_id"], batch_id, actor_id,
                         column("category_id"), column("description"), column("vendor"), column("note"), column("status"),
@@ -434,9 +443,12 @@ async def confirm_import(batch_id: UUID, actor_id: UUID) -> dict:
                         column("incurred_on", date.fromisoformat), column("invoice_ref"), column("paid_on", date.fromisoformat),
                         column("payment_method"), column("cost_type"),
                     )
-                except (asyncpg.CheckViolationError, asyncpg.ForeignKeyViolationError) as exc:
+                except (asyncpg.CheckViolationError, asyncpg.ForeignKeyViolationError, asyncpg.DataError) as exc:
                     raise ImportConflictError("Some rows no longer pass the checks. Upload the file again.") from exc
                 imported, skipped = len(inserted), len(staged) - len(inserted)
+                # Each new line is audited like one added by hand, so its history starts here
+                for line in inserted:
+                    await log_audit(conn, actor_id, "CREATE", SPEND_AUDIT_ENTITY, line["id"], new_value=dict(line))
                 # Linking the new lines to monthly budgets comes with the budget tracker (Part 4)
                 await conn.execute(
                     """
@@ -457,7 +469,11 @@ async def confirm_import(batch_id: UUID, actor_id: UUID) -> dict:
 
 
 async def undo_import(batch_id: UUID, actor_id: UUID) -> dict:
-    """Remove every cost line an upload created (including ones edited since), unless Finance reconciled any."""
+    """Remove every cost line an upload created (including ones edited since), unless Finance reconciled any.
+
+    Only the uploader can confirm their own preview, but anyone who can edit costs can undo a confirmed upload,
+    so a bad sheet can be pulled while its uploader is away. Each removed line's last values are audited.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -474,9 +490,10 @@ async def undo_import(batch_id: UUID, actor_id: UUID) -> dict:
             if reconciled:
                 verb = "is" if reconciled == 1 else "are"
                 raise ImportConflictError(f"{reconciled} of these costs {verb} already reconciled — ask Finance to reopen them first.")
-            removed = await conn.fetchval(
-                "WITH gone AS (DELETE FROM spend_lines WHERE import_batch_id = $1 RETURNING 1) SELECT count(*) FROM gone", batch_id
-            )
+            gone = await conn.fetch("DELETE FROM spend_lines WHERE import_batch_id = $1 RETURNING *", batch_id)
+            removed = len(gone)
+            for line in gone:
+                await log_audit(conn, actor_id, "DELETE", SPEND_AUDIT_ENTITY, line["id"], old_value=dict(line))
             await conn.execute(
                 "UPDATE import_batches SET status = 'UNDONE', undone_at = now(), undone_by = $2 WHERE id = $1", batch_id, actor_id
             )

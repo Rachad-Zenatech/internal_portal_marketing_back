@@ -4,7 +4,7 @@ Who goes and what they need is recorded here. Flights, hotels, Ubers, stipends a
 management system, which reads the events and staff from GET /api/integrations/travel/events (by event code) and
 reports back how far booking has got. Nothing here books travel.
 """
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
 import asyncpg
@@ -73,6 +73,12 @@ _STAFF_SELECT = """
 
 _STAFF_ORDER = f"ORDER BY array_position(ARRAY{_ROLE_ORDER}::text[], s.role), u.full_name NULLS LAST, u.email"
 
+# Details the travel system books from; changing any of them after booking means it has to look again
+_TRAVEL_COLUMNS = (
+    "travel_needed", "departs_from", "arrive_on", "depart_on", "needs_flight", "needs_hotel", "needs_ground_transport",
+    "needs_stipend", "cargo_note",
+)
+
 _UPDATABLE_COLUMNS = (
     "role", "travel_needed", "departs_from", "arrive_on", "depart_on", "needs_flight", "needs_hotel",
     "needs_ground_transport", "needs_stipend", "cargo_note", "notes",
@@ -135,8 +141,8 @@ async def add_staff(initiative_id: UUID, data: StaffAssignmentCreate, actor_id: 
                     """
                     INSERT INTO event_staff (initiative_id, user_id, role, travel_needed, departs_from, arrive_on, depart_on,
                                              needs_flight, needs_hotel, needs_ground_transport, needs_stipend, cargo_note,
-                                             notes, created_by, updated_by)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
+                                             notes, created_by, updated_by, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, clock_timestamp())
                     RETURNING id
                     """,
                     initiative_id, values["user_id"], values["role"], values["travel_needed"], values["departs_from"],
@@ -154,13 +160,18 @@ async def add_staff(initiative_id: UUID, data: StaffAssignmentCreate, actor_id: 
 
 
 async def update_staff(assignment_id: UUID, changes: dict, actor_id: UUID) -> dict:
-    """Apply a partial update and audit what changed (old and new values), in one transaction."""
+    """Apply a partial update and audit what changed (old and new values), in one transaction.
+
+    Changing travel details after the travel system reported BOOKED clears that status, so the person shows as ready
+    (or missing details) again and the travel system picks up the new details on its next read.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         try:
             async with conn.transaction():
                 current = await conn.fetchrow(
-                    f"SELECT initiative_id, {', '.join(_UPDATABLE_COLUMNS)} FROM event_staff WHERE id = $1 FOR UPDATE", assignment_id
+                    f"SELECT initiative_id, travel_status, {', '.join(_UPDATABLE_COLUMNS)} FROM event_staff WHERE id = $1 FOR UPDATE",
+                    assignment_id,
                 )
                 if current is None:
                     raise StaffAssignmentNotFoundError
@@ -170,15 +181,23 @@ async def update_staff(assignment_id: UUID, changes: dict, actor_id: UUID) -> di
                 changed = {k: v for k, v in changes.items() if k in _UPDATABLE_COLUMNS and current[k] != v}
                 if changed:
                     columns = [c for c in _UPDATABLE_COLUMNS if c in changed]
+                    rebook = current["travel_status"] == "BOOKED" and any(c in _TRAVEL_COLUMNS for c in columns)
                     assignments = ", ".join(f"{c} = ${n}" for n, c in enumerate(columns, start=2))
+                    if rebook:
+                        assignments += ", travel_status = NULL, travel_status_at = NULL"
+                    # clock_timestamp, not now(): a change committing after a travel-system read must be stamped after it
                     await conn.execute(
-                        f"UPDATE event_staff SET {assignments}, updated_at = now(), updated_by = ${len(columns) + 2} WHERE id = $1",
+                        f"UPDATE event_staff SET {assignments}, updated_at = clock_timestamp(), updated_by = ${len(columns) + 2} "
+                        "WHERE id = $1",
                         assignment_id, *[changed[c] for c in columns], actor_id,
                     )
+                    old, new = {c: current[c] for c in columns}, dict(changed)
+                    if rebook:
+                        old["travel_status"], new["travel_status"] = "BOOKED", None
                     initiative = {"initiative_id": current["initiative_id"]}
                     await log_audit(
                         conn, actor_id, "UPDATE", STAFF_AUDIT_ENTITY, assignment_id,
-                        old_value={**initiative, **{c: current[c] for c in columns}}, new_value={**initiative, **changed},
+                        old_value={**initiative, **old}, new_value={**initiative, **new},
                     )
         except asyncpg.CheckViolationError as exc:
             raise EventManagementValidationError(_CONSTRAINT_MESSAGES.get(getattr(exc, "constraint_name", None), "Invalid details.")) from exc
@@ -198,10 +217,19 @@ async def remove_staff(assignment_id: UUID, actor_id: UUID) -> None:
             if current is None:
                 raise StaffAssignmentNotFoundError
             await conn.execute("DELETE FROM event_staff WHERE id = $1", assignment_id)
+            # The row is gone, so mark the event itself as changed; otherwise updated_since never returns it and the
+            # travel system never learns to cancel this person's bookings
+            await conn.execute(
+                "UPDATE event_details SET updated_at = clock_timestamp() WHERE initiative_id = $1", current["initiative_id"]
+            )
             await log_audit(conn, actor_id, "DELETE", STAFF_AUDIT_ENTITY, assignment_id, old_value=dict(current))
 
 
 # --- Event cards ---
+
+# The same rule as _timing below, in SQL so filtering and ordering happen before the limit; keep them in step
+_TIMING_SQL = """(CASE WHEN i.start_date IS NULL THEN 'UNSCHEDULED' WHEN $2::date < i.start_date THEN 'UPCOMING'
+                       WHEN $2::date > COALESCE(i.end_date, i.start_date) THEN 'PAST' ELSE 'NOW' END)"""
 
 _OVERVIEW_SQL = f"""
     SELECT i.id, i.name, ed.event_code, b.name AS brand_name, sc.code AS sub_channel_code, sc.name AS sub_channel_name,
@@ -242,6 +270,12 @@ _OVERVIEW_SQL = f"""
         FROM outcomes o JOIN outcome_metrics m ON m.id = o.metric_id WHERE o.initiative_id = i.id
     ) res ON true
     WHERE ($1::text IS NULL OR i.name ILIKE $1 OR ed.event_code ILIKE $1 OR ed.city ILIKE $1)
+      AND ($3::text IS NULL OR {_TIMING_SQL} = $3)
+    ORDER BY CASE {_TIMING_SQL} WHEN 'NOW' THEN 0 WHEN 'UPCOMING' THEN 1 WHEN 'UNSCHEDULED' THEN 2 ELSE 3 END,
+             CASE WHEN i.start_date > $2::date THEN i.start_date - $2::date
+                  WHEN COALESCE(i.end_date, i.start_date) < $2::date THEN $2::date - COALESCE(i.end_date, i.start_date)
+                  ELSE 0 END,
+             i.name
     LIMIT 500
 """
 
@@ -259,26 +293,19 @@ def _timing(start: date | None, end: date | None, today: date) -> tuple[str, int
 
 async def list_event_overview(search: str | None = None, timing: str | None = None, today: date | None = None) -> list[dict]:
     """Every event with what still needs doing: on now first, then upcoming (soonest first), then past (most recent first)."""
-    today = today or date.today()
     pattern = f"%{search.strip()}%" if search and search.strip() else None
     pool = get_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch(_OVERVIEW_SQL, pattern)
+        # The database's date: the same "today" as the travel feed's 90-day window
+        today = today or await conn.fetchval("SELECT CURRENT_DATE")
+        rows = await conn.fetch(_OVERVIEW_SQL, pattern, today, timing)
 
     events = []
     for row in rows:
         item = dict(row)
         item["timing"], item["days_away"] = _timing(item["start_date"], item["end_date"], today)
-        if timing and item["timing"] != timing:
-            continue
         events.append(item)
-
-    def order(e):
-        rank = {"NOW": 0, "UPCOMING": 1, "UNSCHEDULED": 2, "PAST": 3}[e["timing"]]
-        days = e["days_away"] or 0
-        return (rank, days, e["name"])
-
-    return sorted(events, key=order)
+    return events
 
 
 # --- Travel system feed ---
@@ -303,7 +330,10 @@ async def travel_feed(updated_since: datetime | None = None) -> list[dict]:
     """Events (current, upcoming and up to 90 days past) with the staff who need travel, for the travel system.
 
     A person taken off an event simply disappears from its staff list; cancelled events stay with their status.
+    A time without a timezone is taken as UTC.
     """
+    if updated_since is not None and updated_since.tzinfo is None:
+        updated_since = updated_since.replace(tzinfo=timezone.utc)
     pool = get_pool()
     async with pool.acquire() as conn:
         events = await conn.fetch(f"{_FEED_EVENTS_SQL} ORDER BY i.start_date NULLS LAST, i.name")

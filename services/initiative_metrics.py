@@ -304,7 +304,7 @@ def money_outcome(cost: float, revenue: float | None, roi: float | None) -> str 
     """Whether the money came back: PROFIT, BROKE_EVEN, LOST_MONEY, or NO_REVENUE yet. The page words it."""
     if not cost:
         return None
-    if not revenue or roi is None:
+    if revenue is None or roi is None:
         return "NO_REVENUE"
     if roi > 0:
         return "PROFIT"

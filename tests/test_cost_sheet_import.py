@@ -132,6 +132,20 @@ def test_aliases_and_ignored_columns(client, admin, event):
     assert preview["ignored_columns"] == ["Internal"]
 
 
+def test_receipt_columns(client, admin, event):
+    """A card purchase at the show comes with a receipt, not an invoice; its number and date are read the same way."""
+    sheet = _xlsx([
+        ["Item", "Category", "Vendor", "Actual", "Receipt #", "Receipt date", "Paid On", "Payment Method"],
+        ["Exhibitor badges", "Badges", "Expo Organisers", 300, "R-5521", "2026-11-04", "2026-11-04", "Corporate card"],
+    ])
+
+    preview = _upload(client, admin, event["id"], sheet).json()
+
+    row = preview["rows"][0]
+    assert (row["invoice_ref"], row["date"], row["status_value"]) == ("R-5521", "2026-11-04", "Paid")
+    assert preview["ignored_columns"] == []
+
+
 def test_invalid_rows_list_every_problem(client, admin, event):
     sheet = _xlsx([
         ["Item", "Category", "Expense type", "Estimate", "Status", "Date"],
@@ -387,3 +401,26 @@ def test_template_round_trips(client, admin, event):
 
     assert preview["counts"]["total"] == 8
     assert preview["counts"]["invalid"] == 0, [r for r in preview["rows"] if r["status"] == "INVALID"]
+
+
+def test_amounts_over_the_limit_are_invalid(client, admin, event):
+    sheet = _xlsx([HEADER, ["Huge", "Freight", "Expo Freight", 1e15, None, None, None, "2026-10-28", None]])
+
+    row = _upload(client, admin, event["id"], sheet).json()["rows"][0]
+
+    assert (row["status"], row["messages"]) == ("INVALID", ["Estimate: too large"])
+
+
+def test_each_imported_and_undone_line_is_audited(client, admin, event):
+    preview = _upload(client, admin, event["id"], _ready_sheet()).json()
+    _confirm(client, admin, preview["batch_id"])
+    line_ids = [r["id"] for r in run_sql("SELECT id FROM spend_lines WHERE import_batch_id = $1", preview["batch_id"])]
+
+    client.post(f"/api/imports/{preview['batch_id']}/undo", headers=admin["headers"])
+
+    audit = run_sql(
+        "SELECT action, old_value FROM audit_logs WHERE entity_type = 'SpendLine' AND entity_id = ANY($1::text[]) ORDER BY created_at",
+        [str(i) for i in line_ids],
+    )
+    assert sorted(a["action"] for a in audit) == ["CREATE", "CREATE", "DELETE", "DELETE"]
+    assert all(json.loads(a["old_value"])["description"] for a in audit if a["action"] == "DELETE")

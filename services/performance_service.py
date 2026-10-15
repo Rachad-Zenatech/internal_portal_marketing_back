@@ -341,9 +341,12 @@ async def get_performance(initiative_id: UUID, today: date | None = None) -> dic
                 revenue_excluded.append({"currency": row["currency"], "amount": round(row["value"], 2)})
         else:
             totals[row["code"]] = totals.get(row["code"], 0) + row["value"]
-    if demo_count:
-        # The demo log is the record of demos for this event
-        totals["DEMOS"] = float(demo_count)
+    if initiative["has_demo_log"]:
+        # The demo log is the record of demos for this event, even while every logged demo is still to come;
+        # typed-in totals are hidden from the results then, so they mustn't count here either
+        totals.pop("DEMOS", None)
+        if demo_count:
+            totals["DEMOS"] = float(demo_count)
 
     revenue = money.get("REVENUE")
     pipeline = money.get("PIPELINE")
@@ -371,7 +374,7 @@ async def get_performance(initiative_id: UUID, today: date | None = None) -> dic
     else:
         rating = metrics.suggest_rating(
             **kpi_args, matures=None, maturity_days=evaluation["maturity_days"], today=today,
-            roi=ratios["roi_percent"], revenue_recorded=bool(revenue),
+            roi=ratios["roi_percent"], revenue_recorded=revenue is not None,
         )
 
     return {
@@ -386,7 +389,7 @@ async def get_performance(initiative_id: UUID, today: date | None = None) -> dic
         **ratios,
         "money_outcome": metrics.money_outcome(cost, revenue, ratios["roi_percent"]),
         "has_results": bool(totals or money),
-        "demos_from_log": bool(demo_count),
+        "demos_from_log": initiative["has_demo_log"],
         "evaluation": evaluation,
         "kpi_actual": actual,
         "matures_on": matures,

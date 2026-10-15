@@ -20,7 +20,8 @@ People's sign-ins are refused on these routes (apart from super admins).
 `GET /api/integrations/travel/events?updated_since=2026-10-14T00:00:00Z`
 
 - Returns events that are current, upcoming, or ended in the last 90 days. `updated_since` (optional) returns only events
-  whose details or staff changed after that time — poll with the time of your last successful read.
+  whose details or staff changed after that time — poll with the time of your last successful read, minus a minute or
+  so of overlap (re-reading an unchanged event is harmless). A time without a timezone is taken as UTC.
 - **Match on `event_code`** (e.g. `EVT-2026-0007`). Please store it on every booking and receipt, so their costs can
   come back to the right event later.
 - `staff` lists only people who need travel. **Someone removed from an event no longer appears** — treat that as
@@ -78,6 +79,8 @@ People's sign-ins are refused on these routes (apart from super admins).
 `POST /api/integrations/travel/staff-status` with `{"assignment_id": "a2b9…", "travel_status": "BOOKED"}`
 
 - `travel_status`: `REQUESTED` (you have it), `BOOKED`, or `CANCELLED`. `204` on success, `404` for an unknown assignment.
+- If someone's travel details (dates, where they fly from, what they need) change after you've reported `BOOKED`, we
+  clear your status: the person shows as `READY` again on your next read, with the new details to rebook from.
 
 ## 3. Later: travel costs back into the event
 
