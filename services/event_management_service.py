@@ -237,6 +237,9 @@ _OVERVIEW_SQL = f"""
            i.budget_amount::float8 AS budget_amount, i.currency,
            COALESCE(cost.expected, 0)::float8 AS expected_cost, COALESCE(cost.actual, 0)::float8 AS actual_cost,
            COALESCE(cost.lines, 0) AS cost_lines,
+           ed.travel_budget_amount::float8 AS travel_budget_amount,
+           COALESCE(cost.travel_expected, 0)::float8 AS travel_expected,
+           COALESCE(cost.travel_spent, 0)::float8 AS travel_spent,
            COALESCE(st.staff_count, 0) AS staff_count, COALESCE(st.staff_ready, 0) AS staff_ready,
            COALESCE(st.staff_missing, 0) AS staff_missing_details, COALESCE(st.staff_booked, 0) AS staff_booked,
            COALESCE(dm.given, 0) AS demos_given, COALESCE(dm.booked, 0) AS demos_booked,
@@ -250,7 +253,11 @@ _OVERVIEW_SQL = f"""
     LEFT JOIN LATERAL (
         SELECT SUM(amount) FILTER (WHERE currency = i.currency) AS expected,
                SUM(amount) FILTER (WHERE currency = i.currency AND status IN ('INVOICED', 'PAID')) AS actual,
-               count(*) AS lines
+               count(*) AS lines,
+               -- Costs the travel system reports, in the event's currency: all of them, and invoiced + paid
+               SUM(amount) FILTER (WHERE source = 'TRAVEL_FEED' AND currency = i.currency) AS travel_expected,
+               SUM(amount) FILTER (WHERE source = 'TRAVEL_FEED' AND currency = i.currency
+                                   AND status IN ('INVOICED', 'PAID')) AS travel_spent
         FROM spend_lines WHERE initiative_id = i.id
     ) cost ON true
     LEFT JOIN LATERAL (
@@ -314,6 +321,7 @@ _FEED_EVENTS_SQL = f"""
     SELECT i.id AS initiative_id, ed.event_code, i.name, i.status, b.name AS brand, sc.name AS sub_channel,
            i.start_date, i.end_date, ed.venue, ed.city, ed.country_code, ed.platform,
            u.full_name AS owner_name, u.email AS owner_email,
+           ed.travel_budget_amount::float8 AS travel_budget_amount, i.currency,
            GREATEST(i.updated_at, ed.updated_at,
                     (SELECT max(updated_at) FROM event_staff s WHERE s.initiative_id = i.id)) AS updated_at
     FROM initiatives i

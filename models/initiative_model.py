@@ -46,6 +46,8 @@ class InitiativeListItem(BaseModel):
     platform: str | None = None
     event_url: str | None = None
     booth_size_sqm: float | None = None
+    # Flights, hotels, ground transport and stipends, in the initiative's currency; sent to the travel system
+    travel_budget_amount: float | None = None
     # Costs in the initiative's currency: everything expected (estimates included), and invoiced + paid
     expected_total: float = 0
     actual_amount: float = 0
@@ -73,6 +75,9 @@ class EventDetailsInput(BaseModel):
     event_url: str | None = Field(default=None, max_length=500)
     # In-person events only, always in square metres (the form converts square feet)
     booth_size_sqm: float | None = Field(default=None, gt=0, le=999_999.99)
+    # Part of the event budget (same currency) for flights, hotels, ground transport and stipends; has to be
+    # smaller than the event budget. Sent to the travel system.
+    travel_budget_amount: float | None = Field(default=None, ge=0, le=999_999_999_999)
 
     @field_validator("venue", "city", "country_code", "platform", "event_url", mode="before")
     @classmethod

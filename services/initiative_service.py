@@ -26,6 +26,7 @@ _SELECT = """
            ed.event_code, ed.event_type_id, et.name AS event_type_name,
            ed.venue, ed.city, ed.country_code, ed.region_id, r.name AS region_name,
            ed.platform, ed.event_url, ed.booth_size_sqm::float8 AS booth_size_sqm,
+           ed.travel_budget_amount::float8 AS travel_budget_amount,
            COALESCE(sp.expected_total, 0)::float8 AS expected_total,
            COALESCE(sp.actual_amount, 0)::float8 AS actual_amount,
            COALESCE(sp.has_mixed_currencies, false) AS has_mixed_currencies
@@ -72,6 +73,7 @@ _CONSTRAINT_MESSAGES = {
     "event_details_country_code_check": "Country must be a two-letter code, e.g. US.",
     "event_details_event_url_check": "Event link must start with http:// or https://",
     "event_details_booth_size_check": "Booth size must be more than zero.",
+    "event_details_travel_budget_check": "Travel budget can't be negative.",
 }
 
 EVENTS_CHANNEL = "EVENTS"
@@ -88,10 +90,18 @@ EVENT_REQUIRED_FIELDS: dict[str, tuple[tuple[str, ...], str]] = {
 IN_PERSON_SUB_CHANNELS = {"IN_PERSON_EVENTS", "SPONSORSHIPS"}
 _VIRTUAL_ONLY_FIELDS = ("platform", "event_url")
 
-_EVENT_FIELDS = ("event_type_id", "venue", "city", "country_code", "region_id", "platform", "event_url", "booth_size_sqm")
+_EVENT_FIELDS = (
+    "event_type_id", "venue", "city", "country_code", "region_id", "platform", "event_url", "booth_size_sqm",
+    "travel_budget_amount",
+)
 _EVENT_COLUMNS = ", ".join(_EVENT_FIELDS)
-# The same columns for reading back, with booth size as a float so it compares equal to what the API received
-_EVENT_SELECT_COLUMNS = ", ".join(f"{f}::float8 AS {f}" if f == "booth_size_sqm" else f for f in _EVENT_FIELDS)
+# The same columns for reading back, with amounts as floats so they compare equal to what the API received
+_NUMERIC_EVENT_FIELDS = {"booth_size_sqm", "travel_budget_amount"}
+_EVENT_SELECT_COLUMNS = ", ".join(f"{f}::float8 AS {f}" if f in _NUMERIC_EVENT_FIELDS else f for f in _EVENT_FIELDS)
+
+TRAVEL_BUDGET_TOO_HIGH = "The travel budget has to be smaller than the event budget."
+TRAVEL_BUDGET_NEEDS_BUDGET = "Set the event budget before the travel budget."
+EVENT_IN_TRAVEL_SYSTEM = "This event may already be in the travel system. Cancel it instead."
 
 
 def _check_event_rules(sub_channel_code: str | None, event: dict, *, draft: bool = False) -> None:
@@ -106,6 +116,21 @@ def _check_event_rules(sub_channel_code: str | None, event: dict, *, draft: bool
         raise InitiativeValidationError("Platform and event link are for virtual events.")
     if event["booth_size_sqm"] is not None and sub_channel_code not in IN_PERSON_SUB_CHANNELS:
         raise InitiativeValidationError("Booth size is for in-person events.")
+
+
+def _check_travel_budget(budget_amount: float | None, travel_budget_amount: float | None, *, draft: bool = False) -> None:
+    """The travel budget is part of the event budget (same currency), so it has to be smaller than it.
+
+    A draft can have a travel budget before the event budget is set; it's checked when the draft is finished.
+    """
+    if travel_budget_amount is None:
+        return
+    if budget_amount is None:
+        if not draft:
+            raise InitiativeValidationError(TRAVEL_BUDGET_NEEDS_BUDGET)
+        return
+    if travel_budget_amount >= budget_amount:
+        raise InitiativeValidationError(TRAVEL_BUDGET_TOO_HIGH)
 
 
 class InitiativeValidationError(Exception):
@@ -225,6 +250,7 @@ async def create_initiative(data: InitiativeCreate, actor_id: UUID) -> dict:
                     # Every event gets a details row (and so a code), even with no details sent
                     event = event or dict.fromkeys(_EVENT_FIELDS)
                     _check_event_rules(codes["sub_channel"], event, draft=values["status"] == "DRAFT")
+                    _check_travel_budget(values["budget_amount"], event["travel_budget_amount"], draft=values["status"] == "DRAFT")
 
                 initiative_id = await conn.fetchval(
                     """
@@ -305,10 +331,12 @@ async def _check_results_fit_channel(conn, initiative_id: UUID, channel_id: int)
 async def _apply_event_changes(
     conn, initiative_id: UUID, actor_id: UUID, *,
     channel_id: int, sub_channel_id: int | None, current_event: dict | None, event_changes: dict, draft: bool,
+    budget_amount: float | None,
 ) -> tuple[dict | None, dict | None, str | None]:
     """Validate and save an initiative's event details as part of an update.
 
-    Rules use the channel and sub-channel after the update. Returns (old, new, event_code), where old/new
+    Rules use the channel, sub-channel and budget after the update, so lowering the event budget to the
+    travel budget or below is refused too. Returns (old, new, event_code), where old/new
     hold only the event fields that changed; new is None when nothing changed.
     """
     codes = await conn.fetchrow(
@@ -330,6 +358,7 @@ async def _apply_event_changes(
     before = {f: current_event[f] for f in _EVENT_FIELDS} if current_event else dict.fromkeys(_EVENT_FIELDS)
     after = {**before, **event_changes}
     _check_event_rules(codes["sub_channel"], after, draft=draft)
+    _check_travel_budget(budget_amount, after["travel_budget_amount"], draft=draft)
 
     if current_event is None:
         # Moving into Events: create the details row, which generates the code
@@ -339,8 +368,9 @@ async def _apply_event_changes(
     if not fields:
         return None, None, current_event["event_code"]
     assignments = ", ".join(f"{f} = ${n}" for n, f in enumerate(fields, start=2))
+    # clock_timestamp, not now(): a change committing after a travel-system read must be stamped after it
     await conn.execute(
-        f"UPDATE event_details SET {assignments}, updated_at = now(), updated_by = ${len(fields) + 2} "
+        f"UPDATE event_details SET {assignments}, updated_at = clock_timestamp(), updated_by = ${len(fields) + 2} "
         "WHERE initiative_id = $1",
         initiative_id, *[after[f] for f in fields], actor_id,
     )
@@ -391,6 +421,7 @@ async def update_initiative(initiative_id: UUID, changes: dict, actor_id: UUID) 
                     current_event=dict(current_event) if current_event else None,
                     event_changes=changes.get("event") or {},
                     draft=changed.get("status", current["status"]) == "DRAFT",
+                    budget_amount=changed["budget_amount"] if "budget_amount" in changed else current["budget_amount"],
                 )
 
                 if changed:
@@ -421,6 +452,30 @@ async def update_initiative(initiative_id: UUID, changes: dict, actor_id: UUID) 
 
         row = await conn.fetchrow(f"{_SELECT} WHERE i.id = $1", initiative_id)
     return dict(row)
+
+
+async def delete_initiative(initiative_id: UUID, actor_id: UUID) -> None:
+    """Delete an initiative (its costs, results and event details go with it) and audit what it was.
+
+    An event that has left Draft is in the travel system's feed and may already have bookings, so it can only be
+    cancelled. Drafts and initiatives in other channels can be deleted.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            current = await conn.fetchrow(
+                "SELECT i.name, i.status, i.channel_id, c.code AS channel, ed.event_code "
+                "FROM initiatives i JOIN channels c ON c.id = i.channel_id "
+                "LEFT JOIN event_details ed ON ed.initiative_id = i.id WHERE i.id = $1 FOR UPDATE OF i",
+                initiative_id,
+            )
+            if current is None:
+                raise InitiativeNotFoundError
+            if current["channel"] == EVENTS_CHANNEL and current["status"] != "DRAFT":
+                raise InitiativeValidationError(EVENT_IN_TRAVEL_SYSTEM)
+            await conn.execute("DELETE FROM initiatives WHERE id = $1", initiative_id)
+            old_value = {k: current[k] for k in ("name", "status", "channel_id", "event_code")}
+            await log_audit(conn, actor_id, "DELETE", AUDIT_ENTITY, initiative_id, old_value=old_value)
 
 
 async def list_owner_options(search: str | None = None, limit: int = 20) -> list[dict]:

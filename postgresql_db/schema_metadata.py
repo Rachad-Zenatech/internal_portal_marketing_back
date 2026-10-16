@@ -411,6 +411,9 @@ event_details = sa.Table(
     sa.Column("event_url", sa.VARCHAR(length=500)),
     # In-person events only: lets costs be compared across events (cost per m²)
     sa.Column("booth_size_sqm", sa.NUMERIC(precision=8, scale=2)),
+    # Flights, hotels, ground transport and stipends, in the event's currency. Sent to the travel system and
+    # always less than the event budget (checked in the service, since the budget lives on initiatives)
+    sa.Column("travel_budget_amount", sa.NUMERIC(precision=14, scale=2)),
     sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="event_details_created_by_fkey", ondelete="SET NULL")),
@@ -419,6 +422,7 @@ event_details = sa.Table(
     sa.CheckConstraint("country_code ~ '^[A-Z]{2}$'", name="event_details_country_code_check"),
     sa.CheckConstraint("event_url ~* '^https?://'", name="event_details_event_url_check"),
     sa.CheckConstraint("booth_size_sqm > 0", name="event_details_booth_size_check"),
+    sa.CheckConstraint("travel_budget_amount >= 0", name="event_details_travel_budget_check"),
 )
 
 # --- Results and "was it worth it?" ---

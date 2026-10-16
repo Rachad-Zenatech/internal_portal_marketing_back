@@ -108,6 +108,11 @@ class EventOverviewItem(BaseModel):
     expected_cost: float
     actual_cost: float
     cost_lines: int
+    # The part of the budget for flights, hotels, ground transport and stipends, and the travel system's costs
+    # against it in the event's currency: all of them (expected) and invoiced + paid (spent)
+    travel_budget_amount: float | None = None
+    travel_expected: float = 0
+    travel_spent: float = 0
     staff_count: int
     staff_ready: int
     staff_missing_details: int
@@ -154,6 +159,9 @@ class TravelFeedEvent(BaseModel):
     platform: str | None = None
     owner_name: str | None = None
     owner_email: str | None = None
+    # The event's travel budget (always less than the event budget) and the currency it's in
+    travel_budget_amount: float | None = None
+    currency: str
     # Only staff who need travel
     staff: list[TravelFeedStaff]
     updated_at: datetime
