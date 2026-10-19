@@ -319,3 +319,69 @@ class BudgetWeek(BaseModel):
     lines: list[WeekLine]
     totals: list[WeekTotals]
     months: list[WeekMonthPace]
+
+
+# --- Budget sheet upload ---
+
+BudgetImportRowStatus = Literal["NEW", "UPDATE", "UNCHANGED", "INVALID"]
+BudgetImportBatchStatus = Literal["PREVIEW", "CONFIRMED", "UNDONE", "EXPIRED"]
+
+
+class BudgetImportRow(BaseModel):
+    """One sheet row as it would be imported, with every problem found."""
+
+    row_number: int
+    status: BudgetImportRowStatus
+    messages: list[str]
+    month: date | None = None
+    # As matched (or as typed when unknown); "TBD/All" for no brand
+    brand: str | None = None
+    market: str | None = None
+    # Empty = all channels
+    channel: str | None = None
+    amount: float | None = None
+    currency: str | None = None
+    # What the budget's status will be
+    budget_status: BudgetStatus | None = None
+    # The sheet's Spend Progress, as typed
+    sheet_progress: str | None = None
+    note: str | None = None
+    # The budget it updates; empty for a new one
+    budget_id: UUID | None = None
+
+
+class BudgetImportCounts(BaseModel):
+    new: int
+    update: int
+    unchanged: int
+    invalid: int
+
+
+class BudgetImportPreview(BaseModel):
+    batch_id: UUID
+    filename: str
+    rows: list[BudgetImportRow]
+    counts: BudgetImportCounts
+    # Sheet columns that aren't read, e.g. Actual Spend to Date (worked out from costs instead)
+    ignored_columns: list[str]
+
+
+class BudgetImportConfirmResult(BaseModel):
+    batch_id: UUID
+    status: BudgetImportBatchStatus
+    created: int
+    updated: int
+    unchanged: int
+    notes_added: int
+    # Rows whose budget changed or appeared since the preview
+    skipped: int
+
+
+class BudgetImportUndoResult(BaseModel):
+    batch_id: UUID
+    status: BudgetImportBatchStatus
+    removed: int
+    restored: int
+    notes_removed: int
+    # Budgets changed again since, or now used by money moves
+    skipped: int

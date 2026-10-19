@@ -2,12 +2,15 @@ from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 
 from models.budget_model import (
     BudgetCopy,
     BudgetCreate,
     BudgetDetail,
+    BudgetImportConfirmResult,
+    BudgetImportPreview,
+    BudgetImportUndoResult,
     BudgetRow,
     BudgetTransfer,
     BudgetTransferCreate,
@@ -18,14 +21,22 @@ from models.budget_model import (
     CopyResult,
     MonthBudgets,
 )
-from services import budget_service
+from services import budget_import_service, budget_service
 from services.auth_service import require_permission
 from services.budget_service import BudgetNotFoundError, BudgetPermissionError, BudgetValidationError
+from services.cost_sheet_import_service import (
+    ImportConflictError,
+    ImportExpiredError,
+    ImportForbiddenError,
+    ImportNotFoundError,
+)
+from services.import_parsing import ImportFileError
 
 router = APIRouter()
 
 _VIEW = require_permission("INITIATIVES_VIEW")
 _UPDATE = require_permission("INITIATIVES_UPDATE")
+_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 def _unprocessable(exc: BudgetValidationError) -> HTTPException:
@@ -142,3 +153,61 @@ async def delete_comment(comment_id: UUID, user_id: Annotated[UUID, Depends(_VIE
     except BudgetPermissionError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# --- Budget tracker upload ---
+
+@router.post("/budget-imports", response_model=BudgetImportPreview, status_code=status.HTTP_201_CREATED)
+async def upload_budget_sheet(
+    user_id: Annotated[UUID, Depends(_UPDATE)],
+    file: UploadFile = File(...),
+    year: int = Form(ge=2000, le=2100),
+    currency: str = Form(default=budget_import_service.DEFAULT_CURRENCY),
+):
+    """Check a budget tracker (.xlsx or .csv) and show what would be imported. Nothing is saved until confirmed.
+
+    `year` is used for months written without one (e.g. "Aug"); `currency` for amounts without a symbol or code.
+    """
+    data = await file.read(budget_import_service.MAX_FILE_BYTES + 1)
+    if len(data) > budget_import_service.MAX_FILE_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="The file is larger than 5 MB.")
+    try:
+        return await budget_import_service.preview_budget_sheet(file.filename or "upload", data, user_id, year, currency)
+    except ImportFileError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
+
+
+@router.post("/budget-imports/{batch_id}/confirm", response_model=BudgetImportConfirmResult)
+async def confirm_budget_import(batch_id: UUID, user_id: Annotated[UUID, Depends(_UPDATE)]):
+    """Add and update the previewed budgets, with each row's note as a comment."""
+    try:
+        return await budget_import_service.confirm_import(batch_id, user_id)
+    except ImportNotFoundError as exc:
+        raise _not_found("Upload") from exc
+    except ImportForbiddenError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the person who uploaded this file can confirm it.") from exc
+    except ImportConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except ImportExpiredError as exc:
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail="This preview has expired. Upload the file again.") from exc
+
+
+@router.post("/budget-imports/{batch_id}/undo", response_model=BudgetImportUndoResult)
+async def undo_budget_import(batch_id: UUID, user_id: Annotated[UUID, Depends(_UPDATE)]):
+    """Remove the budgets and notes the upload added and give the budgets it changed their previous values back."""
+    try:
+        return await budget_import_service.undo_import(batch_id, user_id)
+    except ImportNotFoundError as exc:
+        raise _not_found("Upload") from exc
+    except ImportConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.get("/budget-imports/template", dependencies=[Depends(_VIEW)], response_class=Response)
+async def download_budget_template():
+    """An .xlsx with the same columns as Marketing's Budget Tracker tab."""
+    return Response(
+        content=await budget_import_service.build_template(),
+        media_type=_XLSX,
+        headers={"Content-Disposition": 'attachment; filename="budget-tracker-template.xlsx"'},
+    )
