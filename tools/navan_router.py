@@ -9,7 +9,7 @@ from services.navan_cost_sync_job import (
     navan_cost_sync_enabled,
     sync_navan_costs,
 )
-from services.navan_service import NavanUnavailable, navan_configured
+from services.navan_service import DEMO_MODE, NavanUnavailable, navan_configured, navan_mode
 
 router = APIRouter()
 
@@ -20,7 +20,8 @@ router = APIRouter()
     dependencies=[Depends(require_permission("INITIATIVES_UPDATE"))],
 )
 async def sync_navan_costs_now():
-    """Read Navan bookings now and update each linked event's travel cost."""
+    """Read Navan bookings now (generated ones for the demo events in demo mode) and update each linked event's
+    travel cost."""
     try:
         return await sync_navan_costs()
     except NavanSyncAlreadyRunning as exc:
@@ -35,11 +36,15 @@ async def sync_navan_costs_now():
     dependencies=[Depends(require_permission("INITIATIVES_VIEW"))],
 )
 async def get_navan_sync_status():
-    """Whether the Navan sync is on and set up, and its last run, including the Navan events it found."""
+    """Whether the Navan sync is on and set up, its mode (live or demo data), and its last run in that mode,
+    including the Navan events it found."""
     state = await get_navan_sync_state() or {}
+    mode = navan_mode()
     return {
+        "mode": mode,
         "enabled": navan_cost_sync_enabled(),
-        "configured": navan_configured(),
+        # Demo mode needs no Navan credential
+        "configured": mode == DEMO_MODE or navan_configured(),
         "last_success_at": state.get("last_success_at"),
         "last_attempt_at": state.get("last_attempt_at"),
         "last_error": state.get("last_error"),

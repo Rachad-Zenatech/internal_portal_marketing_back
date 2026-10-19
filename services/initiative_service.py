@@ -5,7 +5,7 @@ import asyncpg
 
 from models.initiative_model import InitiativeCreate
 from postgresql_db.database import get_pool
-from services.initiative_metrics import kpi_fits_channel, result_fits_channel
+from services.initiative_metrics import result_fits_channel
 from services.rbac_service import log_audit
 
 AUDIT_ENTITY = "Initiative"
@@ -18,7 +18,6 @@ _SELECT = """
            i.sub_channel_id, s.name AS sub_channel_name,
            i.funnel_stage_id, fs.name AS funnel_stage_name,
            i.goal_id, g.name AS goal_name,
-           i.primary_kpi_id, k.name AS primary_kpi_name,
            i.owner_user_id, u.full_name AS owner_name,
            i.market_id, mk.name AS market_name,
            i.start_date, i.end_date,
@@ -27,6 +26,7 @@ _SELECT = """
            ed.venue, ed.city, ed.country_code, ed.region_id, r.name AS region_name,
            ed.platform, ed.event_url, ed.booth_size_sqm::float8 AS booth_size_sqm,
            ed.travel_budget_amount::float8 AS travel_budget_amount, ed.navan_event_name,
+           ed.navan_estimate_amount::float8 AS navan_estimate_amount,
            COALESCE(sp.expected_total, 0)::float8 AS expected_total,
            COALESCE(sp.actual_amount, 0)::float8 AS actual_amount,
            COALESCE(sp.has_mixed_currencies, false) AS has_mixed_currencies
@@ -36,7 +36,6 @@ _SELECT = """
     LEFT JOIN sub_channels s ON s.id = i.sub_channel_id
     LEFT JOIN funnel_stages fs ON fs.id = i.funnel_stage_id
     LEFT JOIN goals g ON g.id = i.goal_id
-    LEFT JOIN primary_kpis k ON k.id = i.primary_kpi_id
     LEFT JOIN users u ON u.id = i.owner_user_id
     LEFT JOIN markets mk ON mk.id = i.market_id
     LEFT JOIN event_details ed ON ed.initiative_id = i.id
@@ -62,7 +61,6 @@ _CONSTRAINT_MESSAGES = {
     "initiatives_goal_id_fkey": "Unknown goal.",
     "initiatives_goal_funnel_stage_fkey": "That goal isn't allowed for the chosen funnel stage.",
     "initiatives_goal_requires_stage_check": "Choose a funnel stage before choosing a goal.",
-    "initiatives_primary_kpi_id_fkey": "Unknown main KPI.",
     "initiatives_owner_user_id_fkey": "Unknown owner.",
     "initiatives_market_id_fkey": "Unknown market.",
     "initiatives_dates_check": "End date can't be before the start date.",
@@ -74,6 +72,7 @@ _CONSTRAINT_MESSAGES = {
     "event_details_event_url_check": "Event link must start with http:// or https://",
     "event_details_booth_size_check": "Booth size must be more than zero.",
     "event_details_travel_budget_check": "Travel budget can't be negative.",
+    "event_details_navan_estimate_check": "Navan estimate can't be negative.",
     "event_details_navan_event_key": "Another event is already linked to that Navan event.",
 }
 
@@ -93,16 +92,15 @@ _VIRTUAL_ONLY_FIELDS = ("platform", "event_url")
 
 _EVENT_FIELDS = (
     "event_type_id", "venue", "city", "country_code", "region_id", "platform", "event_url", "booth_size_sqm",
-    "travel_budget_amount", "navan_event_name",
+    "travel_budget_amount", "navan_event_name", "navan_estimate_amount",
 )
 _EVENT_COLUMNS = ", ".join(_EVENT_FIELDS)
 # The same columns for reading back, with amounts as floats so they compare equal to what the API received
-_NUMERIC_EVENT_FIELDS = {"booth_size_sqm", "travel_budget_amount"}
+_NUMERIC_EVENT_FIELDS = {"booth_size_sqm", "travel_budget_amount", "navan_estimate_amount"}
 _EVENT_SELECT_COLUMNS = ", ".join(f"{f}::float8 AS {f}" if f in _NUMERIC_EVENT_FIELDS else f for f in _EVENT_FIELDS)
 
 TRAVEL_BUDGET_TOO_HIGH = "The travel budget has to be smaller than the event budget."
 TRAVEL_BUDGET_NEEDS_BUDGET = "Set the event budget before the travel budget."
-EVENT_IN_TRAVEL_SYSTEM = "This event may already be in the travel system. Cancel it instead."
 
 
 def _check_event_rules(sub_channel_code: str | None, event: dict, *, draft: bool = False) -> None:
@@ -157,7 +155,7 @@ _STATUS_LABELS = {"DRAFT": "Draft", "PLANNED": "Planned", "ACTIVE": "Active", "C
 
 # Columns a PATCH may set, in a fixed order (keeps the generated SQL safe from field-name injection)
 _UPDATABLE_COLUMNS = (
-    "name", "brand_id", "channel_id", "sub_channel_id", "funnel_stage_id", "goal_id", "primary_kpi_id",
+    "name", "brand_id", "channel_id", "sub_channel_id", "funnel_stage_id", "goal_id",
     "owner_user_id", "start_date", "end_date", "budget_amount", "currency", "status", "market_id",
 )
 
@@ -249,7 +247,6 @@ async def create_initiative(data: InitiativeCreate, actor_id: UUID) -> dict:
                 )
                 if codes is None:
                     raise InitiativeValidationError(_CONSTRAINT_MESSAGES["initiatives_channel_id_fkey"])
-                await _check_kpi_fits_channel(conn, values["primary_kpi_id"], values["channel_id"])
                 is_event = codes["channel"] == EVENTS_CHANNEL
                 if event is not None and not is_event:
                     raise InitiativeValidationError("Event details can only be added to initiatives in the Events channel.")
@@ -262,14 +259,14 @@ async def create_initiative(data: InitiativeCreate, actor_id: UUID) -> dict:
                 initiative_id = await conn.fetchval(
                     """
                     INSERT INTO initiatives (name, brand_id, channel_id, sub_channel_id,
-                                             funnel_stage_id, goal_id, primary_kpi_id, owner_user_id,
+                                             funnel_stage_id, goal_id, owner_user_id,
                                              start_date, end_date, budget_amount, currency, status,
                                              market_id, created_by, updated_by)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
                     RETURNING id
                     """,
                     values["name"], values["brand_id"], values["channel_id"], values["sub_channel_id"],
-                    values["funnel_stage_id"], values["goal_id"], values["primary_kpi_id"], values["owner_user_id"],
+                    values["funnel_stage_id"], values["goal_id"], values["owner_user_id"],
                     values["start_date"], values["end_date"], values["budget_amount"], values["currency"],
                     values["status"], values["market_id"], actor_id,
                 )
@@ -310,19 +307,6 @@ async def _insert_event_details(conn, initiative_id: UUID, event: dict, actor_id
         """,
         initiative_id, *[event[f] for f in _EVENT_FIELDS], actor_id,
     )
-
-
-async def _check_kpi_fits_channel(conn, kpi_id: int | None, channel_id: int) -> None:
-    """A primary KPI has to make sense for the channel, e.g. no CPM (an ad measure) on a trade show."""
-    if kpi_id is None:
-        return
-    row = await conn.fetchrow(
-        "SELECT k.code, k.name, c.code AS channel, c.name AS channel_name "
-        "FROM primary_kpis k CROSS JOIN channels c WHERE k.id = $1 AND c.id = $2",
-        kpi_id, channel_id,
-    )
-    if row is not None and not kpi_fits_channel(row["code"], row["channel"]):
-        raise InitiativeValidationError(f"{row['name']} isn't used to judge {row['channel_name']}. Choose another main KPI.")
 
 
 async def _check_results_fit_channel(conn, initiative_id: UUID, channel_id: int) -> None:
@@ -380,7 +364,7 @@ async def _apply_event_changes(
     if not fields:
         return None, None, current_event["event_code"]
     assignments = ", ".join(f"{f} = ${n}" for n, f in enumerate(fields, start=2))
-    # clock_timestamp, not now(): a change committing after a travel-system read must be stamped after it
+    # clock_timestamp, not now(): stamped when the change is made, not when the transaction started
     await conn.execute(
         f"UPDATE event_details SET {assignments}, updated_at = clock_timestamp(), updated_by = ${len(fields) + 2} "
         "WHERE initiative_id = $1",
@@ -417,11 +401,6 @@ async def update_initiative(initiative_id: UUID, changes: dict, actor_id: UUID) 
                         f"An initiative can't go from {_STATUS_LABELS[current['status']]} to {_STATUS_LABELS[new_status]}."
                     )
 
-                # Only checked when the KPI or channel changes, so older initiatives can still be edited
-                if "primary_kpi_id" in changed or "channel_id" in changed:
-                    await _check_kpi_fits_channel(
-                        conn, changed.get("primary_kpi_id", current["primary_kpi_id"]), changed.get("channel_id", current["channel_id"])
-                    )
                 if "channel_id" in changed:
                     await _check_results_fit_channel(conn, initiative_id, changed["channel_id"])
 
@@ -472,24 +451,18 @@ async def update_initiative(initiative_id: UUID, changes: dict, actor_id: UUID) 
 
 
 async def delete_initiative(initiative_id: UUID, actor_id: UUID) -> None:
-    """Delete an initiative (its costs, results and event details go with it) and audit what it was.
-
-    An event that has left Draft is in the travel system's feed and may already have bookings, so it can only be
-    cancelled. Drafts and initiatives in other channels can be deleted.
-    """
+    """Delete an initiative in any status and channel (its costs, results, event details and team go with it) and
+    audit what it was."""
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
             current = await conn.fetchrow(
-                "SELECT i.name, i.status, i.channel_id, c.code AS channel, ed.event_code "
-                "FROM initiatives i JOIN channels c ON c.id = i.channel_id "
-                "LEFT JOIN event_details ed ON ed.initiative_id = i.id WHERE i.id = $1 FOR UPDATE OF i",
+                "SELECT i.name, i.status, i.channel_id, ed.event_code "
+                "FROM initiatives i LEFT JOIN event_details ed ON ed.initiative_id = i.id WHERE i.id = $1 FOR UPDATE OF i",
                 initiative_id,
             )
             if current is None:
                 raise InitiativeNotFoundError
-            if current["channel"] == EVENTS_CHANNEL and current["status"] != "DRAFT":
-                raise InitiativeValidationError(EVENT_IN_TRAVEL_SYSTEM)
             await conn.execute("DELETE FROM initiatives WHERE id = $1", initiative_id)
             old_value = {k: current[k] for k in ("name", "status", "channel_id", "event_code")}
             await log_audit(conn, actor_id, "DELETE", AUDIT_ENTITY, initiative_id, old_value=old_value)

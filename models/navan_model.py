@@ -10,12 +10,27 @@ class NavanTotal(BaseModel):
     amount: float
 
 
+class NavanTypeTotal(BaseModel):
+    """Active bookings of one type in one currency: one cost line on the linked event."""
+
+    # FLIGHT, HOTEL, CAR, RAIL or OTHER
+    booking_type: str
+    currency: str
+    amount: float
+    bookings: int
+
+
 class NavanEvent(BaseModel):
     """A Navan event seen in the bookings, with its active booking total and the event it's linked to (if any)."""
 
     name: str
     bookings: int
+    # All active bookings per currency (the event's Navan actual)
     totals: list[NavanTotal]
+    # The same split by booking type
+    by_type: list[NavanTypeTotal] = []
+    # Navan's estimate for the event, when the source gives one (only demo mode does)
+    estimate: NavanTotal | None = None
     first_travel: str | None = None
     initiative_id: str | None = None
     initiative_name: str | None = None
@@ -24,6 +39,8 @@ class NavanEvent(BaseModel):
 
 
 class NavanSyncSummary(BaseModel):
+    # Where the bookings came from: "live" (Navan) or "demo" (generated for the demo events)
+    mode: Literal["live", "demo"] = "live"
     bookings: int
     linked: int
     # Events added here because Navan had bookings for them
@@ -33,10 +50,14 @@ class NavanSyncSummary(BaseModel):
     updated: int
     removed: int
     conflicts: int
+    # Events whose Navan estimate was set from the source's estimate
+    estimates_updated: int = 0
     events: list[NavanEvent]
 
 
 class NavanSyncStatus(BaseModel):
+    # "demo": the sync uses generated data for the demo events, not Navan (NAVAN_MODE=demo); show "Demo data"
+    mode: Literal["live", "demo"]
     enabled: bool
     configured: bool
     last_success_at: datetime | None = None

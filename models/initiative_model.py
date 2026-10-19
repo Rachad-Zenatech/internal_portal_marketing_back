@@ -22,8 +22,6 @@ class InitiativeListItem(BaseModel):
     funnel_stage_name: str | None = None
     goal_id: int | None = None
     goal_name: str | None = None
-    primary_kpi_id: int | None = None
-    primary_kpi_name: str | None = None
     owner_user_id: UUID | None = None
     owner_name: str | None = None
     # The market whose monthly budget its costs count against; empty counts as Unassigned
@@ -46,10 +44,14 @@ class InitiativeListItem(BaseModel):
     platform: str | None = None
     event_url: str | None = None
     booth_size_sqm: float | None = None
-    # Flights, hotels, ground transport and stipends, in the initiative's currency; sent to the travel system
+    # Planned travel spend (flights, hotels, ground transport and stipends) in the initiative's currency: the
+    # estimate Navan costs are compared with
     travel_budget_amount: float | None = None
     # The Navan event its travel bookings come from; empty means a Navan event with the same name
     navan_event_name: str | None = None
+    # Navan's travel estimate for the event in the initiative's currency: typed in, or set by the Navan sync when
+    # Navan gives one (only its demo mode does today)
+    navan_estimate_amount: float | None = None
     # Costs in the initiative's currency: everything expected (estimates included), and invoiced + paid
     expected_total: float = 0
     actual_amount: float = 0
@@ -77,12 +79,15 @@ class EventDetailsInput(BaseModel):
     event_url: str | None = Field(default=None, max_length=500)
     # In-person events only, always in square metres (the form converts square feet)
     booth_size_sqm: float | None = Field(default=None, gt=0, le=999_999.99)
-    # Part of the event budget (same currency) for flights, hotels, ground transport and stipends; has to be
-    # smaller than the event budget. Sent to the travel system.
+    # Planned travel spend: the part of the event budget (same currency) for flights, hotels, ground transport and
+    # stipends, and the estimate Navan costs are compared with. Has to be smaller than the event budget.
     travel_budget_amount: float | None = Field(default=None, ge=0, le=999_999_999_999)
     # The Navan event its travel bookings come from, exactly as named in Navan. Empty: a Navan event with the
     # same name as this event is used.
     navan_event_name: str | None = Field(default=None, max_length=255)
+    # Navan's travel estimate for the event, in the event's currency. Unlike the travel budget it isn't limited by
+    # the event budget. The Navan sync may update it when Navan gives an estimate.
+    navan_estimate_amount: float | None = Field(default=None, ge=0, le=999_999_999_999)
 
     @field_validator("venue", "city", "country_code", "platform", "event_url", "navan_event_name", mode="before")
     @classmethod
@@ -124,7 +129,6 @@ class InitiativeCreate(BaseModel):
     sub_channel_id: int | None = None
     funnel_stage_id: int | None = None
     goal_id: int | None = None
-    primary_kpi_id: int | None = None
     market_id: int | None = None
     # Defaults to the user creating the initiative
     owner_user_id: UUID | None = None
@@ -167,7 +171,6 @@ class InitiativeUpdate(BaseModel):
     sub_channel_id: int | None = None
     funnel_stage_id: int | None = None
     goal_id: int | None = None
-    primary_kpi_id: int | None = None
     market_id: int | None = None
     owner_user_id: UUID | None = None
     start_date: date | None = None

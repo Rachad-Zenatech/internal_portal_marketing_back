@@ -286,7 +286,6 @@ goals = _reference_table(
     # Target for initiatives' (goal, funnel stage) foreign key, which enforces Rule 1
     sa.UniqueConstraint("id", "funnel_stage_id", name="goals_id_funnel_stage_id_key"),
 )
-primary_kpis = _reference_table("primary_kpis")
 performance_ratings = _reference_table("performance_ratings", sa.Column("description", sa.TEXT()))
 scale_or_cut_options = _reference_table("scale_or_cut_options", sa.Column("description", sa.TEXT()))
 # Used by event details
@@ -303,7 +302,7 @@ markets = _reference_table(
 expense_types = _reference_table(
     "expense_types",
     sa.Column("description", sa.TEXT()),
-    # Where costs of this type come from: entered in this portal, or fed by the travel management system
+    # Where costs of this type come from: entered in this portal, or fed by a travel system (Navan)
     sa.Column("source", sa.VARCHAR(length=20), nullable=False),
     sa.CheckConstraint("source IN ('PORTAL', 'TRAVEL_SYSTEM')", name="expense_types_source_check"),
 )
@@ -358,7 +357,6 @@ initiatives = sa.Table(
     sa.Column("status", sa.VARCHAR(length=20), nullable=False, server_default=sa.text("'PLANNED'::character varying")),
     sa.Column("funnel_stage_id", sa.INTEGER(), sa.ForeignKey("funnel_stages.id", name="initiatives_funnel_stage_id_fkey")),
     sa.Column("goal_id", sa.INTEGER(), sa.ForeignKey("goals.id", name="initiatives_goal_id_fkey")),
-    sa.Column("primary_kpi_id", sa.INTEGER(), sa.ForeignKey("primary_kpis.id", name="initiatives_primary_kpi_id_fkey")),
     # The market whose monthly budget the initiative's costs count against; empty counts as Unassigned
     sa.Column("market_id", sa.INTEGER(), sa.ForeignKey("markets.id", name="initiatives_market_id_fkey")),
     sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
@@ -411,12 +409,15 @@ event_details = sa.Table(
     sa.Column("event_url", sa.VARCHAR(length=500)),
     # In-person events only: lets costs be compared across events (cost per m²)
     sa.Column("booth_size_sqm", sa.NUMERIC(precision=8, scale=2)),
-    # Flights, hotels, ground transport and stipends, in the event's currency. Sent to the travel system and
-    # always less than the event budget (checked in the service, since the budget lives on initiatives)
+    # Planned travel spend (flights, hotels, ground transport and stipends) in the event's currency: the estimate
+    # Navan costs are compared with. Always less than the event budget (checked in the service, since the budget lives on initiatives)
     sa.Column("travel_budget_amount", sa.NUMERIC(precision=14, scale=2)),
     # The Navan event this event's bookings come from (Navan has no event ids in its API, only names).
     # Empty: a Navan event with exactly this event's name is used. One Navan event links to one event.
     sa.Column("navan_event_name", sa.VARCHAR(length=255)),
+    # Navan's travel estimate for the event, in the event's currency: set by hand, or by the Navan sync when Navan
+    # gives one (only its demo mode does today: Navan's API has bookings, not event estimates)
+    sa.Column("navan_estimate_amount", sa.NUMERIC(precision=14, scale=2)),
     sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="event_details_created_by_fkey", ondelete="SET NULL")),
@@ -426,6 +427,7 @@ event_details = sa.Table(
     sa.CheckConstraint("event_url ~* '^https?://'", name="event_details_event_url_check"),
     sa.CheckConstraint("booth_size_sqm > 0", name="event_details_booth_size_check"),
     sa.CheckConstraint("travel_budget_amount >= 0", name="event_details_travel_budget_check"),
+    sa.CheckConstraint("navan_estimate_amount >= 0", name="event_details_navan_estimate_check"),
     sa.Index("event_details_navan_event_key", sa.text("lower(navan_event_name)"), unique=True),
 )
 
@@ -458,12 +460,12 @@ evaluation_defaults = sa.Table(
     sa.Column("sub_channel_id", sa.INTEGER(), sa.ForeignKey("sub_channels.id", name="evaluation_defaults_sub_channel_id_fkey", ondelete="CASCADE"), primary_key=True),
     sa.Column("funnel_stage_id", sa.INTEGER(), sa.ForeignKey("funnel_stages.id", name="evaluation_defaults_funnel_stage_id_fkey")),
     sa.Column("goal_id", sa.INTEGER(), sa.ForeignKey("goals.id", name="evaluation_defaults_goal_id_fkey")),
-    sa.Column("primary_kpi_id", sa.INTEGER(), sa.ForeignKey("primary_kpis.id", name="evaluation_defaults_primary_kpi_id_fkey")),
     # Days after the initiative ends before its rating is final (revenue arrives late)
     sa.Column("maturity_days", sa.INTEGER(), nullable=False, server_default=sa.text("180")),
 )
 
-# One initiative's success settings: the target for its primary KPI and how long to wait before judging
+# One initiative's success settings: how long to wait before judging. target_value (the old KPI target) is no
+# longer read or written by the API; scripts/seed_sample_initiatives.py still fills it.
 initiative_evaluations = sa.Table(
     "initiative_evaluations", metadata,
     sa.Column("initiative_id", sa.UUID(), sa.ForeignKey("initiatives.id", name="initiative_evaluations_initiative_id_fkey", ondelete="CASCADE"), primary_key=True),
@@ -490,31 +492,14 @@ initiative_decisions = sa.Table(
     sa.Index("idx_initiative_decisions_initiative", "initiative_id", "decided_at"),
 )
 
-# Staff going to an event, with what the travel management system needs to book them. This portal records who goes
-# and what they need; flights, hotels, Ubers, stipends and cargo are booked in the travel system, which reads these
-# rows (GET /api/integrations/travel/events) and can report back how far booking has got (travel_status).
+# Staff going to an event: who, their role and notes. Travel is booked in Navan, not recorded here.
 event_staff = sa.Table(
     "event_staff", metadata,
     sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
     sa.Column("initiative_id", sa.UUID(), sa.ForeignKey("initiatives.id", name="event_staff_initiative_id_fkey", ondelete="CASCADE"), nullable=False),
     sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", name="event_staff_user_id_fkey", ondelete="CASCADE"), nullable=False),
     sa.Column("role", sa.VARCHAR(length=30), nullable=False, server_default=sa.text("'BOOTH_STAFF'")),
-    # False for people who are local or attend online: nothing to book
-    sa.Column("travel_needed", sa.BOOLEAN(), nullable=False, server_default=sa.text("true")),
-    # Where they travel from (city or airport)
-    sa.Column("departs_from", sa.VARCHAR(length=120)),
-    sa.Column("arrive_on", sa.DATE()),
-    sa.Column("depart_on", sa.DATE()),
-    sa.Column("needs_flight", sa.BOOLEAN(), nullable=False, server_default=sa.text("true")),
-    sa.Column("needs_hotel", sa.BOOLEAN(), nullable=False, server_default=sa.text("true")),
-    sa.Column("needs_ground_transport", sa.BOOLEAN(), nullable=False, server_default=sa.text("true")),
-    sa.Column("needs_stipend", sa.BOOLEAN(), nullable=False, server_default=sa.text("true")),
-    # Gear or materials travelling with them (drones, booth kit…), for the travel system's cargo booking
-    sa.Column("cargo_note", sa.VARCHAR(length=255)),
     sa.Column("notes", sa.TEXT()),
-    # Reported by the travel management system once it picks the assignment up: REQUESTED, BOOKED or CANCELLED
-    sa.Column("travel_status", sa.VARCHAR(length=20)),
-    sa.Column("travel_status_at", postgresql.TIMESTAMP(timezone=True)),
     sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="event_staff_created_by_fkey", ondelete="SET NULL")),
@@ -523,8 +508,6 @@ event_staff = sa.Table(
     sa.CheckConstraint(
         "role IN ('LEAD', 'BOOTH_STAFF', 'DEMO', 'SPEAKER', 'SETUP', 'EXECUTIVE', 'OTHER')", name="event_staff_role_check"
     ),
-    sa.CheckConstraint("depart_on IS NULL OR arrive_on IS NULL OR depart_on >= arrive_on", name="event_staff_dates_check"),
-    sa.CheckConstraint("travel_status IN ('REQUESTED', 'BOOKED', 'CANCELLED')", name="event_staff_travel_status_check"),
     sa.Index("idx_event_staff_initiative", "initiative_id"),
 )
 
@@ -584,14 +567,14 @@ import_batches = sa.Table(
     sa.CheckConstraint(
         "kind IN ('COST_SHEET', 'EVENTS', 'GOOGLE_ADS', 'MICROSOFT_ADS', 'ADS_RESULTS', 'BUDGETS')", name="import_batches_kind_check",
     ),
-    sa.CheckConstraint("status IN ('PREVIEW', 'CONFIRMED', 'UNDONE', 'EXPIRED')", name="import_batches_status_check"),
+    sa.CheckConstraint("status IN ('PREVIEW', 'CONFIRMED', 'UNDONE', 'EXPIRED', 'REPLACED')", name="import_batches_status_check"),
     sa.Index("idx_import_batches_initiative", "initiative_id"),
 )
 
 
 # --- Costs against an initiative ---
-# Supplier costs move ESTIMATED → COMMITTED → INVOICED → PAID. Travel and anything staff claim back
-# come from the travel management system (source TRAVEL_FEED) and are never typed in here.
+# Supplier costs move ESTIMATED → COMMITTED → INVOICED → PAID. Travel comes from Navan (source NAVAN) and is never
+# typed in here; TRAVEL_FEED stays allowed for lines left over from the old travel feed.
 # Invoices: only the supplier's invoice number is stored, never the file — Finance keeps the invoices.
 spend_lines = sa.Table(
     "spend_lines", metadata,
@@ -767,7 +750,7 @@ budget_comments = sa.Table(
 
 
 # --- Syncs with other systems ---
-# One row per sync (e.g. 'travel_costs'): where the last fully successful run got to, and how the last run went.
+# One row per sync (e.g. 'navan_costs'): where the last fully successful run got to, and how the last run went.
 integration_sync_state = sa.Table(
     "integration_sync_state", metadata,
     sa.Column("name", sa.TEXT(), primary_key=True),

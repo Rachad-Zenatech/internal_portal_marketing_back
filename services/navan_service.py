@@ -8,6 +8,8 @@ Settings (in .env):
 - NAVAN_TOKEN_URL: defaults to Navan's standard one (EU accounts use app-fra.navan.com).
 - NAVAN_API_BASE: defaults to https://api.navan.com
 - NAVAN_LOOKBACK_DAYS: how far back to read bookings by creation date (default 365).
+- NAVAN_MODE: "live" (default) reads Navan; "demo" makes the sync use generated bookings for the demo events
+  instead (services/navan_demo_service.py), without calling Navan.
 """
 
 import datetime
@@ -32,6 +34,13 @@ TIMEOUT_SECONDS = 60
 # Bookings in these states cost nothing
 INACTIVE_STATUSES = {"CANCELED", "CANCELLED", "VOIDED"}
 
+# Booking types kept apart in an event's cost (Navan's bookingType); any other type counts as OTHER
+BOOKING_TYPES = ("FLIGHT", "HOTEL", "CAR", "RAIL")
+OTHER_BOOKING_TYPE = "OTHER"
+
+LIVE_MODE = "live"
+DEMO_MODE = "demo"
+
 # Navan sends country names; events store two-letter codes
 COUNTRY_CODES = {
     "UNITED STATES": "US", "UNITED STATES OF AMERICA": "US", "USA": "US", "CANADA": "CA", "UNITED KINGDOM": "GB",
@@ -45,6 +54,17 @@ class NavanUnavailable(Exception):
 
 def _setting(name: str) -> str:
     return (os.getenv(name) or "").strip()
+
+
+def navan_mode() -> str:
+    """"demo" when NAVAN_MODE is demo (generated bookings, Navan isn't called), else "live"."""
+    return DEMO_MODE if _setting("NAVAN_MODE").lower() == DEMO_MODE else LIVE_MODE
+
+
+def booking_type(value: Any) -> str:
+    """FLIGHT, HOTEL, CAR, RAIL, or OTHER for anything else."""
+    kind = str(value or "").strip().upper()
+    return kind if kind in BOOKING_TYPES else OTHER_BOOKING_TYPE
 
 
 def navan_configured() -> bool:
@@ -122,8 +142,10 @@ def summarize_events(bookings: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]
     """Active booking totals per Navan event, keyed by the lower-cased event name.
 
     {"daas grand opening": {"name": "DaaS Grand Opening", "bookings": 12, "first_travel": date, "last_travel": date,
-                            "city": "Mesa", "country_code": "US", "totals": {"USD": Decimal("7437.52")}}}
-    The city is where most of the event's hotel nights are (else its flights land). Events whose bookings are all
+                            "city": "Mesa", "country_code": "US", "totals": {"USD": Decimal("7437.52")},
+                            "by_type": {("FLIGHT", "USD"): {"amount": Decimal("5365.90"), "bookings": 8}, ...}}}
+    totals is everything active per currency; by_type splits it by booking type (services.navan_service.booking_type)
+    and currency. The city is where most of the event's hotel nights are (else its flights land). Events whose bookings are all
     cancelled are kept with no totals, so their cost is removed.
     """
     events: Dict[str, Dict[str, Any]] = {}
@@ -134,7 +156,7 @@ def summarize_events(bookings: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]
             continue
         event = events.setdefault(name.lower(), {
             "name": name, "bookings": 0, "first_travel": None, "last_travel": None, "city": None,
-            "country_code": None, "totals": {},
+            "country_code": None, "totals": {}, "by_type": {},
         })
         if str(booking.get("bookingStatus") or "").upper() in INACTIVE_STATUSES:
             continue
@@ -144,6 +166,10 @@ def summarize_events(bookings: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]
             continue
         event["bookings"] += 1
         event["totals"][currency] = event["totals"].get(currency, Decimal(0)) + amount
+        part = event["by_type"].setdefault((booking_type(booking.get("bookingType")), currency),
+                                           {"amount": Decimal(0), "bookings": 0})
+        part["amount"] += amount
+        part["bookings"] += 1
         start = _date(booking.get("startDate"))
         if start and (event["first_travel"] is None or start < event["first_travel"]):
             event["first_travel"] = start
