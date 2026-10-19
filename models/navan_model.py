@@ -52,6 +52,8 @@ class NavanSyncSummary(BaseModel):
     conflicts: int
     # Events whose Navan estimate was set from the source's estimate
     estimates_updated: int = 0
+    # Events whose status (by their dates) or missing city was brought up to date
+    events_updated: int = 0
     events: list[NavanEvent]
 
 

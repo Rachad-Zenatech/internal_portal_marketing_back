@@ -80,7 +80,8 @@ _run_lock = asyncio.Lock()
 
 # $1: only events whose name starts with this (demo mode), or null for every event
 _EVENTS_SQL = """
-    SELECT i.id, i.name, i.currency, ed.navan_event_name, ed.navan_estimate_amount
+    SELECT i.id, i.name, i.currency, i.status, i.start_date, i.end_date, ed.city, ed.country_code,
+           ed.navan_event_name, ed.navan_estimate_amount
     FROM initiatives i
     JOIN channels c ON c.id = i.channel_id AND c.code = 'EVENTS'
     JOIN event_details ed ON ed.initiative_id = i.id
@@ -136,10 +137,56 @@ def navan_create_events() -> bool:
     return os.getenv("NAVAN_CREATE_EVENTS", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def navan_ignored_events() -> set:
+    """Navan event names the sync leaves alone (NAVAN_IGNORE_EVENTS, separated by commas), lower-cased: names that
+    appear on bookings but aren't group events in Navan, e.g. a deleted event."""
+    raw = os.getenv("NAVAN_IGNORE_EVENTS", "")
+    return {name.strip().lower() for name in raw.split(",") if name.strip()}
+
+
 def _status_for(start: Optional[datetime.date], end: Optional[datetime.date], today: datetime.date) -> str:
+    """By the event's own dates (Navan's API has no event status): Upcoming (PLANNED) before it starts, In progress
+    (ACTIVE) while it's on, Completed after it ends."""
     if start is None or start > today:
         return "PLANNED"
     return "COMPLETED" if (end or start) < today else "ACTIVE"
+
+
+# Statuses someone set on purpose: the sync leaves these alone
+_KEEP_STATUSES = {"DRAFT", "PAUSED", "CANCELLED"}
+
+
+async def _update_events(conn, navan_events, links, our_events, summary: Dict[str, Any], audits: list) -> None:
+    """Keep each linked event in step with Navan without creating anything: its status by its dates (Upcoming,
+    In progress, Completed; the dates people may have corrected) and its city and country when they're missing.
+    Dates are never changed: Navan's API only gives travel dates."""
+    today = datetime.date.today()
+    ours = {e["id"]: e for e in our_events}
+    for key, link in links.items():
+        event, navan = ours.get(link["initiative_id"]), navan_events.get(key)
+        if event is None or navan is None:
+            continue
+        changes: Dict[str, Any] = {}
+        if event["status"] not in _KEEP_STATUSES:
+            status = _status_for(event["start_date"], event["end_date"], today)
+            if status != event["status"]:
+                await conn.execute(
+                    "UPDATE initiatives SET status = $2, updated_at = now() WHERE id = $1", event["id"], status
+                )
+                changes["status"] = (event["status"], status)
+        if not event["city"] and navan.get("city"):
+            await conn.execute(
+                "UPDATE event_details SET city = $2, country_code = COALESCE(country_code, $3), updated_at = now() "
+                "WHERE initiative_id = $1",
+                event["id"], navan["city"], navan.get("country_code"),
+            )
+            changes["city"] = (event["city"], navan["city"])
+        if changes:
+            audits.append((
+                INITIATIVE_AUDIT_ENTITY, "UPDATE", event["id"], {k: v[0] for k, v in changes.items()},
+                {**{k: v[1] for k, v in changes.items()}, "source": "NAVAN"},
+            ))
+            summary["events_updated"] += 1
 
 
 async def _create_events(conn, navan_events, links, summary: Dict[str, Any]) -> None:
@@ -284,6 +331,9 @@ async def _apply_estimates(conn, estimates, links, our_events, summary: Dict[str
 
 async def _apply(conn, navan_events, summary: Dict[str, Any], estimates: Optional[Dict[str, Dict[str, Any]]] = None) -> None:
     demo = navan_mode() == DEMO_MODE
+    # Names on bookings that aren't group events in Navan: never linked, created or changed
+    ignored = navan_ignored_events()
+    navan_events = {key: event for key, event in navan_events.items() if key not in ignored}
     wanted = sorted(set(BOOKING_TYPE_CATEGORIES.values()))
     categories = {
         r["code"]: r["id"]
@@ -407,13 +457,14 @@ async def _apply(conn, navan_events, summary: Dict[str, Any], estimates: Optiona
         summary["removed"] += 1
 
     await _apply_estimates(conn, estimates, links, our_events, summary, audits)
+    await _update_events(conn, navan_events, links, our_events, summary, audits)
     await _audit(conn, audits)
 
 
 def _empty_summary() -> Dict[str, Any]:
     return {
         "mode": navan_mode(), "bookings": 0, "linked": 0, "events_created": 0, "created": 0, "updated": 0,
-        "removed": 0, "conflicts": 0, "estimates_updated": 0, "events": [],
+        "removed": 0, "conflicts": 0, "estimates_updated": 0, "events_updated": 0, "events": [],
     }
 
 

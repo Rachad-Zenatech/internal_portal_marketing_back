@@ -349,7 +349,7 @@ def test_sync_adds_missing_events(client, admin, ref, monkeypatch):
     assert seen[cancelled_only]["initiative_id"] is None
     created = client.get(f"/api/initiatives/{seen[name]['initiative_id']}", headers=admin["headers"]).json()
     assert (created["name"], created["brand_name"], created["channel_name"], created["status"]) == (
-        name, "TBD/All", "Events", "PLANNED",
+        name, "TBD/All", "Events", "PLANNED",  # Upcoming: it hasn't started
     )
     assert (created["start_date"], created["end_date"], created["city"], created["country_code"]) == (
         "2090-05-04", "2090-05-06", "Tampa", "US",
@@ -367,6 +367,46 @@ def test_sync_adds_missing_events(client, admin, ref, monkeypatch):
     summary = _sync(client, admin, monkeypatch, [*bookings, _booking(other, 99)])
     assert summary["events_created"] == 0
     assert {e["name"]: e for e in summary["events"]}[other]["initiative_id"] is None
+
+
+def test_sync_keeps_linked_events_up_to_date_without_duplicates(client, admin, ref, monkeypatch):
+    """Each sync updates linked events' status by their dates (Upcoming, In progress, Completed), fills a
+    missing city, never changes dates or a status set on purpose, never creates a second event, and leaves ignored
+    Navan names alone."""
+    monkeypatch.setenv("NAVAN_CREATE_EVENTS", "true")
+    past = _event(client, admin, ref, start=date.today() - timedelta(days=10))
+    # An event from before cities were required
+    run_sql("UPDATE event_details SET city = NULL, country_code = NULL WHERE initiative_id = $1", uuid.UUID(past["id"]))
+    upcoming = _event(client, admin, ref, start=date.today() + timedelta(days=5))
+    cancelled = _event(client, admin, ref, start=date.today() - timedelta(days=10))
+    assert client.patch(f"/api/initiatives/{cancelled['id']}", json={"status": "CANCELLED"},
+                        headers=admin["headers"]).status_code == 200
+    stray = f"Pytest Navan Stray {uuid.uuid4().hex[:6]}"
+    monkeypatch.setenv("NAVAN_IGNORE_EVENTS", f"Something Else, {stray.upper()}")
+    bookings = [
+        {**_booking(past["name"], 300, kind="HOTEL"), "destination": {"city": "Mesa", "country": "United States"}},
+        _booking(upcoming["name"], 200),
+        _booking(cancelled["name"], 100),
+        _booking(stray, 50),
+    ]
+
+    summary = _sync(client, admin, monkeypatch, bookings)
+
+    get = lambda e: client.get(f"/api/initiatives/{e['id']}", headers=admin["headers"]).json()  # noqa: E731
+    assert (get(past)["status"], get(past)["city"], get(past)["country_code"]) == ("COMPLETED", "Mesa", "US")
+    assert get(upcoming)["status"] == "PLANNED"
+    assert get(cancelled)["status"] == "CANCELLED"
+    assert (get(past)["start_date"], get(past)["end_date"]) == (past["start_date"], past["end_date"])
+    assert summary["events_updated"] == 1  # the past one; the upcoming one was already Upcoming
+    assert summary["events_created"] == 0
+    assert stray not in {e["name"] for e in summary["events"]}
+    assert run_sql("SELECT count(*) AS n FROM initiatives WHERE name = $1", stray)[0]["n"] == 0
+
+    # Again: nothing new, nothing duplicated
+    summary = _sync(client, admin, monkeypatch, bookings)
+    assert (summary["events_created"], summary["events_updated"], summary["created"]) == (0, 0, 0)
+    for e in (past, upcoming, cancelled):
+        assert run_sql("SELECT count(*) AS n FROM initiatives WHERE name = $1", e["name"])[0]["n"] == 1
 
 
 def test_one_navan_event_per_event(client, admin, ref):
