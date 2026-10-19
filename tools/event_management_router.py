@@ -10,7 +10,8 @@ from models.event_management_model import (
     StaffAssignmentCreate,
     StaffAssignmentUpdate,
 )
-from models.event_performance_model import EventPerformanceResponse, PerformanceTiming
+from models.event_performance_model import EventPerformanceResponse
+from models.initiative_model import InitiativeStatus
 from services.auth_service import require_permission
 from services.event_management_service import (
     EventManagementValidationError,
@@ -40,7 +41,7 @@ async def list_event_overview(
     search: str | None = Query(None, max_length=200),
     timing: Literal["NOW", "UPCOMING", "PAST", "UNSCHEDULED"] | None = None,
 ):
-    """Every event with what still needs doing — staff, travel details, costs, demos, results.
+    """Every event with what still needs doing — staff, costs, demos, results.
 
     On now first, then upcoming (soonest first), then past (most recent first).
     """
@@ -57,20 +58,22 @@ async def list_event_performance(
     date_to: date | None = Query(None, alias="to"),
     brand_id: int | None = None,
     market_id: int | None = None,
-    sub_channel_id: int | None = None,
-    timing: PerformanceTiming | None = None,
+    event_type_id: int | None = None,
+    owner_user_id: UUID | None = None,
+    event_status: InitiativeStatus | None = Query(None, alias="status"),
 ):
-    """How events perform: cost (Travel + Booth + Materials + Staff & other), cost per visitor, lead, demo,
-    follow-up and customer, revenue, ROI and the verdict, per event and in totals per currency.
+    """Events Overview: approved budget, actual spend, budget variance, prior year spend, leads and cost per lead
+    per currency (with the previous period), monthly budget vs actual vs prior year, the funnel, the cost
+    breakdown, and each event with its prior year cost, results and ROI.
 
-    Non-draft events whose dates overlap [from, to]; events without dates are left out.
-    On now first, then upcoming (soonest first), then past (most recent first).
+    Non-draft events in the Events channel whose dates overlap [from, to]; undated events are left out.
+    market_id is the Region filter. Newest start date first.
     """
     if date_from and date_to and date_from > date_to:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="The start of the period can't be after its end.")
     return await fetch_performance(
         date_from=date_from, date_to=date_to, brand_id=brand_id, market_id=market_id,
-        sub_channel_id=sub_channel_id, timing=timing,
+        event_type_id=event_type_id, owner_user_id=owner_user_id, status=event_status,
     )
 
 
@@ -80,7 +83,7 @@ async def list_event_performance(
     dependencies=[Depends(require_permission("INITIATIVES_VIEW"))],
 )
 async def list_staff(initiative_id: UUID):
-    """The team going to an event, with what the travel system still needs to book each person."""
+    """The team going to an event: who, their role and notes."""
     try:
         return await fetch_staff(initiative_id)
     except InitiativeNotFoundError as exc:
@@ -93,7 +96,7 @@ async def add_staff(
     payload: StaffAssignmentCreate,
     user_id: Annotated[UUID, Depends(require_permission("INITIATIVES_UPDATE"))],
 ):
-    """Put someone on an event's team. Without dates, they arrive the day before it starts and leave on the last day."""
+    """Put someone on an event's team."""
     try:
         return await insert_staff(initiative_id, payload, user_id)
     except InitiativeNotFoundError as exc:
