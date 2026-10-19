@@ -3,16 +3,16 @@ from typing import Dict, Type
 
 from services.oauth_adapters.base import BaseOAuthProvider
 from services.oauth_adapters.google_ads import GoogleAdsOAuthProvider
-from services.oauth_adapters.microsoft_ads import MicrosoftAdsOAuthProvider
-from services.oauth_adapters.meta_ads import MetaAdsOAuthProvider
 from services.oauth_adapters.linkedin_ads import LinkedInAdsOAuthProvider
+from services.oauth_adapters.meta_ads import MetaAdsOAuthProvider
+from services.oauth_adapters.microsoft_ads import MicrosoftAdsOAuthProvider
 from services.oauth_adapters.social_adapters import (
-    LinkedInPageOAuthProvider,
-    XTwitterOAuthProvider,
-    InstagramOAuthProvider,
     FacebookPageOAuthProvider,
-    YouTubeOAuthProvider,
+    InstagramOAuthProvider,
+    LinkedInPageOAuthProvider,
     TikTokOAuthProvider,
+    XTwitterOAuthProvider,
+    YouTubeOAuthProvider,
 )
 
 ADAPTER_MAP: Dict[str, Type[BaseOAuthProvider]] = {

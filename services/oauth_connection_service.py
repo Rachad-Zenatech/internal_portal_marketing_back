@@ -3,13 +3,13 @@
 Supports hierarchical multi-entity OAuth:
 Organization -> Companies/Entities -> OAuth connections
 """
+import asyncio
 import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-import asyncpg
 import requests
 
 from models.oauth_connection_model import (
