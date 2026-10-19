@@ -29,6 +29,7 @@ import postgresql_db.database  # noqa: E402,F401
 os.environ["MQTT_PRESENCE_ENABLED"] = "false"
 os.environ["RABBITMQ_ENABLED"] = "false"
 os.environ["TRAVEL_COST_SYNC_ENABLED"] = "false"
+os.environ["NAVAN_COST_SYNC_ENABLED"] = "false"
 # Only this app's own token issuer, whatever a local .env accepts (e.g. the travel system's issuer)
 os.environ["JWT_ACCEPTED_ISSUERS"] = ""
 

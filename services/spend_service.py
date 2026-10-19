@@ -57,7 +57,7 @@ _UPDATABLE_COLUMNS = (
 # --- Locks: the single place that decides what can change on a line (used by GET, PATCH and DELETE) ---
 
 # Costs from these sources update automatically, so nothing on them can be edited or deleted
-_FEED_LOCKS = {"TRAVEL_FEED": "TRAVEL_FEED", "GOOGLE_ADS": "ADS_IMPORT", "MICROSOFT_ADS": "ADS_IMPORT"}
+_FEED_LOCKS = {"TRAVEL_FEED": "TRAVEL_FEED", "NAVAN": "NAVAN", "GOOGLE_ADS": "ADS_IMPORT", "MICROSOFT_ADS": "ADS_IMPORT"}
 # Once a month is reconciled the figures are fixed; description, vendor, note and invoice number stay editable
 _RECONCILED_FIELDS = ("amount", "currency", "incurred_on", "category_id", "estimated_amount", "cost_type")
 # A reconciled line may still move from Invoiced to Paid; after that the payment details are fixed too
@@ -65,6 +65,7 @@ _RECONCILED_PAID_FIELDS = ("status", "paid_on", "payment_method")
 
 _LOCK_MESSAGES = {
     "TRAVEL_FEED": "This cost came from the travel management system and updates automatically.",
+    "NAVAN": "This cost is the total of the event's Navan bookings and updates automatically.",
     "ADS_IMPORT": "This cost came from an ads import and updates automatically.",
 }
 _RECONCILED_STATUS_MESSAGE = "A reconciled cost can only move from Invoiced to Paid."

@@ -26,7 +26,7 @@ _SELECT = """
            ed.event_code, ed.event_type_id, et.name AS event_type_name,
            ed.venue, ed.city, ed.country_code, ed.region_id, r.name AS region_name,
            ed.platform, ed.event_url, ed.booth_size_sqm::float8 AS booth_size_sqm,
-           ed.travel_budget_amount::float8 AS travel_budget_amount,
+           ed.travel_budget_amount::float8 AS travel_budget_amount, ed.navan_event_name,
            COALESCE(sp.expected_total, 0)::float8 AS expected_total,
            COALESCE(sp.actual_amount, 0)::float8 AS actual_amount,
            COALESCE(sp.has_mixed_currencies, false) AS has_mixed_currencies
@@ -74,6 +74,7 @@ _CONSTRAINT_MESSAGES = {
     "event_details_event_url_check": "Event link must start with http:// or https://",
     "event_details_booth_size_check": "Booth size must be more than zero.",
     "event_details_travel_budget_check": "Travel budget can't be negative.",
+    "event_details_navan_event_key": "Another event is already linked to that Navan event.",
 }
 
 EVENTS_CHANNEL = "EVENTS"
@@ -92,7 +93,7 @@ _VIRTUAL_ONLY_FIELDS = ("platform", "event_url")
 
 _EVENT_FIELDS = (
     "event_type_id", "venue", "city", "country_code", "region_id", "platform", "event_url", "booth_size_sqm",
-    "travel_budget_amount",
+    "travel_budget_amount", "navan_event_name",
 )
 _EVENT_COLUMNS = ", ".join(_EVENT_FIELDS)
 # The same columns for reading back, with amounts as floats so they compare equal to what the API received
@@ -278,6 +279,11 @@ async def create_initiative(data: InitiativeCreate, actor_id: UUID) -> dict:
                 await log_audit(conn, actor_id, "CREATE", AUDIT_ENTITY, initiative_id, new_value=values)
         except (asyncpg.ForeignKeyViolationError, asyncpg.CheckViolationError) as exc:
             raise _constraint_error(exc) from exc
+        except asyncpg.UniqueViolationError as exc:
+            # Only the ones people can fix, e.g. a Navan event already linked to another event
+            if getattr(exc, "constraint_name", None) not in _CONSTRAINT_MESSAGES:
+                raise
+            raise _constraint_error(exc) from exc
 
         row = await conn.fetchrow(f"{_SELECT} WHERE i.id = $1", initiative_id)
     return dict(row)
@@ -454,6 +460,11 @@ async def update_initiative(initiative_id: UUID, changes: dict, actor_id: UUID) 
                         old_value=old_value, new_value=new_value,
                     )
         except (asyncpg.ForeignKeyViolationError, asyncpg.CheckViolationError) as exc:
+            raise _constraint_error(exc) from exc
+        except asyncpg.UniqueViolationError as exc:
+            # Only the ones people can fix, e.g. a Navan event already linked to another event
+            if getattr(exc, "constraint_name", None) not in _CONSTRAINT_MESSAGES:
+                raise
             raise _constraint_error(exc) from exc
 
         row = await conn.fetchrow(f"{_SELECT} WHERE i.id = $1", initiative_id)

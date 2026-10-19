@@ -48,6 +48,8 @@ class InitiativeListItem(BaseModel):
     booth_size_sqm: float | None = None
     # Flights, hotels, ground transport and stipends, in the initiative's currency; sent to the travel system
     travel_budget_amount: float | None = None
+    # The Navan event its travel bookings come from; empty means a Navan event with the same name
+    navan_event_name: str | None = None
     # Costs in the initiative's currency: everything expected (estimates included), and invoiced + paid
     expected_total: float = 0
     actual_amount: float = 0
@@ -78,8 +80,11 @@ class EventDetailsInput(BaseModel):
     # Part of the event budget (same currency) for flights, hotels, ground transport and stipends; has to be
     # smaller than the event budget. Sent to the travel system.
     travel_budget_amount: float | None = Field(default=None, ge=0, le=999_999_999_999)
+    # The Navan event its travel bookings come from, exactly as named in Navan. Empty: a Navan event with the
+    # same name as this event is used.
+    navan_event_name: str | None = Field(default=None, max_length=255)
 
-    @field_validator("venue", "city", "country_code", "platform", "event_url", mode="before")
+    @field_validator("venue", "city", "country_code", "platform", "event_url", "navan_event_name", mode="before")
     @classmethod
     def blank_to_none(cls, value: object) -> object:
         if isinstance(value, str):

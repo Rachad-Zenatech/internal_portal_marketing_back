@@ -38,6 +38,7 @@ from services.logging_service import (
     log_background_task_result,
     request_id_ctx,
 )
+from services.navan_cost_sync_job import navan_cost_sync_enabled, navan_cost_sync_loop
 from services.travel_cost_sync_job import travel_cost_sync_enabled, travel_cost_sync_loop
 from services.travel_integration_service import cancel_recovery_tasks as cancel_travel_recovery_tasks
 from tools.ads_router import router as ads_router
@@ -49,6 +50,7 @@ from tools.graph_router import router as graph_router
 from tools.import_router import router as import_router
 from tools.initiative_router import router as initiative_router
 from tools.log_router import router as log_router
+from tools.navan_router import router as navan_router
 from tools.notification_router import notification_router
 from tools.observability import router as observability_router
 from tools.performance_router import router as performance_router
@@ -135,6 +137,17 @@ async def lifespan(app: FastAPI):
         logger.info(
             "Travel cost sync disabled (set TRAVEL_COST_SYNC_ENABLED=true to enable)",
             extra={"event": "travel_cost_sync_disabled"},
+        )
+
+    # Keep each event's Navan travel total (its active bookings) up to date, if enabled
+    if navan_cost_sync_enabled():
+        navan_sync_task = asyncio.create_task(navan_cost_sync_loop(), name="navan-cost-sync")
+        navan_sync_task.add_done_callback(partial(log_background_task_result, task_name="navan-cost-sync"))
+        background_tasks.append(navan_sync_task)
+    else:
+        logger.info(
+            "Navan cost sync disabled (set NAVAN_COST_SYNC_ENABLED=true to enable)",
+            extra={"event": "navan_cost_sync_disabled"},
         )
 
     presence = None
@@ -332,6 +345,7 @@ app.include_router(import_router, prefix="/api", tags=["Spreadsheet uploads"], d
 app.include_router(ads_router, prefix="/api", tags=["Paid ads"], dependencies=authenticated)
 # People asking for a travel cost sync and its status (signed-in users; the travel system's own routes are above)
 app.include_router(travel_sync_router, prefix="/api", tags=["Travel cost sync"], dependencies=authenticated)
+app.include_router(navan_router, prefix="/api", tags=["Navan travel costs"], dependencies=authenticated)
 
 
 # --- Session Middleware ---

@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 SpendStatus = Literal["ESTIMATED", "COMMITTED", "INVOICED", "PAID"]
 PaymentMethod = Literal["AP_INVOICE", "CORPORATE_CARD", "OTHER"]
 CostType = Literal["OPEX", "CAPEX"]
-SpendSource = Literal["MANUAL", "STAFF_CALCULATOR", "COST_SHEET_UPLOAD", "TRAVEL_FEED", "GOOGLE_ADS", "MICROSOFT_ADS"]
+SpendSource = Literal["MANUAL", "STAFF_CALCULATOR", "COST_SHEET_UPLOAD", "TRAVEL_FEED", "GOOGLE_ADS", "MICROSOFT_ADS", "NAVAN"]
 # Sources a person can enter through the API; the rest arrive from imports and feeds
 ManualSpendSource = Literal["MANUAL", "STAFF_CALCULATOR"]
 
@@ -39,7 +39,7 @@ class SpendLineItem(BaseModel):
     cost_type: CostType | None = None
     source: SpendSource
     # Why some fields can't change: a feed or import keeps the line up to date, or Finance reconciled it
-    lock_reason: Literal["TRAVEL_FEED", "ADS_IMPORT", "RECONCILED"] | None = None
+    lock_reason: Literal["TRAVEL_FEED", "NAVAN", "ADS_IMPORT", "RECONCILED"] | None = None
     locked_fields: list[str]
     can_delete: bool
     # False only when every editable field is locked
