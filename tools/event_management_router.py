@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from models.event_management_model import (
     EventOverviewItem,
+    EventTraveller,
     StaffAssignment,
     StaffAssignmentCreate,
     StaffAssignmentUpdate,
@@ -21,6 +22,7 @@ from services.event_management_service import (
 from services.event_management_service import add_staff as insert_staff
 from services.event_management_service import list_event_overview as fetch_overview
 from services.event_management_service import list_staff as fetch_staff
+from services.event_management_service import list_travellers as fetch_travellers
 from services.event_management_service import remove_staff as delete_staff
 from services.event_management_service import update_staff as save_staff_changes
 from services.event_performance_service import list_event_performance as fetch_performance
@@ -86,6 +88,19 @@ async def list_staff(initiative_id: UUID):
     """The team going to an event: who, their role and notes."""
     try:
         return await fetch_staff(initiative_id)
+    except InitiativeNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found") from exc
+
+
+@router.get(
+    "/initiatives/{initiative_id}/travellers",
+    response_model=list[EventTraveller],
+    dependencies=[Depends(require_permission("INITIATIVES_VIEW"))],
+)
+async def list_travellers(initiative_id: UUID):
+    """The people travelling to an event, from its active Navan bookings (kept by the Navan sync), by name."""
+    try:
+        return await fetch_travellers(initiative_id)
     except InitiativeNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found") from exc
 

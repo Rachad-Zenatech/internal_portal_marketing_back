@@ -25,6 +25,7 @@ def event(client, admin, ref):
             "channel_id": ref["channels"]["EVENTS"],
             "sub_channel_id": ref["sub_channels"]["IN_PERSON_EVENTS"],
             "currency": "GBP",
+            "budget_amount": 0,
             "event": {"city": "London", "country_code": "GB"},
         },
         headers=admin["headers"],

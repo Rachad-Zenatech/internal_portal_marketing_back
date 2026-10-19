@@ -32,8 +32,8 @@ def test_create_initiative(client, admin, ref):
     assert body["channel_name"] == "Events"
     assert body["sub_channel_name"] == "In-Person Events"
     assert body["goal_name"] == "Demos"
-    # No KPI is set when an initiative is created
-    assert not any("kpi" in key for key in body)
+    # A KPI is optional
+    assert (body["primary_kpi"], body["kpi_target"]) == (None, None)
     assert body["currency"] == "USD"
     assert body["status"] == "PLANNED"
     # Owner defaults to the person creating it
@@ -47,12 +47,13 @@ def test_create_initiative(client, admin, ref):
 
 
 def test_create_initiative_minimal_fields(client, admin, ref):
-    payload = {"name": "Pytest SEO", "brand_id": ref["brands"]["TBD_ALL"], "channel_id": ref["channels"]["SEO"]}
+    """A draft only needs a name, brand and channel."""
+    payload = {"name": "Pytest SEO", "brand_id": ref["brands"]["TBD_ALL"], "channel_id": ref["channels"]["SEO"], "status": "DRAFT"}
 
     response = client.post("/api/initiatives", json=payload, headers=admin["headers"])
 
     assert response.status_code == 201, response.text
-    assert response.json()["sub_channel_id"] is None
+    assert (response.json()["sub_channel_id"], response.json()["budget_amount"]) == (None, None)
 
 
 @pytest.mark.parametrize(
@@ -113,9 +114,9 @@ def test_owner_options_requires_view_permission(client, viewer):
 def test_list_several_channels_at_once(client, admin, ref):
     """The sidebar's "Other channels" lists every channel that doesn't have its own link."""
     tag = "Pytest Channels Filter"
-    seo = client.post("/api/initiatives", json={"name": f"{tag} SEO", "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["SEO"]}, headers=admin["headers"]).json()
-    pr = client.post("/api/initiatives", json={"name": f"{tag} PR", "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["PR_COMMUNICATIONS"]}, headers=admin["headers"]).json()
-    partner = client.post("/api/initiatives", json={"name": f"{tag} Partner", "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["PARTNERSHIPS"]}, headers=admin["headers"]).json()
+    seo = client.post("/api/initiatives", json={"name": f"{tag} SEO", "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["SEO"], "status": "DRAFT"}, headers=admin["headers"]).json()
+    pr = client.post("/api/initiatives", json={"name": f"{tag} PR", "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["PR_COMMUNICATIONS"], "status": "DRAFT"}, headers=admin["headers"]).json()
+    partner = client.post("/api/initiatives", json={"name": f"{tag} Partner", "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["PARTNERSHIPS"], "status": "DRAFT"}, headers=admin["headers"]).json()
 
     response = client.get(
         "/api/initiatives",

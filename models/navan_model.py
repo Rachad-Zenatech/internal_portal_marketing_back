@@ -32,6 +32,8 @@ class NavanEvent(BaseModel):
     # Navan's estimate for the event, when the source gives one (only demo mode does)
     estimate: NavanTotal | None = None
     first_travel: str | None = None
+    # People on its active bookings
+    travellers: int = 0
     initiative_id: str | None = None
     initiative_name: str | None = None
     # SET: the event's "Navan event" names it. NAME_MATCH: the event has the same name.
@@ -52,6 +54,12 @@ class NavanSyncSummary(BaseModel):
     conflicts: int
     # Events whose Navan estimate was set from the source's estimate
     estimates_updated: int = 0
+    # Events whose status (by their dates) or missing city was brought up to date
+    events_updated: int = 0
+    # Travellers on linked events (event_travellers rows) added, changed and removed
+    travellers_added: int = 0
+    travellers_updated: int = 0
+    travellers_removed: int = 0
     events: list[NavanEvent]
 
 

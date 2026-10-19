@@ -81,3 +81,59 @@ def test_category_defaults(cost_lists):
     assert by_code["MEDIA_ADS"]["applies_to"] == "ADS"
     assert by_code["STAFF_TIME"]["applies_to"] == "ALL"
     assert by_code["FREIGHT"]["applies_to"] == "EVENTS"
+
+
+CONTRACT_KPIS = {
+    "COST_PER_LEAD": "MONEY", "COST_PER_MQL": "MONEY", "CAC": "MONEY", "ROI": "PERCENT", "LEADS": "COUNT",
+    "MQLS": "COUNT", "SQLS": "COUNT", "DEMOS": "COUNT", "CUSTOMERS": "COUNT", "CONVERSIONS": "COUNT",
+    "CONVERSION_RATE": "PERCENT", "CTR": "PERCENT", "CPC": "MONEY", "IMPRESSIONS": "COUNT", "REACH": "COUNT",
+    "ENGAGEMENT_RATE": "PERCENT", "WEBSITE_TRAFFIC": "COUNT", "ORGANIC_TRAFFIC": "COUNT", "PAGE_VIEWS": "COUNT",
+    "OPPORTUNITIES": "COUNT", "EMAIL_OPEN_RATE": "PERCENT", "EMAIL_CLICK_RATE": "PERCENT", "FOLLOWERS": "COUNT",
+}
+
+
+def test_primary_kpis_have_units(client, viewer):
+    kpis = client.get("/api/reference-data", headers=viewer["headers"]).json()["primary_kpis"]
+
+    assert {k["code"]: k["unit"] for k in kpis} == CONTRACT_KPIS
+    assert [k["sort_order"] for k in kpis] == sorted(k["sort_order"] for k in kpis)
+    assert all(k["name"] and isinstance(k["id"], int) for k in kpis)
+
+
+def test_choices_for_the_wizard(client, viewer):
+    choices = client.get("/api/reference-data", headers=viewer["headers"]).json()["choices"]
+
+    codes = {field: [c["code"] for c in options] for field, options in choices.items()}
+    assert codes["campaign_objective"] == ["AWARENESS", "TRAFFIC", "LEADS", "CONVERSIONS", "ENGAGEMENT", "VIDEO_VIEWS"]
+    assert codes["focus_area"] == ["TECHNICAL", "CONTENT", "LINK_BUILDING", "LOCAL", "OTHER"]
+    assert codes["content_type"] == ["BLOG_POST", "CASE_STUDY", "WHITEPAPER", "EBOOK", "VIDEO", "WEBINAR", "INFOGRAPHIC", "OTHER"]
+    assert codes["email_platform"] == ["HUBSPOT", "MAILCHIMP", "OTHER"]
+    assert codes["partnership_type"] == ["REFERRAL", "RESELLER", "CO_MARKETING", "SPONSORSHIP", "TECHNOLOGY", "OTHER"]
+    assert codes["link_system"] == ["HUBSPOT", "GOOGLE_ADS", "MICROSOFT_ADS", "LINKEDIN_ADS", "META_ADS"]
+    assert codes["data_source"] == ["LINKED", "MANUAL", "LATER"]
+    assert choices["revenue_basis"] == [{"code": "CLOSED_REVENUE", "name": "Closed revenue"}]
+    assert all(c["name"] for options in choices.values() for c in options)
+
+
+def test_organic_social_channel(client, viewer):
+    body = client.get("/api/reference-data", headers=viewer["headers"]).json()
+    channels = body["channels"]
+    subs = {s["id"]: s for s in body["sub_channels"]}
+
+    codes = [c["code"] for c in channels]
+    assert codes.index("ORGANIC_SOCIAL") == codes.index("PAID_SOCIAL") + 1
+    organic = next(c for c in channels if c["code"] == "ORGANIC_SOCIAL")
+    assert organic["name"] == "Organic Social"
+    assert [subs[i]["name"] for i in organic["sub_channel_ids"]] == [
+        "LinkedIn", "Instagram", "YouTube", "Facebook", "X (Twitter)", "TikTok", "Other",
+    ]
+    assert organic["sub_channel_required"] is True
+    assert next(c for c in channels if c["code"] == "OTHER")["sub_channel_required"] is False
+
+    # Each platform pre-fills engagement with a 90-day window; the shared Other has no default
+    defaults = {d["sub_channel_id"]: d for d in body["evaluation_defaults"]}
+    stage = next(s["id"] for s in body["funnel_stages"] if s["code"] == "AWARENESS")
+    goal = next(g["id"] for g in body["goals"] if g["code"] == "ENGAGEMENT")
+    platforms = [i for i in organic["sub_channel_ids"] if subs[i]["code"] != "OTHER"]
+    assert all((defaults[i]["funnel_stage_id"], defaults[i]["goal_id"], defaults[i]["maturity_days"]) == (stage, goal, 90) for i in platforms)
+    assert "ORGANIC_SOCIAL" in body["result_metrics_by_channel"]

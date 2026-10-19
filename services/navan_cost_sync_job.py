@@ -31,6 +31,13 @@ How a run works:
 - NAVAN_MODE=demo reads generated bookings for the demo events (services/navan_demo_service.py) instead of Navan,
   through the same steps, and only looks at demo events and their lines: real events and their Navan costs are
   left alone. Its run state is kept apart from the live one (integration_sync_state "navan_costs_demo").
+- Each linked event whose bookings were read gets its list of travellers (event_travellers): one row per person on
+  its active bookings (Navan's person uuid, else their email, else their name) with what they booked, how many
+  bookings, their share of the cost in the event's currency (bookings in other currencies are counted but left out
+  of the amount, like the cost lines), and their first and last day of travel. Only their name, email and
+  department are kept from Navan, never passports or HR details. A portal user with the same email (any case) is
+  linked. The list is replaced when it changes, with one audit entry on the event giving the number of travellers;
+  events whose bookings weren't read keep theirs, by the same rule as cost lines.
 - Travel never counts against a marketing budget (services/budget_service), only toward the event's cost and ROI.
 - Every write, its audit entry and the run summary are saved in one transaction.
 """
@@ -52,6 +59,7 @@ from services.navan_service import (
     fetch_navan_bookings,
     navan_mode,
     summarize_events,
+    summarize_travellers,
 )
 from services.spend_service import AUDIT_ENTITY as SPEND_AUDIT_ENTITY
 
@@ -80,7 +88,8 @@ _run_lock = asyncio.Lock()
 
 # $1: only events whose name starts with this (demo mode), or null for every event
 _EVENTS_SQL = """
-    SELECT i.id, i.name, i.currency, ed.navan_event_name, ed.navan_estimate_amount
+    SELECT i.id, i.name, i.currency, i.status, i.start_date, i.end_date, ed.city, ed.country_code,
+           ed.navan_event_name, ed.navan_estimate_amount
     FROM initiatives i
     JOIN channels c ON c.id = i.channel_id AND c.code = 'EVENTS'
     JOIN event_details ed ON ed.initiative_id = i.id
@@ -136,10 +145,56 @@ def navan_create_events() -> bool:
     return os.getenv("NAVAN_CREATE_EVENTS", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def navan_ignored_events() -> set:
+    """Navan event names the sync leaves alone (NAVAN_IGNORE_EVENTS, separated by commas), lower-cased: names that
+    appear on bookings but aren't group events in Navan, e.g. a deleted event."""
+    raw = os.getenv("NAVAN_IGNORE_EVENTS", "")
+    return {name.strip().lower() for name in raw.split(",") if name.strip()}
+
+
 def _status_for(start: Optional[datetime.date], end: Optional[datetime.date], today: datetime.date) -> str:
+    """By the event's own dates (Navan's API has no event status): Upcoming (PLANNED) before it starts, In progress
+    (ACTIVE) while it's on, Completed after it ends."""
     if start is None or start > today:
         return "PLANNED"
     return "COMPLETED" if (end or start) < today else "ACTIVE"
+
+
+# Statuses someone set on purpose: the sync leaves these alone
+_KEEP_STATUSES = {"DRAFT", "PAUSED", "CANCELLED"}
+
+
+async def _update_events(conn, navan_events, links, our_events, summary: Dict[str, Any], audits: list) -> None:
+    """Keep each linked event in step with Navan without creating anything: its status by its dates (Upcoming,
+    In progress, Completed; the dates people may have corrected) and its city and country when they're missing.
+    Dates are never changed: Navan's API only gives travel dates."""
+    today = datetime.date.today()
+    ours = {e["id"]: e for e in our_events}
+    for key, link in links.items():
+        event, navan = ours.get(link["initiative_id"]), navan_events.get(key)
+        if event is None or navan is None:
+            continue
+        changes: Dict[str, Any] = {}
+        if event["status"] not in _KEEP_STATUSES:
+            status = _status_for(event["start_date"], event["end_date"], today)
+            if status != event["status"]:
+                await conn.execute(
+                    "UPDATE initiatives SET status = $2, updated_at = now() WHERE id = $1", event["id"], status
+                )
+                changes["status"] = (event["status"], status)
+        if not event["city"] and navan.get("city"):
+            await conn.execute(
+                "UPDATE event_details SET city = $2, country_code = COALESCE(country_code, $3), updated_at = now() "
+                "WHERE initiative_id = $1",
+                event["id"], navan["city"], navan.get("country_code"),
+            )
+            changes["city"] = (event["city"], navan["city"])
+        if changes:
+            audits.append((
+                INITIATIVE_AUDIT_ENTITY, "UPDATE", event["id"], {k: v[0] for k, v in changes.items()},
+                {**{k: v[1] for k, v in changes.items()}, "source": "NAVAN"},
+            ))
+            summary["events_updated"] += 1
 
 
 async def _create_events(conn, navan_events, links, summary: Dict[str, Any]) -> None:
@@ -282,8 +337,111 @@ async def _apply_estimates(conn, estimates, links, our_events, summary: Dict[str
         summary["estimates_updated"] += 1
 
 
-async def _apply(conn, navan_events, summary: Dict[str, Any], estimates: Optional[Dict[str, Dict[str, Any]]] = None) -> None:
+# What a traveller row holds, in the order it's compared
+_TRAVELLER_FIELDS = (
+    "name", "email", "department", "booking_types", "bookings", "amount", "currency", "first_travel", "last_travel",
+)
+
+# Links each traveller of the given events to the portal user with the same email (any case), or none
+_LINK_TRAVELLER_USERS_SQL = """
+    UPDATE event_travellers t SET user_id = m.user_id
+    FROM (
+        SELECT t2.id, (SELECT u.id FROM users u
+                       WHERE t2.email IS NOT NULL AND lower(u.email) = lower(t2.email) AND u.deleted_at IS NULL
+                       ORDER BY u.id LIMIT 1) AS user_id
+        FROM event_travellers t2 WHERE t2.initiative_id = ANY($1::uuid[])
+    ) m
+    WHERE m.id = t.id AND t.user_id IS DISTINCT FROM m.user_id
+"""
+
+
+def _traveller_rows(people: Dict[str, Dict[str, Any]], currency: str) -> Dict[str, tuple]:
+    """Traveller key -> the row's values (_TRAVELLER_FIELDS) for an event in `currency`."""
+    return {
+        key: (
+            person["name"][:255], person["email"], person["department"], sorted(person["booking_types"]),
+            person["bookings"], Decimal(person["amounts"].get(currency, 0)).quantize(Decimal("0.01")), currency,
+            person["first_travel"], person["last_travel"],
+        )
+        for key, person in people.items()
+    }
+
+
+async def _apply_travellers(conn, travellers, navan_events, links, our_events, our_keys, previous_keys,
+                            summary: Dict[str, Any], audits: list) -> None:
+    """Replace the travellers of each linked event whose bookings were read, when they changed; remove those of an
+    event no longer linked to its Navan event. An event whose Navan event wasn't read keeps its travellers."""
     demo = navan_mode() == DEMO_MODE
+    read = {link["initiative_id"]: key for key, link in links.items() if key in navan_events}
+    currencies = {
+        r["id"]: r["currency"]
+        for r in await conn.fetch("SELECT id, currency FROM initiatives WHERE id = ANY($1::uuid[])", list(read))
+    }
+    current: Dict[Any, Dict[str, tuple]] = {}
+    for r in await conn.fetch(
+        f"""
+        SELECT initiative_id, navan_person_uuid, {', '.join(_TRAVELLER_FIELDS)}
+        FROM event_travellers WHERE $1::uuid[] IS NULL OR initiative_id = ANY($1::uuid[])
+        FOR UPDATE
+        """,
+        [e["id"] for e in our_events] if demo else None,
+    ):
+        current.setdefault(r["initiative_id"], {})[r["navan_person_uuid"]] = tuple(r[f] for f in _TRAVELLER_FIELDS)
+
+    desired: Dict[Any, Dict[str, tuple]] = {
+        initiative_id: _traveller_rows(travellers.get(key, {}), currencies[initiative_id])
+        for initiative_id, key in read.items()
+        if initiative_id in currencies
+    }
+    for initiative_id in current:
+        if initiative_id not in desired and not _keep_absent_line(
+            {"initiative_id": initiative_id}, navan_events, links, our_keys, previous_keys
+        ):
+            desired[initiative_id] = {}
+
+    replaced, rows = [], []
+    for initiative_id, want in desired.items():
+        have = current.get(initiative_id, {})
+        if want == have:
+            continue
+        replaced.append(initiative_id)
+        summary["travellers_added"] += len(want.keys() - have.keys())
+        summary["travellers_removed"] += len(have.keys() - want.keys())
+        summary["travellers_updated"] += sum(1 for k in want.keys() & have.keys() if want[k] != have[k])
+        audits.append((
+            INITIATIVE_AUDIT_ENTITY, "UPDATE", initiative_id, {"navan_travellers": len(have)},
+            {"navan_travellers": len(want), "source": SPEND_SOURCE},
+        ))
+        rows += [
+            {"initiative_id": str(initiative_id), "navan_person_uuid": key, **dict(zip(_TRAVELLER_FIELDS, values))}
+            for key, values in want.items()
+        ]
+    if replaced:
+        await conn.execute("DELETE FROM event_travellers WHERE initiative_id = ANY($1::uuid[])", replaced)
+    if rows:
+        await conn.execute(
+            """
+            INSERT INTO event_travellers (initiative_id, navan_person_uuid, name, email, department, booking_types,
+                                          bookings, amount, currency, first_travel, last_travel, updated_at)
+            SELECT initiative_id, navan_person_uuid, name, email, department, booking_types, bookings, amount,
+                   currency, first_travel, last_travel, clock_timestamp()
+            FROM jsonb_to_recordset(CAST($1 AS jsonb)) AS t(
+                initiative_id uuid, navan_person_uuid varchar, name varchar, email varchar, department varchar,
+                booking_types text[], bookings int, amount numeric, currency char(3), first_travel date,
+                last_travel date)
+            """,
+            json.dumps(rows, default=str),
+        )
+    if read:
+        await conn.execute(_LINK_TRAVELLER_USERS_SQL, list(read))
+
+
+async def _apply(conn, navan_events, summary: Dict[str, Any], estimates: Optional[Dict[str, Dict[str, Any]]] = None,
+                 travellers: Optional[Dict[str, Dict[str, Dict[str, Any]]]] = None) -> None:
+    demo = navan_mode() == DEMO_MODE
+    # Names on bookings that aren't group events in Navan: never linked, created or changed
+    ignored = navan_ignored_events()
+    navan_events = {key: event for key, event in navan_events.items() if key not in ignored}
     wanted = sorted(set(BOOKING_TYPE_CATEGORIES.values()))
     categories = {
         r["code"]: r["id"]
@@ -318,6 +476,8 @@ async def _apply(conn, navan_events, summary: Dict[str, Any], estimates: Optiona
             ],
             "estimate": {"currency": estimate["currency"], "amount": float(estimate["amount"])} if estimate else None,
             "first_travel": event["first_travel"].isoformat() if event["first_travel"] else None,
+            # People on its active bookings
+            "travellers": len((travellers or {}).get(key, {})),
             "initiative_id": str(link["initiative_id"]) if link else None,
             "initiative_name": link["initiative_name"] if link else None,
             "link": link["link"] if link else None,
@@ -406,14 +566,18 @@ async def _apply(conn, navan_events, summary: Dict[str, Any], estimates: Optiona
                                                                   "source": SPEND_SOURCE, "external_ref": ref}, None))
         summary["removed"] += 1
 
+    await _apply_travellers(conn, travellers or {}, navan_events, links, our_events, our_keys, previous_keys, summary,
+                            audits)
     await _apply_estimates(conn, estimates, links, our_events, summary, audits)
+    await _update_events(conn, navan_events, links, our_events, summary, audits)
     await _audit(conn, audits)
 
 
 def _empty_summary() -> Dict[str, Any]:
     return {
         "mode": navan_mode(), "bookings": 0, "linked": 0, "events_created": 0, "created": 0, "updated": 0,
-        "removed": 0, "conflicts": 0, "estimates_updated": 0, "events": [],
+        "removed": 0, "conflicts": 0, "estimates_updated": 0, "events_updated": 0,
+        "travellers_added": 0, "travellers_updated": 0, "travellers_removed": 0, "events": [],
     }
 
 
@@ -456,7 +620,7 @@ async def _run_sync() -> Dict[str, Any]:
         async with conn.transaction():
             if not await conn.fetchval("SELECT pg_try_advisory_xact_lock(hashtext($1))", _SYNC_LOCK_KEY):
                 raise NavanSyncAlreadyRunning()
-            await _apply(conn, navan_events, summary, estimates)
+            await _apply(conn, navan_events, summary, estimates, summarize_travellers(bookings))
             await conn.execute(
                 """
                 INSERT INTO integration_sync_state (name, last_attempt_at, last_success_at, last_error, last_run_summary)

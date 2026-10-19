@@ -49,6 +49,7 @@ def _campaign(client, admin, ref, markets, name, platform="GOOGLE_ADS", brand="O
             "sub_channel_id": ref["sub_channels"][platform],
             "market_id": markets[market],
             "currency": "USD",
+            "budget_amount": 0,
         },
         headers=admin["headers"],
     )
@@ -188,7 +189,8 @@ def test_duplicate_campaign_and_period(client, admin, google):
 def test_only_google_and_bing_campaigns(client, admin, ref, google):
     seo = client.post(
         "/api/initiatives",
-        json={"name": "Pytest SEO", "brand_id": ref["brands"]["OTHERSHIP"], "channel_id": ref["channels"]["SEO"], "currency": "USD"},
+        json={"name": "Pytest SEO", "brand_id": ref["brands"]["OTHERSHIP"], "channel_id": ref["channels"]["SEO"], "currency": "USD",
+              "sub_channel_id": ref["sub_channels"]["ORGANIC_SEARCH"], "budget_amount": 0},
         headers=admin["headers"],
     ).json()
     refused = _create(client, admin, seo)

@@ -39,6 +39,11 @@ def category_id():
     return run_sql("SELECT id FROM spend_categories WHERE code = 'OTHER'")[0]["id"]
 
 
+@pytest.fixture(scope="module")
+def categories_by_code():
+    return {r["code"]: r["id"] for r in run_sql("SELECT id, code FROM spend_categories")}
+
+
 @pytest.fixture
 def initiative_viewer(viewer):
     """The temporary regular user, given only the "View Initiatives" permission group."""
@@ -58,7 +63,9 @@ def _initiative(client, admin, ref, brand, channel, market_id=None):
         "name": f"Pytest Budget {brand} {channel} {uuid.uuid4().hex[:6]}",
         "brand_id": ref["brands"][brand],
         "channel_id": ref["channels"][channel],
+        "sub_channel_id": ref["sub_channels"]["OTHER"],
         "currency": "USD",
+        "budget_amount": 0,
     }
     if market_id is not None:
         body["market_id"] = market_id
@@ -540,3 +547,67 @@ def test_week_starts_on_a_monday(client, admin):
     response = client.get("/api/budgets/week", params={"start": "2090-10-04"}, headers=admin["headers"])
     assert response.status_code == 422
     assert "Monday" in response.json()["detail"]
+
+
+# --- A period of months, and its costs ---
+
+
+def test_period_adds_up_its_months(client, admin, ref, markets, category_id, categories_by_code):
+    """Two months: spent, committed and remaining per budget and in total; a budget awaiting approval counted apart;
+    spend without a budget, spend by channel, and travel left outside budgets."""
+    na = markets["NORTH_AMERICA"]
+    october = _make_budget(client, admin, "2091-10-01", na, amount=1000, brand_id=ref["brands"]["DESKFLEX"])
+    november = _make_budget(client, admin, "2091-11-01", na, amount=2000, brand_id=ref["brands"]["DESKFLEX"])
+    _make_budget(client, admin, "2091-11-01", markets["KOREA"], amount=500, status="NOT_COMMITTED")
+    ads = _initiative(client, admin, ref, "DESKFLEX", "PAID_SEARCH", market_id=na)
+    _line(ads, category_id, 300, date(2091, 10, 5), status="PAID")
+    _line(ads, category_id, 200, date(2091, 10, 20), status="COMMITTED")
+    _line(ads, category_id, 2500, date(2091, 11, 3), status="INVOICED")  # over November's budget
+    other = _initiative(client, admin, ref, "WORKAWARE", "PAID_SEARCH", market_id=markets["GERMANY"])
+    _line(other, category_id, 50, date(2091, 11, 4), status="PAID")  # no budget covers it
+    event = _initiative(client, admin, ref, "DESKFLEX", "EVENTS", market_id=na)
+    _line(event, categories_by_code["FLIGHTS"], 700, date(2091, 11, 6), status="PAID")  # travel: outside budgets
+
+    response = client.get("/api/budgets/period", params={"from": "2091-10-01", "to": "2091-11-01"}, headers=admin["headers"])
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    rows = {b["id"]: b for b in body["budgets"]}
+    assert (rows[october["id"]]["spent"], rows[october["id"]]["committed"], rows[october["id"]]["remaining"]) == (300, 200, 700)
+    assert (rows[november["id"]]["spent"], rows[november["id"]]["over_budget"]) == (2500, True)
+    [usd] = body["totals"]
+    assert (usd["amount"], usd["spent"], usd["committed"], usd["remaining"], usd["budget_count"]) == (3000, 2800, 200, 200, 2)
+    assert (usd["pending_amount"], usd["pending_count"]) == (500, 1)
+    assert [(m["month"], m["available"], m["spent"]) for m in body["months"]] == [("2091-10-01", 1000, 300), ("2091-11-01", 2000, 2500)]
+    assert {(c["channel_name"], c["spent"]) for c in body["channels"]} >= {("Paid Search", 2850)}
+    assert [(u["brand_name"], u["spent"]) for u in body["unbudgeted"]] == [("WorkAware", 50)]
+    assert [(o["currency"], o["spent"]) for o in body["outside_budget"]] == [("USD", 700)]
+
+
+def test_expenses_list_every_cost_in_the_period(client, admin, ref, markets, category_id):
+    _make_budget(client, admin, "2091-12-01", markets["NORTH_AMERICA"], amount=1000, brand_id=ref["brands"]["DESKFLEX"])
+    ads = _initiative(client, admin, ref, "DESKFLEX", "PAID_SEARCH", market_id=markets["NORTH_AMERICA"])
+    _line(ads, category_id, 300, date(2091, 12, 5), status="PAID")
+    _line(ads, category_id, 40, date(2092, 1, 2))  # after the period
+
+    response = client.get("/api/budgets/expenses", params={"from": "2091-12-01", "to": "2091-12-31"}, headers=admin["headers"])
+
+    assert response.status_code == 200, response.text
+    [line] = response.json()["lines"]
+    assert (line["amount"], line["source"], line["status"], line["reconciled_month"]) == (300, "MANUAL", "PAID", None)
+    assert line["budget_label"].startswith("Dec 2091 · DeskFlex · North America")
+
+
+@pytest.mark.parametrize(
+    "path, params, message",
+    [
+        ("/api/budgets/period", {"from": "2091-11-01", "to": "2091-10-01"}, "can't be after its end"),
+        ("/api/budgets/period", {"from": "2091-10-05", "to": "2091-11-01"}, "first day of each month"),
+        ("/api/budgets/period", {"from": "2088-01-01", "to": "2091-01-01"}, "at most 24 months"),
+        ("/api/budgets/expenses", {"from": "2091-12-31", "to": "2091-12-01"}, "can't be after its end"),
+    ],
+)
+def test_period_checks(client, admin, path, params, message):
+    response = client.get(path, params=params, headers=admin["headers"])
+    assert response.status_code == 422
+    assert message in response.json()["detail"]

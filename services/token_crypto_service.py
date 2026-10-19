@@ -1,11 +1,11 @@
 """AES-256-GCM token encryption service for OAuth access and refresh tokens."""
 import base64
-import hashlib
 import os
 import secrets
+
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives import hashes
 
 _NONCE_SIZE = 12  # 96 bits recommended for GCM
 

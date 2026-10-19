@@ -272,6 +272,13 @@ goals = _reference_table(
     # Target for initiatives' (goal, funnel stage) foreign key, which enforces Rule 1
     sa.UniqueConstraint("id", "funnel_stage_id", name="goals_id_funnel_stage_id_key"),
 )
+# Optional main KPI of an initiative, shown with its target. Display only: the worth-it verdict is judged on ROI.
+primary_kpis = _reference_table(
+    "primary_kpis",
+    # How the KPI and its target are shown: a count, an amount of money, or a percentage
+    sa.Column("unit", sa.VARCHAR(length=10), nullable=False, server_default=sa.text("'COUNT'")),
+    sa.CheckConstraint("unit IN ('COUNT', 'MONEY', 'PERCENT')", name="primary_kpis_unit_check"),
+)
 performance_ratings = _reference_table("performance_ratings", sa.Column("description", sa.TEXT()))
 scale_or_cut_options = _reference_table("scale_or_cut_options", sa.Column("description", sa.TEXT()))
 # Used by event details
@@ -345,6 +352,14 @@ initiatives = sa.Table(
     sa.Column("goal_id", sa.INTEGER(), sa.ForeignKey("goals.id", name="initiatives_goal_id_fkey")),
     # The market whose monthly budget the initiative's costs count against; empty counts as Unassigned
     sa.Column("market_id", sa.INTEGER(), sa.ForeignKey("markets.id", name="initiatives_market_id_fkey")),
+    sa.Column("description", sa.TEXT()),
+    # Optional main KPI and its target, shown on the initiative; never used by the worth-it verdict (ROI-based)
+    sa.Column("primary_kpi_id", sa.INTEGER(), sa.ForeignKey("primary_kpis.id", name="initiatives_primary_kpi_id_fkey")),
+    sa.Column("kpi_target", sa.NUMERIC(precision=16, scale=2)),
+    # Where its results come from: a linked external campaign, typed in, or a data source connected later
+    sa.Column("data_source", sa.VARCHAR(length=10), nullable=False, server_default=sa.text("'MANUAL'")),
+    # Channel-specific fields (e.g. campaign objective for paid channels), validated per channel in the API
+    sa.Column("channel_details", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'::jsonb")),
     sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="initiatives_created_by_fkey", ondelete="SET NULL")),
@@ -368,10 +383,36 @@ initiatives = sa.Table(
     ),
     sa.CheckConstraint("end_date IS NULL OR start_date IS NULL OR end_date >= start_date", name="initiatives_dates_check"),
     sa.CheckConstraint("budget_amount IS NULL OR budget_amount >= 0", name="initiatives_budget_check"),
+    sa.CheckConstraint("char_length(description) <= 1000", name="initiatives_description_length_check"),
+    sa.CheckConstraint("kpi_target >= 0", name="initiatives_kpi_target_check"),
+    sa.CheckConstraint("kpi_target IS NULL OR primary_kpi_id IS NOT NULL", name="initiatives_kpi_target_requires_kpi_check"),
+    sa.CheckConstraint("data_source IN ('LINKED', 'MANUAL', 'LATER')", name="initiatives_data_source_check"),
+    sa.CheckConstraint("jsonb_typeof(channel_details) = 'object'", name="initiatives_channel_details_check"),
     sa.Index("idx_initiatives_channel", "channel_id"),
     sa.Index("idx_initiatives_brand", "brand_id"),
     sa.Index("idx_initiatives_status", "status"),
     sa.Index("idx_initiatives_market", "market_id"),
+)
+
+
+# External campaigns an initiative's results come from (system + campaign id). One external campaign belongs to
+# one initiative. A picklist of campaigns comes later, once the connections to those systems exist.
+initiative_links = sa.Table(
+    "initiative_links", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column("initiative_id", sa.UUID(), sa.ForeignKey("initiatives.id", name="initiative_links_initiative_id_fkey", ondelete="CASCADE"), nullable=False),
+    sa.Column("system", sa.VARCHAR(length=20), nullable=False),
+    sa.Column("external_id", sa.VARCHAR(length=100), nullable=False),
+    sa.Column("account_id", sa.VARCHAR(length=100)),
+    sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="initiative_links_created_by_fkey", ondelete="SET NULL")),
+    sa.UniqueConstraint("system", "external_id", name="initiative_links_system_external_id_key"),
+    sa.CheckConstraint(
+        "system IN ('HUBSPOT', 'GOOGLE_ADS', 'MICROSOFT_ADS', 'LINKEDIN_ADS', 'META_ADS')",
+        name="initiative_links_system_check",
+    ),
+    sa.CheckConstraint("btrim(external_id) <> ''", name="initiative_links_external_id_check"),
+    sa.Index("idx_initiative_links_initiative", "initiative_id"),
 )
 
 
@@ -495,6 +536,30 @@ event_staff = sa.Table(
         "role IN ('LEAD', 'BOOTH_STAFF', 'DEMO', 'SPEAKER', 'SETUP', 'EXECUTIVE', 'OTHER')", name="event_staff_role_check"
     ),
     sa.Index("idx_event_staff_initiative", "initiative_id"),
+)
+
+# People travelling to an event, from its active Navan bookings (services/navan_cost_sync_job.py replaces them).
+# Only the name, email and department come from Navan: never passports, managers, cost centres or HR details.
+event_travellers = sa.Table(
+    "event_travellers", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column("initiative_id", sa.UUID(), sa.ForeignKey("initiatives.id", name="event_travellers_initiative_id_fkey", ondelete="CASCADE"), nullable=False),
+    # Navan's person uuid, else a hash of their email or name
+    sa.Column("navan_person_uuid", sa.VARCHAR(length=64), nullable=False),
+    sa.Column("name", sa.VARCHAR(length=255), nullable=False),
+    sa.Column("email", sa.VARCHAR(length=320)),
+    sa.Column("department", sa.VARCHAR(length=255)),
+    # The portal user with the same email (any case), if there is one
+    sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", name="event_travellers_user_id_fkey", ondelete="SET NULL")),
+    sa.Column("booking_types", postgresql.ARRAY(sa.TEXT()), nullable=False, server_default=sa.text("'{}'::text[]")),
+    sa.Column("bookings", sa.INTEGER(), nullable=False, server_default=sa.text("0")),
+    # Their share of the active bookings in the event's currency
+    sa.Column("amount", sa.NUMERIC(precision=14, scale=2), nullable=False, server_default=sa.text("0")),
+    sa.Column("currency", sa.CHAR(length=3), nullable=False),
+    sa.Column("first_travel", sa.DATE()),
+    sa.Column("last_travel", sa.DATE()),
+    sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.UniqueConstraint("initiative_id", "navan_person_uuid", name="event_travellers_initiative_person_key"),
 )
 
 # One row per demo given at an event. The organisation only: people's details stay in HubSpot.

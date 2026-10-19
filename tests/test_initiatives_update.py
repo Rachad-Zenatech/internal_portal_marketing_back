@@ -71,10 +71,10 @@ def test_update_with_no_changes_is_not_audited(client, admin, initiative):
 
 
 def test_update_clears_optional_field(client, admin, initiative):
-    response = client.patch(f"/api/initiatives/{initiative['id']}", json={"sub_channel_id": None}, headers=admin["headers"])
+    response = client.patch(f"/api/initiatives/{initiative['id']}", json={"end_date": None}, headers=admin["headers"])
 
     assert response.status_code == 200
-    assert response.json()["sub_channel_id"] is None
+    assert response.json()["end_date"] is None
 
 
 @pytest.mark.parametrize(
@@ -108,6 +108,7 @@ def test_update_rejects_sub_channel_from_another_channel(client, admin, ref):
             "brand_id": ref["brands"]["DESKFLEX"],
             "channel_id": ref["channels"]["PAID_SEARCH"],
             "sub_channel_id": ref["sub_channels"]["GOOGLE_ADS"],
+            "budget_amount": 0,
         },
         headers=admin["headers"],
     )
