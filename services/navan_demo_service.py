@@ -7,7 +7,8 @@ Each demo event's bookings are generated from a random generator seeded by the e
 gives the same bookings until the event's dates change:
 - 3 to 12 travellers (as many as the event's travel budget pays for, give or take one, when it has one in USD),
   each with a return flight, hotel nights over the event's dates (from the night before it
-  starts) and, for about a third of them, a hire car. Prices are in USD.
+  starts) and, for about a third of them, a hire car. Prices are in USD. Travellers are made up ("Demo Traveller 3",
+  with an example.com email) and are the passenger on each of their bookings, as in Navan.
 - A few bookings are cancelled or voided (a flight changed and rebooked, a hotel booked twice, a trip called off).
 - Each traveller books on a day 7 to 75 days before the event; only bookings made by today exist, so an event that
   has already started is fully booked and an upcoming one fills up as its date gets closer.
@@ -27,6 +28,8 @@ CURRENCY = "USD"
 
 # Countries that fly domestically (cheaper flights)
 _DOMESTIC = {"US", "CA"}
+# Demo travellers' departments, taken in turn
+_DEPARTMENTS = ("Sales", "Marketing", "Customer Success", "Product", "Engineering")
 
 _DEMO_EVENTS_SQL = """
     SELECT i.id, i.name, i.start_date, i.end_date, i.status, i.currency, ed.navan_event_name, ed.city,
@@ -50,6 +53,17 @@ def _money(value: float) -> Decimal:
     return Decimal(str(round(value, 2)))
 
 
+def demo_traveller(event_id, traveller: int) -> Dict[str, Any]:
+    """The made-up person on a demo traveller's bookings, like Navan's passenger.person (example.com emails)."""
+    number = traveller + 1
+    return {
+        "uuid": f"demo-{str(event_id)[:8]}-{traveller:02d}",
+        "name": f"Demo Traveller {number}",
+        "email": f"demo.traveller{number}@example.com",
+        "department": _DEPARTMENTS[traveller % len(_DEPARTMENTS)],
+    }
+
+
 def _booking(event_id, traveller: int, kind: str, n: int, *, name: str, total: Decimal, status: str,
              start: datetime.date, end: datetime.date, booked_on: datetime.date, city: Optional[str],
              country: Optional[str]) -> Dict[str, Any]:
@@ -64,6 +78,7 @@ def _booking(event_id, traveller: int, kind: str, n: int, *, name: str, total: D
         "endDate": f"{end.isoformat()}T17:00:00",
         "createdDate": f"{booked_on.isoformat()}T12:00:00",
         "destination": {"city": city, "country": country},
+        "passengers": [{"person": demo_traveller(event_id, traveller), "status": status, "travelerType": "EMPLOYEE"}],
     }
 
 

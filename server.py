@@ -49,8 +49,8 @@ from tools.import_router import router as import_router
 from tools.initiative_router import router as initiative_router
 from tools.log_router import router as log_router
 from tools.navan_router import router as navan_router
-from tools.oauth_router import router as oauth_router
 from tools.notification_router import notification_router
+from tools.oauth_router import router as oauth_router
 from tools.observability import router as observability_router
 from tools.performance_router import router as performance_router
 from tools.rbac_router import get_current_user_id

@@ -123,6 +123,9 @@ def _initiative_entry(action: str, old: dict, new: dict, currency: str, source: 
         parts = [f"Linked {_link_text(link)}" for key, link in after.items() if key not in before]
         parts += [f"Removed {_link_text(link)}" for key, link in before.items() if key not in after]
         return "Campaign links updated", "; ".join(parts) or "Account IDs changed"
+    if fields == ["navan_travellers"]:
+        count = new["navan_travellers"]
+        return "Travellers updated", f"{count} travelling (from Navan)"
     if fields == ["event"] and set((new.get("event") or {})) <= {"navan_estimate_amount", "event_code"}:
         amount = (new.get("event") or {}).get("navan_estimate_amount")
         return "Navan estimate updated", f"Navan estimate set to {_money(amount, currency)}" if amount is not None else "Navan estimate removed"

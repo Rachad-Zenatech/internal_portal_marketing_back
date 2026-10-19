@@ -538,6 +538,30 @@ event_staff = sa.Table(
     sa.Index("idx_event_staff_initiative", "initiative_id"),
 )
 
+# People travelling to an event, from its active Navan bookings (services/navan_cost_sync_job.py replaces them).
+# Only the name, email and department come from Navan: never passports, managers, cost centres or HR details.
+event_travellers = sa.Table(
+    "event_travellers", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column("initiative_id", sa.UUID(), sa.ForeignKey("initiatives.id", name="event_travellers_initiative_id_fkey", ondelete="CASCADE"), nullable=False),
+    # Navan's person uuid, else a hash of their email or name
+    sa.Column("navan_person_uuid", sa.VARCHAR(length=64), nullable=False),
+    sa.Column("name", sa.VARCHAR(length=255), nullable=False),
+    sa.Column("email", sa.VARCHAR(length=320)),
+    sa.Column("department", sa.VARCHAR(length=255)),
+    # The portal user with the same email (any case), if there is one
+    sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", name="event_travellers_user_id_fkey", ondelete="SET NULL")),
+    sa.Column("booking_types", postgresql.ARRAY(sa.TEXT()), nullable=False, server_default=sa.text("'{}'::text[]")),
+    sa.Column("bookings", sa.INTEGER(), nullable=False, server_default=sa.text("0")),
+    # Their share of the active bookings in the event's currency
+    sa.Column("amount", sa.NUMERIC(precision=14, scale=2), nullable=False, server_default=sa.text("0")),
+    sa.Column("currency", sa.CHAR(length=3), nullable=False),
+    sa.Column("first_travel", sa.DATE()),
+    sa.Column("last_travel", sa.DATE()),
+    sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.UniqueConstraint("initiative_id", "navan_person_uuid", name="event_travellers_initiative_person_key"),
+)
+
 # One row per demo given at an event. The organisation only: people's details stay in HubSpot.
 event_demos = sa.Table(
     "event_demos", metadata,

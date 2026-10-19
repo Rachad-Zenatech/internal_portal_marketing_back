@@ -2,15 +2,17 @@ from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 
 from models.budget_model import (
     BudgetCopy,
     BudgetCreate,
     BudgetDetail,
+    BudgetExpenses,
     BudgetImportConfirmResult,
     BudgetImportPreview,
     BudgetImportUndoResult,
+    BudgetPeriod,
     BudgetRow,
     BudgetTransfer,
     BudgetTransferCreate,
@@ -86,6 +88,45 @@ async def get_week(start: date):
             detail="Start the week on a Monday, e.g. 2026-10-12.",
         )
     return await budget_service.get_week(start)
+
+
+MAX_PERIOD_MONTHS = 24
+
+
+def _check_period(start: date, end: date, months: bool) -> None:
+    if start > end:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="The start of the period can't be after its end.")
+    span = (end.year - start.year) * 12 + end.month - start.month + 1
+    if span > MAX_PERIOD_MONTHS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Choose a period of at most {MAX_PERIOD_MONTHS} months."
+        )
+    if months and (start.day != 1 or end.day != 1):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Use the first day of each month, e.g. 2026-10-01."
+        )
+
+
+# Declared before /budgets/{budget_id} so "period" and "expenses" aren't read as ids
+@router.get("/budgets/period", response_model=BudgetPeriod, dependencies=[Depends(_VIEW)])
+async def get_period(
+    date_from: Annotated[date, Query(alias="from")],
+    date_to: Annotated[date, Query(alias="to")],
+):
+    """Budgets from one month to another (first days of the months), with spent, committed and remaining, totals per
+    currency, figures by month, spend by channel, spend without a budget and travel outside budgets."""
+    _check_period(date_from, date_to, months=True)
+    return await budget_service.get_period(date_from, date_to)
+
+
+@router.get("/budgets/expenses", response_model=BudgetExpenses, dependencies=[Depends(_VIEW)])
+async def list_expenses(
+    date_from: Annotated[date, Query(alias="from")],
+    date_to: Annotated[date, Query(alias="to")],
+):
+    """Every cost dated from one day to another, with its source, stage, reconciliation and the budget it counts against."""
+    _check_period(date_from, date_to, months=False)
+    return await budget_service.list_expenses(date_from, date_to)
 
 
 @router.get("/budgets/{budget_id}", response_model=BudgetDetail, dependencies=[Depends(_VIEW)])

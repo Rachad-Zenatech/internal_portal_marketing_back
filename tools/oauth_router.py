@@ -13,15 +13,14 @@ from models.oauth_connection_model import (
     CompanyCreate,
     OAuthConnection,
     OAuthConnectionCreate,
-    OAuthConnectionUpdate,
     OAuthProvider,
     Organization,
     OrganizationCreate,
     ResolvedConnection,
 )
 from services import oauth_connection_service as oauth_svc
-from services.auth_service import get_current_user_id_dependency, require_permission
 from services.audit_service import log_audit_event
+from services.auth_service import get_current_user_id_dependency, require_permission
 
 router = APIRouter(prefix="/oauth", tags=["OAuth & Multi-Entity Integrations"])
 

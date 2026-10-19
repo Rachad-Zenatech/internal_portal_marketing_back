@@ -385,3 +385,74 @@ class BudgetImportUndoResult(BaseModel):
     notes_removed: int
     # Budgets changed again since, or now used by money moves
     skipped: int
+
+
+# --- A period of months and its costs ---
+
+class PeriodBudgetRow(BudgetRow):
+    # Committed costs (ordered, no invoice yet) counted against it, in its currency
+    committed: float
+
+
+class PeriodTotals(BaseModel):
+    """Approved budgets in one currency; budgets awaiting approval are counted apart (pending), cancelled ones not at all."""
+
+    currency: str
+    amount: float
+    available: float
+    spent: float
+    committed: float
+    expected: float
+    remaining: float
+    budget_count: int
+    pending_amount: float
+    pending_count: int
+
+
+class PeriodMonth(BaseModel):
+    """One month of the period's approved budgets in one currency."""
+
+    month: date
+    currency: str
+    available: float
+    spent: float
+    committed: float
+
+
+class ChannelSpend(BaseModel):
+    """Marketing spend on one channel in one currency (travel left out), whether or not a budget covers it."""
+
+    channel_name: str
+    currency: str
+    spent: float
+    committed: float
+
+
+class BudgetPeriod(BaseModel):
+    from_month: date
+    to_month: date
+    budgets: list[PeriodBudgetRow]
+    totals: list[PeriodTotals]
+    months: list[PeriodMonth]
+    channels: list[ChannelSpend]
+    unbudgeted: list[UnbudgetedSpend]
+    outside_budget: list[OutsideBudgetSpend]
+
+
+class ExpenseLine(WeekLine):
+    """A cost with where it came from, its stage and whether Finance has reconciled it."""
+
+    source: str
+    invoice_ref: str | None = None
+    paid_on: date | None = None
+    reconciled_month: date | None = None
+    # The initiative's last day, to spot estimates and commitments left open after it ended
+    initiative_end_date: date | None = None
+
+
+class BudgetExpenses(BaseModel):
+    from_date: date
+    to_date: date
+    lines: list[ExpenseLine]
+    # More costs than the page lists: narrow the period
+    truncated: bool

@@ -147,6 +147,27 @@ async def remove_staff(assignment_id: UUID, actor_id: UUID) -> None:
             await log_audit(conn, actor_id, "DELETE", STAFF_AUDIT_ENTITY, assignment_id, old_value=dict(current))
 
 
+# --- Travellers (from Navan) ---
+
+
+async def list_travellers(initiative_id: UUID) -> list[dict]:
+    """The people on an event's active Navan bookings (kept by the Navan sync), by name."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        if not await conn.fetchval("SELECT EXISTS (SELECT 1 FROM initiatives WHERE id = $1)", initiative_id):
+            raise InitiativeNotFoundError
+        rows = await conn.fetch(
+            """
+            SELECT name, email, department, user_id, booking_types, bookings, amount::float8 AS amount, currency,
+                   first_travel, last_travel
+            FROM event_travellers WHERE initiative_id = $1
+            ORDER BY lower(name), name, navan_person_uuid
+            """,
+            initiative_id,
+        )
+    return [dict(r) for r in rows]
+
+
 # --- Event cards ---
 
 # The same rule as _timing below, in SQL so filtering and ordering happen before the limit; keep them in step
@@ -163,7 +184,7 @@ _OVERVIEW_SQL = f"""
            COALESCE(cost.travel_expected, 0)::float8 AS travel_expected,
            COALESCE(cost.travel_spent, 0)::float8 AS travel_spent,
            ed.navan_estimate_amount::float8 AS navan_estimate_amount, cost.navan_actual::float8 AS navan_actual,
-           COALESCE(st.staff_count, 0) AS staff_count,
+           COALESCE(st.staff_count, 0) AS staff_count, COALESCE(tr.traveller_count, 0) AS traveller_count,
            COALESCE(dm.given, 0) AS demos_given, COALESCE(dm.booked, 0) AS demos_booked,
            res.leads, COALESCE(res.has_results, false) AS has_results
     FROM initiatives i
@@ -187,6 +208,9 @@ _OVERVIEW_SQL = f"""
     LEFT JOIN LATERAL (
         SELECT count(*) AS staff_count FROM event_staff WHERE initiative_id = i.id
     ) st ON true
+    LEFT JOIN LATERAL (
+        SELECT count(*) AS traveller_count FROM event_travellers WHERE initiative_id = i.id
+    ) tr ON true
     LEFT JOIN LATERAL (
         SELECT count(*) FILTER (WHERE {HELD_DEMO_SQL}) AS given,
                count(*) FILTER (WHERE d.demo_at > now() AND o.code <> 'NO_SHOW') AS booked

@@ -6,10 +6,9 @@ Organization -> Companies/Entities -> OAuth connections
 import json
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
-import asyncpg
 import httpx
 
 from models.oauth_connection_model import (

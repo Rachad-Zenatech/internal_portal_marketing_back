@@ -615,7 +615,8 @@ async def delete_comment(comment_id: UUID, actor_id: UUID) -> None:
 _WEEK_LINES_SQL = f"""
     SELECT s.id, s.incurred_on, s.description, s.vendor, s.status, s.amount, s.currency,
            sc.name AS category_name, i.id AS initiative_id, i.name AS initiative_name, ed.event_code,
-           br.name AS brand_name, mkn.name AS market_name, ch.name AS channel_name,
+           i.brand_id, br.name AS brand_name, mk.market_id, mkn.name AS market_name, i.channel_id, ch.name AS channel_name,
+           s.source, s.invoice_ref, s.paid_on, s.reconciled_month, i.end_date AS initiative_end_date,
            bud.id AS budget_id, bud.label AS budget_label, bud.currency AS budget_currency, ob.outside_budget
     FROM spend_lines s
     JOIN initiatives i ON i.id = s.initiative_id
@@ -709,3 +710,126 @@ async def get_week(start: date) -> dict:
         ],
         "months": month_figures,
     }
+
+
+# --- A period of months (the Budgets & Expenses page) ---
+# Every figure comes from the same cost lines as the week view (_WEEK_LINES_SQL), each matched to a budget in its
+# own month, so a quarter or a year adds up exactly like its months do. Three queries, however long the period.
+
+COMMITTED_STATUSES = ("COMMITTED",)
+
+
+def _month_end(month: date) -> date:
+    return (month.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+
+
+async def _period_lines(conn, start: date, end: date):
+    return await conn.fetch(_WEEK_LINES_SQL, start, end)
+
+
+async def get_period(start: date, end: date) -> dict:
+    """Budgets from the month of start to the month of end, with what was spent and committed against each,
+    totals per currency (approved budgets apart from ones awaiting approval), month-by-month figures, spend by
+    channel, spend no budget covers, and travel (outside marketing budgets)."""
+    first, last = _month_start(start), _month_start(end)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await _period_lines(conn, first, _month_end(last))
+        budget_rows = await conn.fetch(f"{_BUDGET_SELECT} WHERE b.month BETWEEN $1 AND $2 {_BUDGET_ORDER}, b.month", first, last)
+
+    zero = Decimal(0)
+    # Per budget and currency: [spent, expected]; committed only in the budget's own currency
+    by_budget: dict[UUID, dict[str, list[Decimal]]] = defaultdict(lambda: defaultdict(lambda: [Decimal(0), Decimal(0)]))
+    committed: dict[UUID, Decimal] = defaultdict(Decimal)
+    channels: dict[tuple[str, str], dict[str, Decimal]] = defaultdict(lambda: {"spent": Decimal(0), "committed": Decimal(0)})
+    unbudgeted: dict[tuple, dict] = {}
+    outside: dict[str, dict] = {}
+    for r in rows:
+        actual = r["status"] in SPENT_STATUSES
+        if r["outside_budget"]:
+            o = outside.setdefault(r["currency"], {"currency": r["currency"], "spent": zero, "expected": zero, "initiatives": set()})
+            o["expected"] += r["amount"]
+            o["spent"] += r["amount"] if actual else zero
+            o["initiatives"].add(r["initiative_id"])
+            continue
+        c = channels[(r["channel_name"], r["currency"])]
+        c["spent"] += r["amount"] if actual else zero
+        c["committed"] += r["amount"] if r["status"] in COMMITTED_STATUSES else zero
+        if r["budget_id"] is not None:
+            figures = by_budget[r["budget_id"]][r["currency"]]
+            figures[1] += r["amount"]
+            figures[0] += r["amount"] if actual else zero
+            if r["status"] in COMMITTED_STATUSES and r["currency"] == r["budget_currency"]:
+                committed[r["budget_id"]] += r["amount"]
+        else:
+            key = (r["brand_id"], r["market_id"], r["channel_id"], r["currency"])
+            u = unbudgeted.setdefault(key, {
+                "brand_id": r["brand_id"], "brand_name": r["brand_name"], "market_id": r["market_id"],
+                "market_name": r["market_name"], "channel_id": r["channel_id"], "channel_name": r["channel_name"],
+                "currency": r["currency"], "spent": zero, "expected": zero, "initiatives": set(),
+            })
+            u["expected"] += r["amount"]
+            u["spent"] += r["amount"] if actual else zero
+            u["initiatives"].add(r["initiative_id"])
+
+    budgets = []
+    for row in budget_rows:
+        figures = {code: (f[0], f[1]) for code, f in by_budget.get(row["id"], {}).items()}
+        budgets.append({**_shape_budget(row, figures), "committed": _money(committed.get(row["id"], zero))})
+
+    # Approved budgets make the totals; ones awaiting approval are counted apart, cancelled ones not at all
+    totals: dict[str, dict[str, float]] = {}
+    months: dict[tuple[date, str], dict[str, float]] = {}
+    keys = ("amount", "available", "spent", "committed", "expected", "remaining")
+    for b in budgets:
+        if b["status"] == "CANCELLED":
+            continue
+        total = totals.setdefault(b["currency"], {**dict.fromkeys(keys, 0.0), "pending_amount": 0.0, "pending_count": 0, "budget_count": 0})
+        if b["status"] == "NOT_COMMITTED":
+            total["pending_amount"] += b["amount"]
+            total["pending_count"] += 1
+            continue
+        total["budget_count"] += 1
+        for k in keys:
+            total[k] += b[k]
+        m = months.setdefault((b["month"], b["currency"]), dict.fromkeys(("available", "spent", "committed"), 0.0))
+        for k in m:
+            m[k] += b[k]
+
+    def money_rows(items):
+        return [{**{k: v for k, v in i.items() if k != "initiatives"}, "spent": _money(i["spent"]), "expected": _money(i["expected"]),
+                 "initiative_count": len(i["initiatives"])} for i in items]
+
+    return {
+        "from_month": first,
+        "to_month": last,
+        "budgets": budgets,
+        "totals": [
+            {"currency": code, **{k: (round(v, 2) if isinstance(v, float) else v) for k, v in t.items()}}
+            for code, t in sorted(totals.items())
+        ],
+        "months": [
+            {"month": month, "currency": code, **{k: round(v, 2) for k, v in m.items()}}
+            for (month, code), m in sorted(months.items())
+        ],
+        "channels": [
+            {"channel_name": name, "currency": code, "spent": _money(c["spent"]), "committed": _money(c["committed"])}
+            for (name, code), c in sorted(channels.items(), key=lambda kv: -kv[1]["spent"])
+            if c["spent"] or c["committed"]
+        ],
+        "unbudgeted": sorted(money_rows(unbudgeted.values()), key=lambda u: (u["market_name"], u["brand_name"], u["channel_name"])),
+        "outside_budget": money_rows(sorted(outside.values(), key=lambda o: o["currency"])),
+    }
+
+
+MAX_EXPENSES = 5000
+
+
+async def list_expenses(start: date, end: date) -> dict:
+    """Every cost dated from start to end, with where it came from, its stage, whether Finance reconciled it, and
+    the budget it counts against (or none, or outside budgets for travel). At most MAX_EXPENSES, newest first."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await _period_lines(conn, start, end)
+    lines = [{**dict(r), "amount": _money(r["amount"])} for r in reversed(rows)]
+    return {"from_date": start, "to_date": end, "lines": lines[:MAX_EXPENSES], "truncated": len(lines) > MAX_EXPENSES}

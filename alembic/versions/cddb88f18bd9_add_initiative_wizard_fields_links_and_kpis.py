@@ -9,7 +9,7 @@ Downgrading drops the new columns, links and KPI list (and so what was entered i
 Social, which fails while an initiative still uses it.
 
 Revision ID: cddb88f18bd9
-Revises: 04c07e13860f
+Revises: e8c4519967d0
 Create Date: 2026-10-19 12:37:17.709395
 
 """
@@ -21,7 +21,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'cddb88f18bd9'
-down_revision: Union[str, Sequence[str], None] = '04c07e13860f'
+down_revision: Union[str, Sequence[str], None] = 'e8c4519967d0'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

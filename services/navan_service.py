@@ -13,6 +13,7 @@ Settings (in .env):
 """
 
 import datetime
+import hashlib
 import logging
 import os
 from collections import Counter
@@ -183,4 +184,90 @@ def summarize_events(bookings: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]
             places.setdefault(name.lower(), Counter())[(city[:120], _country_code(destination.get("country")))] += weight
     for key, counter in places.items():
         events[key]["city"], events[key]["country_code"] = counter.most_common(1)[0][0]
+    return events
+
+
+def _clean(value: Any, limit: int) -> Optional[str]:
+    text = str(value or "").strip()
+    return text[:limit] or None
+
+
+def traveller_key(person: Dict[str, Any]) -> Optional[str]:
+    """Who a passenger is across bookings: Navan's person uuid, else their email (lower-cased), else their name.
+    The email and name fall-backs are hashed so the key never holds personal details and fits 64 characters."""
+    uuid = _clean(person.get("uuid") or person.get("id"), 64)
+    if uuid:
+        return uuid
+    for kind, value in (("email", person.get("email")), ("name", _person_name(person))):
+        text = str(value or "").strip().lower()
+        if text:
+            return f"{kind}:{hashlib.sha1(text.encode()).hexdigest()}"
+    return None
+
+
+def _person_name(person: Dict[str, Any]) -> Optional[str]:
+    name = _clean(person.get("name"), 255)
+    if name:
+        return name
+    parts = [str(person.get(k) or "").strip() for k in ("firstName", "lastName")]
+    return _clean(" ".join(p for p in parts if p), 255)
+
+
+def summarize_travellers(bookings: List[Dict[str, Any]]) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    """The people travelling on each Navan event's active bookings, keyed by the lower-cased event name, then by
+    traveller_key.
+
+    {"daas grand opening": {"<person uuid>": {"name": "...", "email": "...", "department": "...",
+                                              "booking_types": {"FLIGHT", "HOTEL"}, "bookings": 2,
+                                              "amounts": {"USD": Decimal("1234.50")},
+                                              "first_travel": date, "last_travel": date}}}
+
+    Only the name, email and department of each passenger are kept: never their passport, manager, cost centre,
+    employee id or any other HR detail. A booking shared by several passengers counts once for each of them and
+    its total is split evenly between them. Cancelled or voided bookings and passengers don't count; a booking
+    with no passengers can't be put against anyone.
+    """
+    events: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for booking in bookings:
+        name = (booking.get("eventName") or "").strip()
+        if not name or str(booking.get("bookingStatus") or "").upper() in INACTIVE_STATUSES:
+            continue
+        passengers = []
+        for passenger in booking.get("passengers") or []:
+            if not isinstance(passenger, dict):
+                continue
+            if str(passenger.get("status") or "").upper() in INACTIVE_STATUSES:
+                continue
+            person = passenger.get("person") if isinstance(passenger.get("person"), dict) else {}
+            key = traveller_key(person)
+            if key:
+                passengers.append((key, person))
+        if not passengers:
+            continue
+        amount = _amount(booking.get("grandTotal"))
+        currency = str(booking.get("currency") or "").upper()
+        share = amount / len(passengers) if amount is not None and len(currency) == 3 else None
+        start = _date(booking.get("startDate"))
+        end = _date(booking.get("endDate")) or start
+        kind = booking_type(booking.get("bookingType"))
+        people = events.setdefault(name.lower(), {})
+        for key, person in passengers:
+            traveller = people.setdefault(key, {
+                "name": None, "email": None, "department": None, "booking_types": set(), "bookings": 0,
+                "amounts": {}, "first_travel": None, "last_travel": None,
+            })
+            traveller["name"] = traveller["name"] or _person_name(person)
+            traveller["email"] = traveller["email"] or _clean(person.get("email"), 320)
+            traveller["department"] = traveller["department"] or _clean(person.get("department"), 255)
+            traveller["booking_types"].add(kind)
+            traveller["bookings"] += 1
+            if share is not None:
+                traveller["amounts"][currency] = traveller["amounts"].get(currency, Decimal(0)) + share
+            if start and (traveller["first_travel"] is None or start < traveller["first_travel"]):
+                traveller["first_travel"] = start
+            if end and (traveller["last_travel"] is None or end > traveller["last_travel"]):
+                traveller["last_travel"] = end
+    for people in events.values():
+        for traveller in people.values():
+            traveller["name"] = traveller["name"] or traveller["email"] or "Unknown traveller"
     return events

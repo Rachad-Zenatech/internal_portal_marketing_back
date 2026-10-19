@@ -42,6 +42,24 @@ class StaffAssignmentUpdate(_StaffFields):
     role: StaffRole | None = None
 
 
+class EventTraveller(BaseModel):
+    """Someone on an event's active Navan bookings. They needn't be a portal user (user_id is set when one has the
+    same email)."""
+
+    name: str
+    email: str | None = None
+    department: str | None = None
+    user_id: UUID | None = None
+    # What they booked, sorted: FLIGHT, HOTEL, CAR, RAIL, OTHER
+    booking_types: list[str]
+    bookings: int
+    # Their share of the bookings in the event's currency (bookings in other currencies aren't in it)
+    amount: float
+    currency: str
+    first_travel: date | None = None
+    last_travel: date | None = None
+
+
 class EventOverviewItem(BaseModel):
     """One event card on the event management page: what it is, and what still needs doing."""
 
@@ -78,6 +96,8 @@ class EventOverviewItem(BaseModel):
     navan_estimate_amount: float | None = None
     navan_actual: float | None = None
     staff_count: int
+    # People on the event's active Navan bookings
+    traveller_count: int = 0
     demos_given: int
     demos_booked: int
     leads: float | None = None
