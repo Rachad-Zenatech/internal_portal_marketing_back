@@ -1,11 +1,14 @@
-"""Paid ads (Google Ads and Bing Ads): results per campaign or ad group per period, and the spreadsheet upload."""
+"""Paid ads (every Paid Search and Paid Social platform): results, the page overview, and the spreadsheet upload."""
 from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-AdPlatform = Literal["GOOGLE_ADS", "BING_ADS"]
+AdPlatform = Literal[
+    "GOOGLE_ADS", "BING_ADS", "LINKEDIN_ADS", "META_ADS", "YOUTUBE_ADS", "TIKTOK_ADS", "X_ADS", "REDDIT_ADS",
+    "DISPLAY_PROGRAMMATIC", "OTHER",
+]
 AdResultStatus = Literal["ACTIVE", "PAUSED", "ENDED"]
 AdResultSource = Literal["MANUAL", "SPREADSHEET", "DATA_STUDIO"]
 AdImportRowStatus = Literal["NEW", "UPDATE", "UNCHANGED", "INVALID", "NEW_CAMPAIGN"]
@@ -64,7 +67,7 @@ class AdResult(AdMetrics):
 
 
 class AdTotals(AdMetrics):
-    platform: Literal["GOOGLE_ADS", "BING_ADS", "ALL"]
+    platform: AdPlatform | Literal["ALL"]
     currency: str
     campaign_count: int
 
@@ -76,7 +79,7 @@ class AdResultList(BaseModel):
 
 
 class AdCampaign(BaseModel):
-    """A Google Ads or Bing Ads initiative, for pickers."""
+    """An ad campaign (Paid Search or Paid Social initiative with a platform), for pickers."""
 
     initiative_id: UUID
     name: str
@@ -215,3 +218,287 @@ class AdImportUndoResult(BaseModel):
     # Rows left as they are: changed by a later upload, or their cost is already reconciled
     skipped: int
     campaigns_removed: int
+
+
+# --- The Paid Advertising page (services/ads_overview_service.py) ---
+
+CampaignObjectiveCode = Literal["AWARENESS", "TRAFFIC", "LEADS", "CONVERSIONS", "ENGAGEMENT", "VIDEO_VIEWS"]
+InitiativeStatusCode = Literal["DRAFT", "PLANNED", "ACTIVE", "COMPLETED", "PAUSED", "CANCELLED"]
+AttentionKind = Literal["BUDGET", "CPL_ABOVE_TARGET", "CPL_ABOVE_PLATFORM", "UNEXPECTEDLY_PAUSED", "DATA_DELAYED"]
+DataHealthStatus = Literal["OK", "STALE", "NO_DATA", "CONNECTION", "NOT_STARTED"]
+DataSourceKind = Literal["API", "MANUAL", "SPREADSHEET", "DATA_STUDIO"]
+
+
+class AdsKpis(BaseModel):
+    """Key figures for a date range in one currency. Verified leads and platform conversions are kept apart."""
+
+    allocated_budget: float | None = None
+    actual_spend: float | None = None
+    budget_remaining: float | None = None
+    remaining_percent: float | None = None
+    verified_leads: float | None = None
+    cost_per_lead: float | None = None
+    conversions: float | None = None
+    impressions: float | None = None
+    clicks: float | None = None
+    ctr: float | None = None
+    cpc: float | None = None
+    mqls: float | None = None
+    sqls: float | None = None
+    campaign_count: int
+    active_campaign_count: int
+
+
+class AdsPlatformRow(BaseModel):
+    platform: AdPlatform
+    campaign_count: int
+    allocated_budget: float | None = None
+    spend: float | None = None
+    impressions: float | None = None
+    clicks: float | None = None
+    ctr: float | None = None
+    cpc: float | None = None
+    conversions: float | None = None
+    verified_leads: float | None = None
+    cpl: float | None = None
+    mqls: float | None = None
+    sqls: float | None = None
+    budget_used_percent: float | None = None
+    previous_spend: float | None = None
+    previous_verified_leads: float | None = None
+    previous_cpl: float | None = None
+
+
+class AdsBrandRow(BaseModel):
+    brand_id: int
+    brand_name: str
+    campaign_count: int
+    allocated_budget: float | None = None
+    spend: float | None = None
+    budget_used_percent: float | None = None
+    verified_leads: float | None = None
+    cpl: float | None = None
+
+
+class AdsMonthRow(BaseModel):
+    month: date
+    # The part of the month inside the date range
+    start: date
+    end: date
+    allocated_budget: float | None = None
+    spend: float | None = None
+    verified_leads: float | None = None
+
+
+class AdsTimePoint(BaseModel):
+    start: date
+    end: date
+    spend: float
+    verified_leads: float
+    conversions: float
+    impressions: float
+    clicks: float
+
+
+class AdsAttentionReason(BaseModel):
+    kind: AttentionKind
+    severity: Literal["HIGH", "MEDIUM"]
+    # Budget: percent used; cost per lead: the campaign's cost per lead
+    value: float | None = None
+    # Budget: the alert percent; cost per lead: the target or the platform's cost per lead
+    benchmark: float | None = None
+
+
+class AdsAttentionItem(AdsAttentionReason):
+    initiative_id: UUID
+    name: str
+    platform: AdPlatform
+    brand_name: str
+
+
+class AdsPrimaryKpi(BaseModel):
+    code: str
+    name: str
+    unit: Literal["COUNT", "MONEY", "PERCENT"]
+
+
+class AdsSuccessMetric(BaseModel):
+    """The figure for the campaign's objective (CPM, CPC, CPE, CPL or CPA), and its target when the KPI is the same."""
+
+    code: Literal["CPM", "CPC", "CPE", "CPL", "CPA"]
+    label: str
+    value: float | None = None
+    target: float | None = None
+    on_target: bool | None = None
+
+
+class AdsDataHealth(BaseModel):
+    status: DataHealthStatus
+    source: DataSourceKind | None = None
+    last_data_date: date | None = None
+    # The platform's API connection, when there is one
+    connection_status: str | None = None
+
+
+class AdsCampaignRow(BaseModel):
+    initiative_id: UUID
+    name: str
+    description: str | None = None
+    brand_id: int
+    brand_name: str
+    market_id: int | None = None
+    market_name: str | None = None
+    platform: AdPlatform
+    channel: Literal["PAID_SEARCH", "PAID_SOCIAL"]
+    objective: str | None = None
+    ad_account_id: str | None = None
+    status: InitiativeStatusCode
+    start_date: date | None = None
+    end_date: date | None = None
+    currency: str
+    owner_name: str | None = None
+    data_source: str
+    # The campaign's budget (approved, else the budgets on its results) and spend since it started
+    budget_amount: float | None = None
+    spend_to_date: float | None = None
+    budget_used_percent: float | None = None
+    # The date range
+    allocated_budget: float | None = None
+    spend: float | None = None
+    impressions: float | None = None
+    clicks: float | None = None
+    conversions: float | None = None
+    verified_leads: float | None = None
+    mqls: float | None = None
+    sqls: float | None = None
+    ctr: float | None = None
+    cpc: float | None = None
+    cpm: float | None = None
+    conversion_rate: float | None = None
+    cpl: float | None = None
+    cost_per_mql: float | None = None
+    cost_per_conversion: float | None = None
+    revenue_to_date: float | None = None
+    roas: float | None = None
+    primary_kpi: AdsPrimaryKpi | None = None
+    kpi_target: float | None = None
+    # Costs and rates for the date range; counts since the campaign started
+    primary_kpi_value: float | None = None
+    primary_kpi_on_target: bool | None = None
+    success_metric: AdsSuccessMetric
+    report_url: str | None = None
+    result_count: int
+    data_health: AdsDataHealth
+    attention: list[AdsAttentionReason]
+
+
+class AdsOverview(BaseModel):
+    date_from: date
+    date_to: date
+    previous_from: date
+    previous_to: date
+    today: date
+    currency: str
+    # Currencies of the campaigns matching the filters, most used first
+    currencies: list[str]
+    kpis: AdsKpis
+    previous: AdsKpis
+    by_platform: list[AdsPlatformRow]
+    by_brand: list[AdsBrandRow]
+    by_month: list[AdsMonthRow]
+    bucket: Literal["day", "week", "month"]
+    timeseries: list[AdsTimePoint]
+    attention: list[AdsAttentionItem]
+    campaigns: list[AdsCampaignRow]
+
+
+class AdsCampaignBudget(BaseModel):
+    budget_amount: float | None = None
+    spent: float | None = None
+    remaining: float | None = None
+    budget_used_percent: float | None = None
+    time_elapsed_percent: float | None = None
+    status: Literal["NOT_STARTED", "AHEAD", "ON_TRACK", "BEHIND"] | None = None
+    days_total: int | None = None
+    days_elapsed: int | None = None
+
+
+class AdsCampaignCrm(BaseModel):
+    """Since the campaign started: leads, MQLs and SQLs from its results; demos, customers, revenue as recorded."""
+
+    verified_leads: float | None = None
+    mqls: float | None = None
+    sqls: float | None = None
+    demos: float | None = None
+    customers: float | None = None
+    revenue: float | None = None
+    spend: float | None = None
+    cost_per_lead: float | None = None
+    cost_per_sql: float | None = None
+    roas: float | None = None
+
+
+class AdsCampaignFunnel(BaseModel):
+    impressions: float | None = None
+    clicks: float | None = None
+    conversions: float | None = None
+    verified_leads: float | None = None
+    mqls: float | None = None
+    sqls: float | None = None
+
+
+class AdsCampaignLink(BaseModel):
+    system: str
+    external_id: str
+    account_id: str | None = None
+
+
+class AdsCampaignDetail(BaseModel):
+    campaign: AdsCampaignRow
+    currency: str
+    date_from: date
+    date_to: date
+    bucket: Literal["day", "week", "month"]
+    trend: list[AdsTimePoint]
+    funnel: AdsCampaignFunnel
+    # The platform's cost per lead in the range (same currency), to compare with
+    platform_cpl: float | None = None
+    budget: AdsCampaignBudget
+    crm: AdsCampaignCrm
+    links: list[AdsCampaignLink]
+
+
+class AdsHealthProblem(BaseModel):
+    initiative_id: UUID
+    name: str
+    brand_name: str
+    status: str
+    health: DataHealthStatus
+    last_data_date: date | None = None
+
+
+class AdsHealthConnection(BaseModel):
+    account_name: str | None = None
+    account_id: str | None = None
+    status: str
+    updated_at: datetime
+
+
+class AdsHealthPlatform(BaseModel):
+    platform: AdPlatform
+    connection_status: str | None = None
+    connections: list[AdsHealthConnection]
+    source: DataSourceKind | None = None
+    # Ad account ids entered on its campaigns
+    accounts: list[str]
+    campaign_count: int
+    active_campaign_count: int
+    last_data_date: date | None = None
+    last_updated_at: datetime | None = None
+    problems: list[AdsHealthProblem]
+
+
+class AdsHealth(BaseModel):
+    today: date
+    stale_after_days: int
+    platforms: list[AdsHealthPlatform]

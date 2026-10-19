@@ -1,4 +1,4 @@
-"""Paid ads (Google Ads and Bing Ads): results, the costs and outcomes they feed, and the PPC sheet upload.
+"""Paid ads (Google Ads and Bing Ads here; every platform in test_ads_overview.py): results, the costs and outcomes they feed, and the PPC sheet upload.
 
 Results use periods from 2091 on, which no real data uses. Campaigns are made by the temporary admin, so they go
 (with their results, costs and outcomes) when it is removed; monthly budgets made here are removed after each test.
@@ -186,7 +186,7 @@ def test_duplicate_campaign_and_period(client, admin, google):
     assert (moved.status_code, moved.json()["detail"]) == (422, DUPLICATE)
 
 
-def test_only_google_and_bing_campaigns(client, admin, ref, google):
+def test_only_ad_campaigns(client, admin, ref, google):
     seo = client.post(
         "/api/initiatives",
         json={"name": "Pytest SEO", "brand_id": ref["brands"]["OTHERSHIP"], "channel_id": ref["channels"]["SEO"], "currency": "USD",
@@ -194,12 +194,15 @@ def test_only_google_and_bing_campaigns(client, admin, ref, google):
         headers=admin["headers"],
     ).json()
     refused = _create(client, admin, seo)
-    assert (refused.status_code, refused.json()["detail"]) == (422, "Ad results are for Google Ads and Bing Ads campaigns.")
+    assert (refused.status_code, refused.json()["detail"]) == (
+        422, "Ad results are for Paid Search and Paid Social campaigns with an ad platform."
+    )
     assert _create(client, admin, {"id": str(uuid.uuid4())}).status_code == 404
     assert _create(client, admin, google, report_url="http://example.com").status_code == 422
     assert _create(client, admin, google, spend=-1).status_code == 422
     assert _create(client, admin, google, period_end="2091-08-01").status_code == 422
-    assert all(c["platform"] in ("GOOGLE_ADS", "BING_ADS") for c in client.get("/api/ads/campaigns", headers=admin["headers"]).json())
+    picker = client.get("/api/ads/campaigns", headers=admin["headers"]).json()
+    assert seo["id"] not in {c["initiative_id"] for c in picker}
 
 
 def test_permissions(client, admin, viewer, initiative_viewer, google):

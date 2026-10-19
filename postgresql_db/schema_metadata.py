@@ -667,7 +667,8 @@ spend_lines = sa.Table(
     sa.CheckConstraint("status IN ('ESTIMATED', 'COMMITTED', 'INVOICED', 'PAID')", name="spend_lines_status_check"),
     sa.CheckConstraint("currency ~ '^[A-Z]{3}$'", name="spend_lines_currency_check"),
     sa.CheckConstraint(
-        "source IN ('MANUAL', 'STAFF_CALCULATOR', 'COST_SHEET_UPLOAD', 'TRAVEL_FEED', 'GOOGLE_ADS', 'MICROSOFT_ADS', 'NAVAN')",
+        "source IN ('MANUAL', 'STAFF_CALCULATOR', 'COST_SHEET_UPLOAD', 'TRAVEL_FEED', 'GOOGLE_ADS', 'MICROSOFT_ADS', 'NAVAN', "
+        "'LINKEDIN_ADS', 'META_ADS', 'TIKTOK_ADS', 'X_ADS', 'REDDIT_ADS', 'OTHER_ADS')",
         name="spend_lines_source_check",
     ),
     sa.CheckConstraint("payment_method IN ('AP_INVOICE', 'CORPORATE_CARD', 'OTHER')", name="spend_lines_payment_method_check"),

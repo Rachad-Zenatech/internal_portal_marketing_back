@@ -1,10 +1,10 @@
-"""Paid ads (Google Ads and Bing Ads): results per campaign or ad group per period.
+"""Paid ads: results per campaign or ad group per period, for every Paid Search and Paid Social platform.
 
-A campaign is an initiative in Paid Search with the Google Ads or Bing Ads sub-channel. Its results replace
-Marketing's "SaaS PPC Campaigns" sheet. CTR, CPC, CPL and the other ratios are calculated here, never stored.
+A campaign is an initiative in Paid Search or Paid Social; its sub-channel (Google Ads, Bing Ads, LinkedIn Ads, Meta
+Ads, ...) is the platform. Its results replace Marketing's "SaaS PPC Campaigns" sheet. CTR, CPC, CPL and the other ratios are calculated here, never stored.
 
 After every change to an initiative's results, sync_initiatives() keeps two things in step, in the same transaction:
-- Spend: one spend line per result with spend (source GOOGLE_ADS or MICROSOFT_ADS, external_ref "ad_result:<id>",
+- Spend: one spend line per result with spend (source per platform, see SPEND_SOURCES; external_ref "ad_result:<id>",
   category Media / ads, Invoiced), so the cost sheet and the monthly budgets count it. Lines Finance reconciled are
   never changed; they are counted as conflicts.
 - Results: monthly outcomes with source ADS (impressions, clicks, conversions, leads, MQLs, SQLs), summed over the
@@ -27,15 +27,34 @@ from services.spend_service import AUDIT_ENTITY as SPEND_AUDIT_ENTITY
 from services.spend_service import InitiativeNotFoundError
 
 AUDIT_ENTITY = "AdResult"
-PLATFORMS = ("GOOGLE_ADS", "BING_ADS")
-PLATFORM_LABELS = {"GOOGLE_ADS": "Google Ads", "BING_ADS": "Bing Ads"}
-SPEND_SOURCES = {"GOOGLE_ADS": "GOOGLE_ADS", "BING_ADS": "MICROSOFT_ADS"}
-VENDORS = {"GOOGLE_ADS": "Google Ads", "BING_ADS": "Microsoft Advertising"}
+# Every Paid Search and Paid Social sub-channel, in display order (the sub-channel is the platform)
+PAID_CHANNELS = ("PAID_SEARCH", "PAID_SOCIAL")
+PLATFORMS = (
+    "GOOGLE_ADS", "BING_ADS", "LINKEDIN_ADS", "META_ADS", "YOUTUBE_ADS", "TIKTOK_ADS", "X_ADS", "REDDIT_ADS",
+    "DISPLAY_PROGRAMMATIC", "OTHER",
+)
+PLATFORM_LABELS = {
+    "GOOGLE_ADS": "Google Ads", "BING_ADS": "Bing Ads", "LINKEDIN_ADS": "LinkedIn Ads", "META_ADS": "Meta Ads",
+    "YOUTUBE_ADS": "YouTube Ads", "TIKTOK_ADS": "TikTok Ads", "X_ADS": "X Ads", "REDDIT_ADS": "Reddit Ads",
+    "DISPLAY_PROGRAMMATIC": "Display / Programmatic", "OTHER": "Other",
+}
+# The spend line source per platform (YouTube Ads is billed through Google Ads)
+SPEND_SOURCES = {
+    "GOOGLE_ADS": "GOOGLE_ADS", "YOUTUBE_ADS": "GOOGLE_ADS", "BING_ADS": "MICROSOFT_ADS", "LINKEDIN_ADS": "LINKEDIN_ADS",
+    "META_ADS": "META_ADS", "TIKTOK_ADS": "TIKTOK_ADS", "X_ADS": "X_ADS", "REDDIT_ADS": "REDDIT_ADS",
+    "DISPLAY_PROGRAMMATIC": "OTHER_ADS", "OTHER": "OTHER_ADS",
+}
+AD_SPEND_SOURCES = tuple(sorted(set(SPEND_SOURCES.values())))
+VENDORS = {
+    "GOOGLE_ADS": "Google Ads", "YOUTUBE_ADS": "Google Ads", "BING_ADS": "Microsoft Advertising",
+    "LINKEDIN_ADS": "LinkedIn", "META_ADS": "Meta", "TIKTOK_ADS": "TikTok", "X_ADS": "X", "REDDIT_ADS": "Reddit",
+    "DISPLAY_PROGRAMMATIC": "Display / programmatic", "OTHER": "Ad platform",
+}
 SPEND_CATEGORY = "MEDIA_ADS"
 OUTCOME_SOURCE = "ADS"
 EXTERNAL_REF_PREFIX = "ad_result:"
 
-NOT_ADS_MESSAGE = "Ad results are for Google Ads and Bing Ads campaigns."
+NOT_ADS_MESSAGE = "Ad results are for Paid Search and Paid Social campaigns with an ad platform."
 DUPLICATE_MESSAGE = "There's already a result for this campaign and period. Edit that one instead."
 DATES_MESSAGE = "The period can't end before it starts."
 
@@ -60,22 +79,26 @@ _CONSTRAINT_MESSAGES = {
     "ad_results_source_check": "Unknown source.",
 }
 
-# Initiatives that are Google Ads or Bing Ads campaigns, with their platform as sc.code
-CAMPAIGNS_FROM = """
-    FROM initiatives i
-    JOIN channels ch ON ch.id = i.channel_id AND ch.code = 'PAID_SEARCH'
-    JOIN sub_channels sc ON sc.id = i.sub_channel_id AND sc.code IN ('GOOGLE_ADS', 'BING_ADS')
+# Joins that keep only ad campaigns (constants above, so the SQL stays safe)
+CAMPAIGN_JOINS = f"""
+    JOIN channels ch ON ch.id = i.channel_id AND ch.code IN ({", ".join(f"'{c}'" for c in PAID_CHANNELS)})
+    JOIN sub_channels sc ON sc.id = i.sub_channel_id AND sc.code IN ({", ".join(f"'{p}'" for p in PLATFORMS)})
 """
+# Initiatives that are ad campaigns, with their platform as sc.code
+CAMPAIGNS_FROM = f"""
+    FROM initiatives i
+    {CAMPAIGN_JOINS}
+"""
+AD_SOURCES_SQL = ", ".join(f"'{s}'" for s in AD_SPEND_SOURCES)
 
-_SELECT = """
+_SELECT = f"""
     SELECT r.id, r.initiative_id, i.name AS campaign_name, sc.code AS platform, i.brand_id, b.name AS brand_name,
            i.market_id, mk.name AS market_name, i.currency, r.ad_group, r.period_start, r.period_end,
            r.budget_amount, r.spend, r.impressions, r.clicks, r.conversions, r.hubspot_contacts, r.mqls, r.sqls,
            r.status, r.report_url, r.tracking_detail, r.source, r.updated_at, u.full_name AS updated_by_name
     FROM ad_results r
     JOIN initiatives i ON i.id = r.initiative_id
-    JOIN channels ch ON ch.id = i.channel_id AND ch.code = 'PAID_SEARCH'
-    JOIN sub_channels sc ON sc.id = i.sub_channel_id AND sc.code IN ('GOOGLE_ADS', 'BING_ADS')
+    {CAMPAIGN_JOINS}
     JOIN brands b ON b.id = i.brand_id
     LEFT JOIN markets mk ON mk.id = i.market_id
     LEFT JOIN users u ON u.id = r.updated_by
@@ -139,7 +162,7 @@ def _totals(results: list[dict]) -> list[dict]:
     for r in results:
         groups[(r["platform"], r["currency"])].append(r)
         groups[("ALL", r["currency"])].append(r)
-    order = {"GOOGLE_ADS": 0, "BING_ADS": 1, "ALL": 2}
+    order = {**{p: n for n, p in enumerate(PLATFORMS)}, "ALL": len(PLATFORMS)}
     totals = []
     for (platform, currency), rows in sorted(groups.items(), key=lambda g: (order[g[0][0]], g[0][1])):
         sums = {}
@@ -191,7 +214,7 @@ async def list_results(
 
 
 async def list_campaigns(platform: str | None = None) -> list[dict]:
-    """Every Google Ads and Bing Ads initiative, for pickers."""
+    """Every ad campaign (Paid Search and Paid Social initiative with a platform), for pickers."""
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -265,13 +288,12 @@ async def sync_initiatives(conn, initiative_ids, actor_id: UUID | None) -> int:
         raise RuntimeError(f"Spend category {SPEND_CATEGORY} is missing")
 
     wanted = await conn.fetch(
-        """
+        f"""
         SELECT r.id, r.initiative_id, r.ad_group, r.period_start, r.period_end, r.spend,
                i.name AS campaign_name, i.currency, sc.code AS platform
         FROM ad_results r
         JOIN initiatives i ON i.id = r.initiative_id
-        JOIN channels ch ON ch.id = i.channel_id AND ch.code = 'PAID_SEARCH'
-        JOIN sub_channels sc ON sc.id = i.sub_channel_id AND sc.code IN ('GOOGLE_ADS', 'BING_ADS')
+        {CAMPAIGN_JOINS}
         WHERE r.initiative_id = ANY($1::uuid[]) AND r.spend > 0
         """,
         ids,
@@ -282,7 +304,7 @@ async def sync_initiatives(conn, initiative_ids, actor_id: UUID | None) -> int:
             f"""
             SELECT id, initiative_id, external_ref, {', '.join(_SYNCED_FIELDS)}, reconciled_month
             FROM spend_lines
-            WHERE initiative_id = ANY($1::uuid[]) AND source IN ('GOOGLE_ADS', 'MICROSOFT_ADS')
+            WHERE initiative_id = ANY($1::uuid[]) AND source IN ({AD_SOURCES_SQL})
               AND external_ref LIKE '{EXTERNAL_REF_PREFIX}%'
             FOR UPDATE
             """,
@@ -539,7 +561,7 @@ async def _ads_initiative(conn, initiative_id: UUID):
     )
     if row is None:
         raise InitiativeNotFoundError
-    if row["channel"] != "PAID_SEARCH" or row["sub_channel"] not in PLATFORMS:
+    if row["channel"] not in PAID_CHANNELS or row["sub_channel"] not in PLATFORMS:
         raise AdsValidationError(NOT_ADS_MESSAGE)
     return row
 
@@ -558,7 +580,7 @@ async def _fetch_one(conn, result_id: UUID, spend_conflicts: int = 0) -> dict:
 
 
 async def create_result(data: dict, actor_id: UUID) -> dict:
-    """Add one result to a Google Ads or Bing Ads campaign, then sync its spend and outcomes."""
+    """Add one result to an ad campaign, then sync its spend and outcomes."""
     values = {c: data.get(c) for c in VALUE_COLUMNS}
     values["status"] = values["status"] or "ACTIVE"
     pool = get_pool()

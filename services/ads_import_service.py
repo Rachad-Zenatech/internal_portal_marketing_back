@@ -609,7 +609,7 @@ async def undo_import(batch_id: UUID, actor_id: UUID) -> dict:
                   AND NOT EXISTS (
                       SELECT 1 FROM spend_lines s
                       WHERE s.external_ref = '{ads_service.EXTERNAL_REF_PREFIX}' || r.id::text
-                        AND s.source IN ('GOOGLE_ADS', 'MICROSOFT_ADS') AND s.reconciled_month IS NOT NULL
+                        AND s.source IN ({ads_service.AD_SOURCES_SQL}) AND s.reconciled_month IS NOT NULL
                   )
                 FOR UPDATE OF r
                 """,

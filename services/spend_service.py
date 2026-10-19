@@ -58,7 +58,10 @@ _UPDATABLE_COLUMNS = (
 
 # Costs from these sources update automatically, so nothing on them can be edited or deleted. Leftover TRAVEL_FEED
 # lines (from the old travel feed, which no longer updates them) are editable and deletable like manual ones.
-_FEED_LOCKS = {"NAVAN": "NAVAN", "GOOGLE_ADS": "ADS_IMPORT", "MICROSOFT_ADS": "ADS_IMPORT"}
+_FEED_LOCKS = {
+    "NAVAN": "NAVAN",
+    **{s: "ADS_IMPORT" for s in ("GOOGLE_ADS", "MICROSOFT_ADS", "LINKEDIN_ADS", "META_ADS", "TIKTOK_ADS", "X_ADS", "REDDIT_ADS", "OTHER_ADS")},
+}
 # Once a month is reconciled the figures are fixed; description, vendor, note and invoice number stay editable
 _RECONCILED_FIELDS = ("amount", "currency", "incurred_on", "category_id", "estimated_amount", "cost_type")
 # A reconciled line may still move from Invoiced to Paid; after that the payment details are fixed too

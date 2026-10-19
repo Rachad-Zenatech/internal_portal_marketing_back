@@ -7,7 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 SpendStatus = Literal["ESTIMATED", "COMMITTED", "INVOICED", "PAID"]
 PaymentMethod = Literal["AP_INVOICE", "CORPORATE_CARD", "OTHER"]
 CostType = Literal["OPEX", "CAPEX"]
-SpendSource = Literal["MANUAL", "STAFF_CALCULATOR", "COST_SHEET_UPLOAD", "TRAVEL_FEED", "GOOGLE_ADS", "MICROSOFT_ADS", "NAVAN"]
+SpendSource = Literal[
+    "MANUAL", "STAFF_CALCULATOR", "COST_SHEET_UPLOAD", "TRAVEL_FEED", "GOOGLE_ADS", "MICROSOFT_ADS", "NAVAN",
+    "LINKEDIN_ADS", "META_ADS", "TIKTOK_ADS", "X_ADS", "REDDIT_ADS", "OTHER_ADS",
+]
 # Sources a person can enter through the API; the rest arrive from imports and feeds
 ManualSpendSource = Literal["MANUAL", "STAFF_CALCULATOR"]
 
