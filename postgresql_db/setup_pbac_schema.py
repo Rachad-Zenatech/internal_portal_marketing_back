@@ -280,8 +280,8 @@ async def setup():
         # Navigation codes that were renamed; remove the old rows (their role grants cascade)
         await conn.execute("DELETE FROM navigation_items WHERE code = ANY($1::text[])", ["EVENTS"])
 
+        # Upserted by code, never truncated: groups keep their ids, so the roles granted them keep their grants
         print("Seeding permission modules and groups...")
-        await conn.execute("TRUNCATE permission_modules CASCADE")
 
         modules = [
             ("MAIN", "Dashboard & Overview", 10),
@@ -289,8 +289,11 @@ async def setup():
             ("CONFIGURATIONS", "Configurations & Security", 20),
             ("LOGS", "Audit & System Logs", 30),
         ]
-        for m in modules:
-            await conn.execute("INSERT INTO permission_modules (code, name, sort_order) VALUES ($1, $2, $3)", *m)
+        await conn.execute("""
+            INSERT INTO permission_modules (code, name, sort_order)
+            SELECT * FROM unnest($1::text[], $2::text[], $3::int[])
+            ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, sort_order = EXCLUDED.sort_order, updated_at = now()
+        """, *(list(col) for col in zip(*modules)))
 
         groups_data = {
             "MAIN": [
@@ -313,19 +316,33 @@ async def setup():
             ],
         }
 
-        for module_code, groups in groups_data.items():
-            module_id = await conn.fetchval("SELECT id FROM permission_modules WHERE code = $1", module_code)
-            for g_code, g_name, g_desc, g_sort, actions_list in groups:
-                g_id = await conn.fetchval("""
-                    INSERT INTO permission_groups (module_id, code, name, description, sort_order)
-                    VALUES ($1, $2, $3, $4, $5) RETURNING id
-                """, module_id, g_code, g_name, g_desc, g_sort)
+        groups = [(m, g[0], g[1], g[2], g[3]) for m, gs in groups_data.items() for g in gs]
+        await conn.execute("""
+            INSERT INTO permission_groups (module_id, code, name, description, sort_order)
+            SELECT pm.id, g.code, g.name, g.description, g.sort_order
+            FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::int[])
+                AS g(module_code, code, name, description, sort_order)
+            JOIN permission_modules pm ON pm.code = g.module_code
+            ON CONFLICT (code) DO UPDATE SET
+                module_id = EXCLUDED.module_id,
+                name = EXCLUDED.name,
+                description = EXCLUDED.description,
+                sort_order = EXCLUDED.sort_order,
+                updated_at = now()
+        """, *(list(col) for col in zip(*groups)))
 
-                for nav_code, act_code in actions_list:
-                    await conn.execute("""
-                        INSERT INTO permission_group_actions (permission_group_id, api_module_code, action)
-                        VALUES ($1, $2, $3)
-                    """, g_id, nav_code, act_code)
+        # A seeded group's actions are defined here, so they're replaced as a set
+        actions = [(g[0], nav, act) for gs in groups_data.values() for g in gs for nav, act in g[4]]
+        await conn.execute("""
+            DELETE FROM permission_group_actions
+            WHERE permission_group_id IN (SELECT id FROM permission_groups WHERE code = ANY($1::text[]))
+        """, [g[1] for g in groups])
+        await conn.execute("""
+            INSERT INTO permission_group_actions (permission_group_id, api_module_code, action)
+            SELECT pg.id, a.nav_code, a.action
+            FROM unnest($1::text[], $2::text[], $3::text[]) AS a(group_code, nav_code, action)
+            JOIN permission_groups pg ON pg.code = a.group_code
+        """, *(list(col) for col in zip(*actions)))
 
         print("Seeding standard roles...")
         roles_data = [

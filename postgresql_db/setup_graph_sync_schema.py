@@ -15,13 +15,18 @@ async def setup():
     conn = await pool.acquire()
 
     try:
-        print("Adding Microsoft Graph sync columns to users...")
-        await conn.execute("""
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS department TEXT;
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title TEXT;
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS graph_account_enabled BOOLEAN;
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS last_graph_sync TIMESTAMP WITH TIME ZONE;
-        """)
+        # ALTER TABLE locks users even when the columns exist, and waits behind any open transaction on a live
+        # database, so it only runs when a column is missing
+        columns = {"department": "TEXT", "job_title": "TEXT", "graph_account_enabled": "BOOLEAN", "last_graph_sync": "TIMESTAMP WITH TIME ZONE"}
+        existing = {r["column_name"] for r in await conn.fetch(
+            "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users'"
+        )}
+        missing = [name for name in columns if name not in existing]
+        if missing:
+            print(f"Adding Microsoft Graph sync columns to users: {', '.join(missing)}...")
+            await conn.execute("".join(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {name} {columns[name]};" for name in missing))
+        else:
+            print("Microsoft Graph sync columns already on users.")
 
         print("Seeding PENDING_USER and USER roles...")
         await conn.execute(

@@ -78,6 +78,10 @@ def do_run_migrations(connection: Connection) -> None:
         include_schemas=False,
         include_object=include_object,
     )
+    # On a live database, give up on a busy table instead of queueing the app's queries behind the migration
+    lock_timeout = os.getenv("DB_LOCK_TIMEOUT", "")
+    if lock_timeout.isdigit():
+        connection.exec_driver_sql(f"SET lock_timeout = {int(lock_timeout)}")
 
     with context.begin_transaction():
         context.run_migrations()
