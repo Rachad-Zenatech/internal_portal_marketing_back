@@ -6,10 +6,19 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 OAuthProvider = Literal[
+    # Paid Ads
     "GOOGLE_ADS",
     "MICROSOFT_ADS",
     "META_ADS",
     "LINKEDIN_ADS",
+    # Organic Social Media
+    "LINKEDIN_PAGE",
+    "X_TWITTER",
+    "FACEBOOK_PAGE",
+    "INSTAGRAM",
+    "YOUTUBE",
+    "TIKTOK",
+    # Enterprise Services
     "QUICKBOOKS",
     "ONEDRIVE",
 ]
@@ -112,3 +121,29 @@ class ResolvedConnection(BaseModel):
     scope_level: Literal["COMPANY", "ORGANIZATION"]
     access_token: str
     provider: OAuthProvider
+
+
+class OAuthAuthorizeResponse(BaseModel):
+    provider: OAuthProvider
+    authorization_url: str
+    state: str
+    is_configured: bool
+
+
+class OAuthCallbackRequest(BaseModel):
+    provider: OAuthProvider
+    code: str
+    state: str
+    redirect_uri: str | None = None
+
+
+class OAuthInstantConnectRequest(BaseModel):
+    organization_id: UUID
+    company_id: UUID | None = None
+    account_name: str | None = None
+    provider_account_id: str | None = None
+
+
+class OAuthConnectResponse(BaseModel):
+    connection: OAuthConnection
+    discovered_accounts: list[dict[str, Any]] = Field(default_factory=list)

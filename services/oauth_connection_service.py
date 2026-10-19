@@ -9,7 +9,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-import httpx
+import asyncpg
+import requests
 
 from models.oauth_connection_model import (
     Company,
@@ -29,10 +30,18 @@ logger = logging.getLogger(__name__)
 
 # Provider token refresh endpoints
 PROVIDER_TOKEN_URLS = {
+    # Paid Ads
     "GOOGLE_ADS": "https://oauth2.googleapis.com/token",
     "MICROSOFT_ADS": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
     "META_ADS": "https://graph.facebook.com/v19.0/oauth/access_token",
     "LINKEDIN_ADS": "https://www.linkedin.com/oauth/v2/accessToken",
+    # Organic Social Media
+    "LINKEDIN_PAGE": "https://www.linkedin.com/oauth/v2/accessToken",
+    "X_TWITTER": "https://api.twitter.com/2/oauth2/token",
+    "FACEBOOK_PAGE": "https://graph.facebook.com/v19.0/oauth/access_token",
+    "INSTAGRAM": "https://graph.facebook.com/v19.0/oauth/access_token",
+    "YOUTUBE": "https://oauth2.googleapis.com/token",
+    "TIKTOK": "https://open.tiktokapis.com/v2/oauth/token/",
 }
 
 
@@ -491,12 +500,14 @@ async def _execute_provider_refresh(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(token_url, data=payload)
-            if resp.status_code == 200:
-                return resp.json()
-            logger.error(f"OAuth refresh failed for {provider}: {resp.status_code} {resp.text}")
-            return None
+        def _call_refresh():
+            return requests.post(token_url, data=payload, timeout=15.0)
+
+        resp = await asyncio.to_thread(_call_refresh)
+        if resp.status_code == 200:
+            return resp.json()
+        logger.error(f"OAuth refresh failed for {provider}: {resp.status_code} {resp.text}")
+        return None
     except Exception as exc:
         logger.exception(f"Exception during OAuth refresh for {provider}: {exc}")
         return None

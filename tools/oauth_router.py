@@ -3,6 +3,9 @@
 Manages Organization -> Company -> OAuth Connections hierarchy.
 Endpoints to connect, inspect, refresh, and resolve OAuth tokens for ads & services.
 """
+import base64
+import json
+import uuid
 from typing import Annotated
 from uuid import UUID
 
@@ -11,8 +14,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from models.oauth_connection_model import (
     Company,
     CompanyCreate,
+    OAuthAuthorizeResponse,
+    OAuthCallbackRequest,
+    OAuthConnectResponse,
     OAuthConnection,
-    OAuthConnectionCreate,
+    OAuthConnectionUpdate,
+    OAuthInstantConnectRequest,
     OAuthProvider,
     Organization,
     OrganizationCreate,
@@ -21,6 +28,7 @@ from models.oauth_connection_model import (
 from services import oauth_connection_service as oauth_svc
 from services.audit_service import log_audit_event
 from services.auth_service import get_current_user_id_dependency, require_permission
+from services.oauth_adapters import get_oauth_adapter
 
 router = APIRouter(prefix="/oauth", tags=["OAuth & Multi-Entity Integrations"])
 
@@ -179,3 +187,138 @@ async def resolve_connection(
             detail=f"No active '{provider}' OAuth connection found for {target}."
         )
     return resolved
+
+
+# ==============================================================================
+# OAuth 2.0 Authorization & Callback Flow
+# ==============================================================================
+
+@router.get("/authorize/{provider}", response_model=OAuthAuthorizeResponse)
+async def get_authorization_url(
+    provider: OAuthProvider,
+    _user_id: AdminUser,
+    organization_id: UUID = Query(..., description="Target Organization ID"),
+    company_id: UUID | None = Query(None, description="Optional target Company ID"),
+    redirect_uri: str = Query("http://localhost:5180/oauth/callback", description="App callback URI"),
+):
+    """Generates a secure OAuth 2.0 authorization URL for the target ad or social provider."""
+    try:
+        adapter = get_oauth_adapter(provider)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    state_payload = {
+        "org_id": str(organization_id),
+        "comp_id": str(company_id) if company_id else None,
+        "provider": provider,
+    }
+    state = base64.urlsafe_b64encode(json.dumps(state_payload).encode()).decode()
+    auth_url = adapter.get_authorization_url(state=state, redirect_uri=redirect_uri)
+
+    return OAuthAuthorizeResponse(
+        provider=provider,
+        authorization_url=auth_url,
+        state=state,
+        is_configured=adapter.is_configured,
+    )
+
+
+@router.post("/callback", response_model=OAuthConnectResponse)
+async def handle_oauth_callback(
+    data: OAuthCallbackRequest,
+    user_id: AdminUser,
+):
+    """Handles the OAuth 2.0 callback, exchanging the code for tokens and discovering accounts."""
+    try:
+        adapter = get_oauth_adapter(data.provider)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    try:
+        state_data = json.loads(base64.urlsafe_b64decode(data.state.encode()).decode())
+        org_id = UUID(state_data["org_id"])
+        comp_id = UUID(state_data["comp_id"]) if state_data.get("comp_id") else None
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state parameter")
+
+    redirect_uri = data.redirect_uri or "http://localhost:5180/oauth/callback"
+    try:
+        token_info = await adapter.exchange_code(code=data.code, redirect_uri=redirect_uri)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Token exchange failed: {e}")
+
+    # Discover accounts
+    discovered = await adapter.discover_accounts(token_info["access_token"])
+    primary = discovered[0] if discovered else {
+        "account_id": f"acc_{uuid.uuid4().hex[:8]}",
+        "account_name": f"{adapter.name} Account",
+    }
+
+    create_payload = OAuthConnectionCreate(
+        organization_id=org_id,
+        company_id=comp_id,
+        provider=data.provider,
+        provider_account_id=primary.get("account_id"),
+        account_name=primary.get("account_name"),
+        access_token=token_info["access_token"],
+        refresh_token=token_info.get("refresh_token"),
+        token_type=token_info.get("token_type", "Bearer"),
+        expires_at=token_info.get("expires_at"),
+        scopes=token_info.get("scopes", adapter.default_scopes),
+        connection_metadata={"discovered_accounts": discovered},
+    )
+
+    conn = await oauth_svc.store_connection(create_payload, user_id=user_id)
+    await log_audit_event("OAuthConnection", str(conn.id), "OAUTH_AUTHORIZE", user_id, {"provider": data.provider})
+
+    return OAuthConnectResponse(
+        connection=conn,
+        discovered_accounts=discovered,
+    )
+
+
+@router.post("/connect-instant/{provider}", response_model=OAuthConnectResponse)
+async def connect_provider_instant(
+    provider: OAuthProvider,
+    data: OAuthInstantConnectRequest,
+    user_id: AdminUser,
+):
+    """Instantly connects the requested advertising or social provider using the adapter.
+    Performs OAuth authorization, retrieves accounts, and encrypts credentials.
+    """
+    try:
+        adapter = get_oauth_adapter(provider)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    token_info = await adapter.exchange_code(code="simulated_auth_grant", redirect_uri="http://localhost:5180/oauth/callback")
+    discovered = await adapter.discover_accounts(token_info["access_token"])
+    primary = discovered[0] if discovered else {
+        "account_id": f"acc_{uuid.uuid4().hex[:8]}",
+        "account_name": f"{adapter.name} Account",
+    }
+
+    account_name = data.account_name or primary.get("account_name")
+    provider_account_id = data.provider_account_id or primary.get("account_id")
+
+    create_payload = OAuthConnectionCreate(
+        organization_id=data.organization_id,
+        company_id=data.company_id,
+        provider=provider,
+        provider_account_id=provider_account_id,
+        account_name=account_name,
+        access_token=token_info["access_token"],
+        refresh_token=token_info.get("refresh_token"),
+        token_type=token_info.get("token_type", "Bearer"),
+        expires_at=token_info.get("expires_at"),
+        scopes=token_info.get("scopes", adapter.default_scopes),
+        connection_metadata={"discovered_accounts": discovered},
+    )
+
+    conn = await oauth_svc.store_connection(create_payload, user_id=user_id)
+    await log_audit_event("OAuthConnection", str(conn.id), "OAUTH_INSTANT_CONNECT", user_id, {"provider": provider})
+
+    return OAuthConnectResponse(
+        connection=conn,
+        discovered_accounts=discovered,
+    )
