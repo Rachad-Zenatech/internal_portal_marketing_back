@@ -23,6 +23,7 @@ def _create(client, admin, ref, *, channel="EVENTS", sub_channel="WEBINARS", eve
         "brand_id": ref["brands"]["DESKFLEX"],
         "channel_id": ref["channels"][channel],
         "sub_channel_id": ref["sub_channels"][sub_channel],
+        "budget_amount": 0,
     }
     if event is not None:
         payload["event"] = event

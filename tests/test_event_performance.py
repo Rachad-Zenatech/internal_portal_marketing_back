@@ -12,7 +12,7 @@ from datetime import date
 import pytest
 
 from services.event_performance_service import name_key_sql
-from tests.conftest import run_sql
+from tests.conftest import clear_budget, run_sql
 
 CATEGORIES = ("BOOTH_SPACE", "TRAVEL", "GROUND_TRANSPORT", "STAFF_TIME", "MEALS_PER_DIEMS", "MATERIALS", "OTHER")
 FIGURES = ("approved_budget", "actual_spend", "budget_variance", "prior_year_spend", "leads", "cost_per_lead")
@@ -47,9 +47,13 @@ def _event(client, admin, ref, start, end=None, **overrides):
         "event": {"city": "Las Vegas", "country_code": "US"},
         **overrides,
     }
+    # Only drafts can be created without a budget: others get one and have it cleared
+    without_budget = body["budget_amount"] is None and body.get("status") != "DRAFT"
+    if without_budget:
+        body["budget_amount"] = 0
     response = client.post("/api/initiatives", json=body, headers=admin["headers"])
     assert response.status_code == 201, response.text
-    return response.json()
+    return clear_budget(response.json()) if without_budget else response.json()
 
 
 def _line(initiative_id, category_id, amount, status="PAID", currency="USD", source="MANUAL"):

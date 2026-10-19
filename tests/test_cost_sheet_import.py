@@ -36,6 +36,7 @@ def event(client, admin, ref):
             "channel_id": ref["channels"]["EVENTS"],
             "sub_channel_id": ref["sub_channels"]["IN_PERSON_EVENTS"],
             "currency": "USD",
+            "budget_amount": 0,
             "start_date": "2026-11-04",
             "end_date": "2026-11-06",
             "event": {"city": "Las Vegas", "country_code": "US"},

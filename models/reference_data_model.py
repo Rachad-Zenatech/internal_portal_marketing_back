@@ -16,6 +16,8 @@ class DescribedReferenceItem(ReferenceItem):
 
 class ChannelItem(ReferenceItem):
     sub_channel_ids: list[int]
+    # True when it has sub-channels besides Other: a non-draft initiative must then choose one
+    sub_channel_required: bool
 
 
 class GoalItem(ReferenceItem):
@@ -41,6 +43,16 @@ class OutcomeMetricItem(ReferenceItem):
     unit: Literal["COUNT", "MONEY"]
 
 
+class PrimaryKpiItem(ReferenceItem):
+    # How the KPI and its target are shown
+    unit: Literal["COUNT", "MONEY", "PERCENT"]
+
+
+class ChoiceItem(BaseModel):
+    code: str
+    name: str
+
+
 class EvaluationDefaultItem(BaseModel):
     """What success means by default for a sub-channel (pre-fills the goal and maturity window)."""
 
@@ -61,6 +73,8 @@ class ReferenceDataResponse(BaseModel):
     sub_channels: list[ReferenceItem]
     funnel_stages: list[ReferenceItem]
     goals: list[GoalItem]
+    # Optional main KPI of an initiative (display and target only); any KPI fits any channel
+    primary_kpis: list[PrimaryKpiItem]
     performance_ratings: list[DescribedReferenceItem]
     scale_or_cut_options: list[DescribedReferenceItem]
     regions: list[ReferenceItem]
@@ -75,3 +89,6 @@ class ReferenceDataResponse(BaseModel):
     evaluation_defaults: list[EvaluationDefaultItem]
     demo_types: list[ReferenceItem]
     demo_outcomes: list[DemoOutcomeItem]
+    # Field → allowed values, in display order: campaign_objective, focus_area, content_type, email_platform,
+    # partnership_type, link_system, data_source, revenue_basis
+    choices: dict[str, list[ChoiceItem]]

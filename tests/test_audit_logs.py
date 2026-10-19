@@ -31,7 +31,8 @@ def audited_initiative(client, admin, ref):
     name = f"Pytest Audit Expo {uuid.uuid4().hex[:6]}"
     response = client.post(
         "/api/initiatives",
-        json={"name": name, "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["EVENTS"]},
+        json={"name": name, "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["EVENTS"],
+              "sub_channel_id": ref["sub_channels"]["WEBINARS"], "budget_amount": 0},
         headers=admin["headers"],
     )
     assert response.status_code == 201, response.text

@@ -293,18 +293,19 @@ def test_no_verdict_inside_the_maturity_window(client, admin, ref, codes):
     assert "final verdict is due on" in p["rating"]["reason"]
 
 
-def test_a_kpi_sent_by_an_older_client_is_ignored(client, admin, ref):
-    """No KPI is set by hand any more: a primary_kpi_id sent anyway changes nothing."""
-    response = client.post(
-        "/api/initiatives",
-        json={"name": "Pytest Old Client Expo", "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["EVENTS"],
-              "sub_channel_id": ref["sub_channels"]["IN_PERSON_EVENTS"], "primary_kpi_id": 1,
-              "event": {"city": "Las Vegas", "country_code": "US"}},
-        headers=admin["headers"],
-    )
-    assert response.status_code == 201, response.text
-    assert not any("kpi" in key for key in response.json())
-    run_sql("DELETE FROM initiatives WHERE id = $1", uuid.UUID(response.json()["id"]))
+def test_a_primary_kpi_does_not_change_the_verdict(client, admin, ref, codes):
+    """The KPI and its target are shown, never judged: the verdict stays ROI-based."""
+    kpi_id = run_sql("SELECT id FROM primary_kpis WHERE code = 'COST_PER_LEAD'")[0]["id"]
+    plain = _event(client, admin, ref)
+    with_kpi = _event(client, admin, ref, primary_kpi_id=kpi_id, kpi_target=1)
+    assert (with_kpi["primary_kpi"]["code"], with_kpi["kpi_target"]) == ("COST_PER_LEAD", 1)
+    for event in (plain, with_kpi):
+        _cost(client, admin, event["id"], codes, 10000)
+        _save(client, admin, event["id"], "2025-09-01", [{"metric_code": "LEADS", "value": 10}])
+
+    verdicts = [_performance(client, admin, e["id"]) for e in (plain, with_kpi)]
+    assert verdicts[0]["rating"] == verdicts[1]["rating"]
+    assert not any("kpi" in key for key in verdicts[1])
 
 
 def test_choices_by_channel_use_real_codes(client, admin):
@@ -351,7 +352,7 @@ def test_moving_channel_needs_results_that_fit(client, admin, ref):
     created = client.post(
         "/api/initiatives",
         json={"name": f"Pytest Search Ad {uuid.uuid4().hex[:6]}", "brand_id": ref["brands"]["DESKFLEX"],
-              "channel_id": ref["channels"]["PAID_SEARCH"], "sub_channel_id": ref["sub_channels"]["GOOGLE_ADS"]},
+              "channel_id": ref["channels"]["PAID_SEARCH"], "sub_channel_id": ref["sub_channels"]["GOOGLE_ADS"], "budget_amount": 0},
         headers=admin["headers"],
     ).json()
     assert _save(client, admin, created["id"], "2025-09-01", [{"metric_code": "IMPRESSIONS", "value": 5000}, {"metric_code": "LEADS", "value": 5}]).status_code == 200
@@ -475,7 +476,8 @@ def test_reference_data_has_results_lists(client, admin):
     data = client.get("/api/reference-data", headers=admin["headers"]).json()
     metrics = {m["code"]: m["unit"] for m in data["outcome_metrics"]}
     assert metrics["REVENUE"] == "MONEY" and metrics["LEADS"] == "COUNT"
-    assert "primary_kpis" not in data and "kpi_choices_by_channel" not in data
+    # KPIs are back as an optional display-only list, open to every channel
+    assert data["primary_kpis"] and "kpi_choices_by_channel" not in data
     in_person = next(s["id"] for s in data["sub_channels"] if s["code"] == "IN_PERSON_EVENTS")
     default = next(d for d in data["evaluation_defaults"] if d["sub_channel_id"] == in_person)
     assert default["maturity_days"] == 180

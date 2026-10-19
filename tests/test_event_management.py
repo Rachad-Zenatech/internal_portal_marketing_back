@@ -88,7 +88,8 @@ def test_staff_rules(client, admin, ref, event, colleague):
     assert _add(client, admin, event["id"], uuid.uuid4()).status_code == 422  # unknown person
     ads = client.post(
         "/api/initiatives",
-        json={"name": "Pytest Ads", "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["PAID_SEARCH"]},
+        json={"name": "Pytest Ads", "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["PAID_SEARCH"],
+              "sub_channel_id": ref["sub_channels"]["GOOGLE_ADS"], "budget_amount": 0},
         headers=admin["headers"],
     ).json()
     not_event = _add(client, admin, ads["id"], colleague["id"])

@@ -195,7 +195,7 @@ def test_other_initiatives_can_be_deleted(client, admin, ref):
     created = client.post(
         "/api/initiatives",
         json={"name": "Pytest Search Delete", "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["PAID_SEARCH"],
-              "sub_channel_id": ref["sub_channels"]["GOOGLE_ADS"], "status": "ACTIVE"},
+              "sub_channel_id": ref["sub_channels"]["GOOGLE_ADS"], "status": "ACTIVE", "budget_amount": 0},
         headers=admin["headers"],
     ).json()
 

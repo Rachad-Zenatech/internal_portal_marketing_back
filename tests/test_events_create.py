@@ -15,6 +15,7 @@ def _event_payload(ref, sub_channel="IN_PERSON_EVENTS", **overrides) -> dict:
         "brand_id": ref["brands"]["DESKFLEX"],
         "channel_id": ref["channels"]["EVENTS"],
         "sub_channel_id": ref["sub_channels"][sub_channel],
+        "budget_amount": 0,
     }
     payload.update(overrides)
     return payload
@@ -111,6 +112,7 @@ def test_event_details_rejected_outside_events_channel(client, admin, ref):
         "brand_id": ref["brands"]["DESKFLEX"],
         "channel_id": ref["channels"]["PAID_SEARCH"],
         "sub_channel_id": ref["sub_channels"]["GOOGLE_ADS"],
+        "budget_amount": 0,
         "event": {"city": "Las Vegas"},
     }
 

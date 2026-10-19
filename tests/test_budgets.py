@@ -58,7 +58,9 @@ def _initiative(client, admin, ref, brand, channel, market_id=None):
         "name": f"Pytest Budget {brand} {channel} {uuid.uuid4().hex[:6]}",
         "brand_id": ref["brands"][brand],
         "channel_id": ref["channels"][channel],
+        "sub_channel_id": ref["sub_channels"]["OTHER"],
         "currency": "USD",
+        "budget_amount": 0,
     }
     if market_id is not None:
         body["market_id"] = market_id

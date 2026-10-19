@@ -1,11 +1,13 @@
-"""Marketing reference data (brands, channels, funnel stages, goals, ratings, cost classification).
+"""Marketing reference data (brands, channels, funnel stages, goals, KPIs, ratings, cost classification).
 
 Read-mostly lookup lists, served from master_data_cache. Any future write to these
 tables must call emit_cache_invalidation(scope="master_data", key=REFERENCE_DATA_CACHE_KEY).
 """
+from models.channel_details_model import CHOICES
 from postgresql_db.database import get_pool
 from services.cache_service import master_data_cache
 from services.initiative_metrics import RESULT_METRICS_BY_CHANNEL
+from services.initiative_service import SUB_CHANNEL_REQUIRED_SQL
 
 REFERENCE_DATA_CACHE_KEY = "reference_data"
 _CACHE_TTL_SECONDS = 300
@@ -14,6 +16,7 @@ _SIMPLE_LISTS = {
     "brands": "SELECT id, code, name, sort_order FROM brands WHERE is_active ORDER BY sort_order, name",
     "sub_channels": "SELECT id, code, name, sort_order FROM sub_channels WHERE is_active ORDER BY sort_order, name",
     "funnel_stages": "SELECT id, code, name, sort_order FROM funnel_stages WHERE is_active ORDER BY sort_order, name",
+    "primary_kpis": "SELECT id, code, name, unit, sort_order FROM primary_kpis WHERE is_active ORDER BY sort_order, name",
     "performance_ratings": (
         "SELECT id, code, name, description, sort_order FROM performance_ratings "
         "WHERE is_active ORDER BY sort_order, name"
@@ -48,11 +51,11 @@ _SIMPLE_LISTS = {
     ),
 }
 
-_CHANNELS_SQL = """
-    SELECT c.id, c.code, c.name, c.sort_order,
+_CHANNELS_SQL = f"""
+    SELECT c.id, c.code, c.name, c.sort_order, {SUB_CHANNEL_REQUIRED_SQL} AS sub_channel_required,
            COALESCE(
                array_agg(s.id ORDER BY s.sort_order) FILTER (WHERE s.id IS NOT NULL),
-               '{}'::int[]
+               '{{}}'::int[]
            ) AS sub_channel_ids
     FROM channels c
     LEFT JOIN channel_sub_channels l ON l.channel_id = c.id
@@ -78,6 +81,8 @@ async def get_reference_data() -> dict:
 
     # Which results each channel can record (rules in code, not tables)
     result["result_metrics_by_channel"] = RESULT_METRICS_BY_CHANNEL
+    # Allowed values of the wizard's fixed lists (channel details, link systems, data source, revenue basis)
+    result["choices"] = {field: [{"code": c, "name": n} for c, n in options] for field, options in CHOICES.items()}
 
     await master_data_cache.set(REFERENCE_DATA_CACHE_KEY, result, ttl_seconds=_CACHE_TTL_SECONDS)
     return result

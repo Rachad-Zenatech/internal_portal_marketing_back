@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from tests.conftest import run_sql
+from tests.conftest import clear_budget, run_sql
 
 
 @pytest.fixture(scope="module")
@@ -29,9 +29,13 @@ def make_event(client, admin, ref):
             "event": {"city": "Las Vegas", "country_code": "US"},
             **overrides,
         }
+        # Only drafts can be created without a budget: others get one and have it cleared
+        without_budget = payload["budget_amount"] is None and payload.get("status") != "DRAFT"
+        if without_budget:
+            payload["budget_amount"] = 0
         response = client.post("/api/initiatives", json=payload, headers=admin["headers"])
         assert response.status_code == 201, response.text
-        return response.json()
+        return clear_budget(response.json()) if without_budget else response.json()
 
     return _make
 
