@@ -39,7 +39,7 @@ class SpendLineItem(BaseModel):
     cost_type: CostType | None = None
     source: SpendSource
     # Why some fields can't change: a feed or import keeps the line up to date, or Finance reconciled it
-    lock_reason: Literal["TRAVEL_FEED", "NAVAN", "ADS_IMPORT", "RECONCILED"] | None = None
+    lock_reason: Literal["NAVAN", "ADS_IMPORT", "RECONCILED"] | None = None
     locked_fields: list[str]
     can_delete: bool
     # False only when every editable field is locked

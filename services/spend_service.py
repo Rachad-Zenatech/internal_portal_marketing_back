@@ -1,7 +1,7 @@
 """Costs against an initiative (spend lines): list, add, edit and delete, with stage, invoice and boundary rules.
 
-Travel, and anything staff pay and claim back, belongs to the travel management system: those costs
-arrive by feed and are never typed in or edited here. Invoices are tracked by number only.
+Travel is booked in Navan: its costs arrive through the Navan cost sync (source NAVAN) and are never typed in or
+edited here. Invoices are tracked by number only.
 """
 from uuid import UUID
 
@@ -56,15 +56,15 @@ _UPDATABLE_COLUMNS = (
 
 # --- Locks: the single place that decides what can change on a line (used by GET, PATCH and DELETE) ---
 
-# Costs from these sources update automatically, so nothing on them can be edited or deleted
-_FEED_LOCKS = {"TRAVEL_FEED": "TRAVEL_FEED", "NAVAN": "NAVAN", "GOOGLE_ADS": "ADS_IMPORT", "MICROSOFT_ADS": "ADS_IMPORT"}
+# Costs from these sources update automatically, so nothing on them can be edited or deleted. Leftover TRAVEL_FEED
+# lines (from the old travel feed, which no longer updates them) are editable and deletable like manual ones.
+_FEED_LOCKS = {"NAVAN": "NAVAN", "GOOGLE_ADS": "ADS_IMPORT", "MICROSOFT_ADS": "ADS_IMPORT"}
 # Once a month is reconciled the figures are fixed; description, vendor, note and invoice number stay editable
 _RECONCILED_FIELDS = ("amount", "currency", "incurred_on", "category_id", "estimated_amount", "cost_type")
 # A reconciled line may still move from Invoiced to Paid; after that the payment details are fixed too
 _RECONCILED_PAID_FIELDS = ("status", "paid_on", "payment_method")
 
 _LOCK_MESSAGES = {
-    "TRAVEL_FEED": "This cost came from the travel management system and updates automatically.",
     "NAVAN": "This cost is the total of the event's Navan bookings and updates automatically.",
     "ADS_IMPORT": "This cost came from an ads import and updates automatically.",
 }
@@ -119,7 +119,7 @@ class SpendValidationError(Exception):
 def check_category(category, channel_code: str | None) -> None:
     """Raise if a category (manual_entry_allowed, applies_to) can't be used on an initiative in this channel."""
     if not category["manual_entry_allowed"]:
-        raise SpendValidationError("Travel and staff expenses come from the travel management system.", code="MANUAL_ENTRY_NOT_ALLOWED")
+        raise SpendValidationError("This category can't be entered by hand.", code="MANUAL_ENTRY_NOT_ALLOWED")
     if category["applies_to"] != "ALL" and category["applies_to"] != _CHANNEL_GROUPS.get(channel_code):
         raise SpendValidationError("That category isn't used for this channel.", code="CATEGORY_NOT_FOR_CHANNEL")
 

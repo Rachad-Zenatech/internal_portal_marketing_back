@@ -1,9 +1,9 @@
 """What counts as travel (flights, hotels, ground transport, per diems and other travel), in one place.
 
 Travel counts toward an event's total cost and ROI, never against a marketing budget. A cost is travel when it came
-from a travel feed (the travel management system or Navan), or when its category is under the Travel &
-accommodation expense type (travel entered here by hand or from a cost sheet). Used by the budget views
-(services/budget_service.py), the event cards (services/event_management_service.py) and the Events Overview
+from a travel feed (Navan, or lines left over from the old travel feed, source TRAVEL_FEED), or when its category is
+under the Travel & accommodation expense type (travel entered here by hand or from a cost sheet). Used by the budget
+views (services/budget_service.py), the event cards (services/event_management_service.py) and the Events Overview
 (services/event_performance_service.py), so they always agree.
 """
 

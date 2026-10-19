@@ -29,7 +29,7 @@ _EXTRA_FIELDS = (
     "user_id",
     "job_id",
     "job_type",
-    # Travel cost sync: what a run did, and why something was skipped or failed
+    # Navan cost sync: what a run did, and why something was skipped or failed
     "summary",
     "error",
     "errors",

@@ -85,15 +85,6 @@ TRUSTED_APPLICATIONS = {
             "audit:write",
         },
     },
-    "travel-management": {
-        "description": "Zenatech Travel Management System",
-        "allowed_inbound_scopes": {
-            # Events and the staff who need travel (GET /api/integrations/travel/events)
-            "events:read",
-            # How far booking has got for each person (POST /api/integrations/travel/staff-status)
-            "events:travel_status_write",
-        },
-    },
     "template": {
         "description": "Zenatech Template Automation Portal",
         "allowed_inbound_scopes": {

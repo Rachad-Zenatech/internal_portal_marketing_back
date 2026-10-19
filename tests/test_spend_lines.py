@@ -142,11 +142,11 @@ def test_paid_needs_a_paid_date(client, admin, event, categories):
     assert _patch(client, admin, line["id"], {"status": "PAID", "paid_on": "2026-11-10"}).status_code == 200
 
 
-def test_travel_categories_are_rejected(client, admin, event, categories):
-    response = _add(client, admin, event["id"], category_id=categories["FLIGHTS"])
-
-    assert response.status_code == 422
-    assert response.json()["detail"] == "Travel and staff expenses come from the travel management system."
+def test_travel_can_be_entered_by_hand(client, admin, event, categories):
+    """Navan adds its own bookings; per diems, Ubers and anything booked elsewhere are entered here."""
+    for code in ("PER_DIEMS_MEALS", "GROUND_TRANSPORT", "FLIGHTS"):
+        response = _add(client, admin, event["id"], category_id=categories[code])
+        assert response.status_code == 201, response.text
 
 
 def test_ads_category_rejected_on_an_event(client, admin, event, categories):
@@ -172,17 +172,31 @@ def test_duplicate_supplier_invoice(client, admin, event, categories):
     assert "is already recorded on" in clash.json()["detail"]
 
 
-def test_travel_feed_lines_are_read_only(client, admin, event, categories):
-    line_id = _insert_line(event["id"], categories["FLIGHTS"], source="TRAVEL_FEED", external_ref="TRIP-1")
+def test_navan_lines_are_read_only(client, admin, event, categories):
+    line_id = _insert_line(event["id"], categories["OTHER_TRAVEL"], source="NAVAN", external_ref=f"navan:pytest:{uuid.uuid4()}")
 
     listed = client.get(f"/api/initiatives/{event['id']}/spend-lines", headers=admin["headers"]).json()
     edited = _patch(client, admin, line_id, {"note": "changed"})
     deleted = client.delete(f"/api/spend-lines/{line_id}", headers=admin["headers"])
 
     assert listed[0]["editable"] is False
-    message = "This cost came from the travel management system and updates automatically."
+    message = "This cost is the total of the event's Navan bookings and updates automatically."
     assert (edited.status_code, edited.json()["detail"]) == (422, message)
     assert (deleted.status_code, deleted.json()["detail"]) == (422, message)
+
+
+def test_leftover_travel_feed_lines_can_be_edited_and_deleted(client, admin, event, categories):
+    """The old travel feed no longer updates its lines, so they can be corrected or removed like manual ones."""
+    line_id = _insert_line(event["id"], categories["FLIGHTS"], source="TRAVEL_FEED", external_ref="TRIP-1")
+
+    [listed] = client.get(f"/api/initiatives/{event['id']}/spend-lines", headers=admin["headers"]).json()
+    edited = _patch(client, admin, line_id, {"note": "changed", "amount": 300})
+
+    assert (listed["lock_reason"], listed["editable"], listed["can_delete"]) == (None, True, True)
+    assert edited.status_code == 200, edited.text
+    assert (edited.json()["note"], edited.json()["amount"]) == ("changed", 300)
+    assert client.delete(f"/api/spend-lines/{line_id}", headers=admin["headers"]).status_code == 204
+    assert client.get(f"/api/initiatives/{event['id']}/spend-lines", headers=admin["headers"]).json() == []
 
 
 def test_reconciled_lines_keep_their_figures(client, admin, event, categories):
@@ -309,7 +323,7 @@ def test_reconciled_line_text_fields_stay_editable(client, admin, event, categor
 
 def test_lock_information_in_responses(client, admin, event, categories):
     manual = _add(client, admin, event["id"], category_id=categories["FLOORING"]).json()
-    travel_id = _insert_line(event["id"], categories["FLIGHTS"], source="TRAVEL_FEED", external_ref="TRIP-LOCKS")
+    travel_id = _insert_line(event["id"], categories["OTHER_TRAVEL"], source="NAVAN", external_ref=f"navan:pytest:{uuid.uuid4()}")
     invoiced_id = _reconciled(event, categories)
     paid_id = _reconciled(event, categories, status="PAID")
 
@@ -318,7 +332,7 @@ def test_lock_information_in_responses(client, admin, event, categories):
 
     assert state[manual["id"]] == (None, True, True)
     assert lines[manual["id"]]["locked_fields"] == []
-    assert state[str(travel_id)] == ("TRAVEL_FEED", False, False)
+    assert state[str(travel_id)] == ("NAVAN", False, False)
     assert len(lines[str(travel_id)]["locked_fields"]) == 13  # every editable field
     assert state[str(invoiced_id)] == ("RECONCILED", False, True)
     assert lines[str(invoiced_id)]["locked_fields"] == ["category_id", "estimated_amount", "amount", "currency", "incurred_on", "cost_type"]

@@ -112,11 +112,9 @@ async def delete_initiative(
     initiative_id: UUID,
     user_id: Annotated[UUID, Depends(require_permission("INITIATIVES_DELETE"))],
 ):
-    """Delete a draft, or an initiative outside the Events channel. Events past Draft are cancelled instead."""
+    """Delete an initiative in any status, events included."""
     try:
         await remove_initiative(initiative_id, user_id)
     except InitiativeNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Initiative not found") from exc
-    except InitiativeValidationError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -293,7 +293,7 @@ def test_matching_rule(client, admin, ref, markets, category_id):
 
 def test_travel_is_outside_the_budget(client, admin, ref, markets, category_id):
     """Travel, per diems and ground transport count toward event cost, never against a marketing budget, whether
-    they came from the travel system or were entered here."""
+    they came from a travel feed or were entered here."""
     month, day = "2097-05-01", date(2097, 5, 12)
     london = markets["LONDON"]
     budget = _make_budget(client, admin, month, london, amount=1000)

@@ -23,14 +23,13 @@ os.environ.setdefault("APP_ENV", "development")
 for _limit in ("RATE_LIMIT_AUTH_PER_WINDOW", "RATE_LIMIT_REQUESTS_PER_WINDOW", "RATE_LIMIT_IP_CEILING_PER_WINDOW"):
     os.environ.setdefault(_limit, "1000000")
 # database.py reloads .env and .env.local (with override) when first imported, so import it now and force the
-# test-only settings after it: tests never connect to brokers or call a real travel system from the background loop
+# test-only settings after it: tests never connect to brokers or call Navan from the background loop
 import postgresql_db.database  # noqa: E402,F401
 
 os.environ["MQTT_PRESENCE_ENABLED"] = "false"
 os.environ["RABBITMQ_ENABLED"] = "false"
-os.environ["TRAVEL_COST_SYNC_ENABLED"] = "false"
 os.environ["NAVAN_COST_SYNC_ENABLED"] = "false"
-# Only this app's own token issuer, whatever a local .env accepts (e.g. the travel system's issuer)
+# Only this app's own token issuer, whatever a local .env accepts (e.g. another portal's issuer)
 os.environ["JWT_ACCEPTED_ISSUERS"] = ""
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
@@ -83,7 +82,7 @@ def client():
 def ref():
     """Reference-data ids by code, e.g. ref['channels']['EVENTS']."""
     _skip_without_database()
-    tables = ["brands", "channels", "sub_channels", "funnel_stages", "goals", "primary_kpis"]
+    tables = ["brands", "channels", "sub_channels", "funnel_stages", "goals"]
     return {t: {r["code"]: r["id"] for r in run_sql(f"SELECT id, code FROM {t}")} for t in tables}
 
 

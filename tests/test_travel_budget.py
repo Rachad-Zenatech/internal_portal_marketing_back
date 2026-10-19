@@ -1,16 +1,14 @@
-"""Travel budget on events, what the travel system reads, and which initiatives can be deleted."""
+"""Travel budget (planned travel spend) on events, and deleting initiatives."""
 import json
 import uuid
 from datetime import date, timedelta
 
 import pytest
 
-from services.service_security_policy import generate_scoped_outbound_token
 from tests.conftest import run_sql
 
 TOO_HIGH = "The travel budget has to be smaller than the event budget."
 NEEDS_BUDGET = "Set the event budget before the travel budget."
-IN_TRAVEL = "This event may already be in the travel system. Cancel it instead."
 
 
 def _event(client, admin, ref, *, budget=20000, travel=None, status="PLANNED", expect=201, **overrides):
@@ -38,13 +36,6 @@ def _event(client, admin, ref, *, budget=20000, travel=None, status="PLANNED", e
 
 def _patch(client, admin, initiative_id, payload):
     return client.patch(f"/api/initiatives/{initiative_id}", json=payload, headers=admin["headers"])
-
-
-def _feed(client, **params):
-    token = generate_scoped_outbound_token("marketing", ["events:read"], source_service="travel-management")
-    response = client.get("/api/integrations/travel/events", params=params, headers={"Authorization": f"Bearer {token}"})
-    assert response.status_code == 200, response.text
-    return {e["event_code"]: e for e in response.json()}
 
 
 # --- Saving it ---
@@ -130,34 +121,9 @@ def test_changing_the_currency_keeps_the_travel_budget_in_the_same_currency(clie
 
     assert response.status_code == 200, response.text
     assert (response.json()["currency"], response.json()["travel_budget_amount"]) == ("CAD", 5000)
-    assert _feed(client)[created["event_code"]]["currency"] == "CAD"
     # And a currency change can't sneak a too-large travel budget through
     both = _patch(client, admin, created["id"], {"currency": "EUR", "budget_amount": 5000})
     assert (both.status_code, both.json()["detail"]) == (422, TOO_HIGH)
-
-
-# --- Travel system feed ---
-
-
-def test_feed_includes_travel_budget_and_currency(client, admin, ref):
-    with_budget = _event(client, admin, ref, travel=6000)
-    without = _event(client, admin, ref)
-
-    feed = _feed(client)
-
-    assert (feed[with_budget["event_code"]]["travel_budget_amount"], feed[with_budget["event_code"]]["currency"]) == (6000, "USD")
-    assert feed[without["event_code"]]["travel_budget_amount"] is None
-
-
-def test_changing_the_travel_budget_moves_the_event_in_the_feed(client, admin, ref):
-    created = _event(client, admin, ref, travel=6000)
-    since = run_sql("SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US') AS t")[0]["t"]
-    assert created["event_code"] not in _feed(client, updated_since=since)
-
-    assert _patch(client, admin, created["id"], {"event": {"travel_budget_amount": 6500}}).status_code == 200
-
-    feed = _feed(client, updated_since=since)
-    assert feed[created["event_code"]]["travel_budget_amount"] == 6500
 
 
 # --- Event cards ---
@@ -203,15 +169,15 @@ def test_overview_without_travel(client, admin, ref):
 
 
 @pytest.mark.parametrize("status", ["PLANNED", "ACTIVE", "CANCELLED"])
-def test_an_event_past_draft_cant_be_deleted(client, admin, ref, status):
-    created = _event(client, admin, ref, status="PLANNED")
+def test_an_event_can_be_deleted_in_any_status(client, admin, ref, status):
+    created = _event(client, admin, ref, status="PLANNED", travel=500)
     if status != "PLANNED":
         assert _patch(client, admin, created["id"], {"status": status}).status_code == 200
 
-    response = client.delete(f"/api/initiatives/{created['id']}", headers=admin["headers"])
+    assert client.delete(f"/api/initiatives/{created['id']}", headers=admin["headers"]).status_code == 204
 
-    assert (response.status_code, response.json()["detail"]) == (422, IN_TRAVEL)
-    assert client.get(f"/api/initiatives/{created['id']}", headers=admin["headers"]).status_code == 200
+    assert client.get(f"/api/initiatives/{created['id']}", headers=admin["headers"]).status_code == 404
+    assert run_sql("SELECT count(*) AS n FROM event_details WHERE initiative_id = $1", uuid.UUID(created["id"]))[0]["n"] == 0
 
 
 def test_a_draft_event_can_be_deleted(client, admin, ref):
