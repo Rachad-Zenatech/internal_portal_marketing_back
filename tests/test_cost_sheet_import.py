@@ -150,7 +150,7 @@ def test_invalid_rows_list_every_problem(client, admin, event):
     sheet = _xlsx([
         ["Item", "Category", "Expense type", "Estimate", "Status", "Date"],
         ["Mystery", "Booth stuff", None, 100, None, "2026-11-04"],
-        ["Flights to Vegas", "Flights", None, 1200, None, "2026-11-01"],
+        ["Flights to Vegas", "Flights", "Show services", 1200, None, "2026-11-01"],
         ["Lighting", "Lighting", "Shipping & logistics", "#N/A", "Sorted", "not a date"],
         ["Nothing", "Lighting", None, None, None, "2026-11-04"],
         ["Ads", "Media / ads", None, 50, None, "2026-11-04"],
@@ -161,7 +161,7 @@ def test_invalid_rows_list_every_problem(client, admin, event):
     rows = _rows(preview)
     assert all(row["status"] == "INVALID" for row in preview["rows"])
     assert rows[2]["messages"] == ["Unknown category 'Booth stuff'. Choose one from the template's Categories sheet."]
-    assert rows[3]["messages"] == ["Travel comes from the travel management system. Leave it out of the sheet."]
+    assert rows[3]["messages"] == ["Flights is under Travel & accommodation, not Show services"]
     assert rows[4]["messages"] == [
         "Lighting is under Show services, not Shipping & logistics",
         "Estimate: #N/A is a spreadsheet error, not an amount",
@@ -253,7 +253,7 @@ def test_confirm_creates_cost_lines(client, admin, event):
     response = _confirm(client, admin, preview["batch_id"])
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"batch_id": preview["batch_id"], "status": "CONFIRMED", "imported_rows": 2, "skipped": 0}
+    assert response.json() == {"batch_id": preview["batch_id"], "status": "CONFIRMED", "imported_rows": 2, "skipped": 0, "replaced_rows": 0}
     lines = run_sql(
         "SELECT description, status, amount, estimated_amount, source, import_batch_id, created_by FROM spend_lines "
         "WHERE initiative_id = $1 ORDER BY description",
@@ -325,7 +325,7 @@ def test_undo_removes_the_lines(client, admin, event):
     response = client.post(f"/api/imports/{preview['batch_id']}/undo", headers=admin["headers"])
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"batch_id": preview["batch_id"], "status": "UNDONE", "removed_rows": 2}
+    assert response.json() == {"batch_id": preview["batch_id"], "status": "UNDONE", "removed_rows": 2, "restored_rows": 0}
     assert run_sql("SELECT 1 FROM spend_lines WHERE initiative_id = $1", event["id"]) == []
     assert run_sql("SELECT action FROM audit_logs WHERE entity_id = $1 AND action = 'UNDO_IMPORT'", preview["batch_id"])
     # Undo only works once
@@ -385,7 +385,9 @@ def test_template(client, admin):
     ]
     category_names = {row[1] for row in categories.iter_rows(min_row=2, values_only=True)}
     assert "Lighting" in category_names
-    assert not category_names & {"Flights", "Hotels", "Ground transport", "Per diems & meals", "Other travel", "Media / ads"}
+    # Travel can be typed in (Navan adds only what's booked there); ads-only media can't go on an event
+    assert {"Flights", "Hotels", "Ground transport", "Per diems & meals", "Other travel"} <= category_names
+    assert "Media / ads" not in category_names
     dropdowns = {str(v.sqref): v.formula1 for v in costs.data_validations.dataValidation}
     assert dropdowns["B2:B1000"].startswith("Categories!$B$2:$B$") or dropdowns["B2:B1000"].startswith("=Categories")
     assert dropdowns["G2:G1000"] == '"Estimate,Committed,Invoiced,Paid"'
@@ -424,3 +426,101 @@ def test_each_imported_and_undone_line_is_audited(client, admin, event):
     )
     assert sorted(a["action"] for a in audit) == ["CREATE", "CREATE", "DELETE", "DELETE"]
     assert all(json.loads(a["old_value"])["description"] for a in audit if a["action"] == "DELETE")
+
+
+# --- Uploading the event's sheet again replaces it ---
+
+
+def _lines(event):
+    return {
+        r["description"]: r
+        for r in run_sql("SELECT description, amount::float8 AS amount, import_batch_id, reconciled_month FROM spend_lines WHERE initiative_id = $1", event["id"])
+    }
+
+
+def _second_sheet() -> bytes:
+    """The same living file, a week later: booth space paid at a new figure, freight gone, printing added."""
+    return _xlsx([
+        HEADER,
+        ["Booth space", "Booth space", "Organiser", 8000, 8200, None, "UP-1", "2026-06-15", "2026-07-01"],
+        ["Printing", "Printing & signage", "PrintHouse", 900, None, None, None, "2026-10-20", None],
+    ])
+
+
+def test_a_new_upload_replaces_the_current_one(client, admin, event):
+    first = _upload(client, admin, event["id"], _ready_sheet()).json()
+    _confirm(client, admin, first["batch_id"])
+
+    second = _upload(client, admin, event["id"], _second_sheet()).json()
+
+    # Its invoice UP-1 belongs to the upload being replaced, so it isn't a duplicate
+    assert second["counts"]["duplicates"] == 0
+    replaces = second["replaces"]
+    assert (replaces["batch_id"], replaces["version"], replaces["line_count"], replaces["edited_count"]) == (first["batch_id"], 1, 2, 0)
+
+    response = _confirm(client, admin, second["batch_id"])
+    assert response.status_code == 200, response.text
+    assert (response.json()["imported_rows"], response.json()["replaced_rows"]) == (2, 2)
+    lines = _lines(event)
+    assert set(lines) == {"Booth space", "Printing"}
+    assert lines["Booth space"]["amount"] == 8200
+
+    history = {b["id"]: b for b in client.get(f"/api/initiatives/{event['id']}/imports", headers=admin["headers"]).json()}
+    assert (history[first["batch_id"]]["status"], history[first["batch_id"]]["version"]) == ("REPLACED", 1)
+    assert (history[second["batch_id"]]["status"], history[second["batch_id"]]["version"]) == ("CONFIRMED", 2)
+
+
+def test_undoing_a_replacement_brings_the_previous_upload_back(client, admin, event):
+    first = _upload(client, admin, event["id"], _ready_sheet()).json()
+    _confirm(client, admin, first["batch_id"])
+    second = _upload(client, admin, event["id"], _second_sheet()).json()
+    _confirm(client, admin, second["batch_id"])
+
+    response = client.post(f"/api/imports/{second['batch_id']}/undo", headers=admin["headers"])
+
+    assert response.status_code == 200, response.text
+    assert (response.json()["removed_rows"], response.json()["restored_rows"]) == (2, 2)
+    lines = _lines(event)
+    assert set(lines) == {"Booth space", "Freight"}
+    assert lines["Booth space"]["amount"] == 8000
+    history = {b["id"]: b["status"] for b in client.get(f"/api/initiatives/{event['id']}/imports", headers=admin["headers"]).json()}
+    assert (history[first["batch_id"]], history[second["batch_id"]]) == ("CONFIRMED", "UNDONE")
+
+
+def test_reconciled_costs_stay_when_their_upload_is_replaced(client, admin, event):
+    first = _upload(client, admin, event["id"], _ready_sheet()).json()
+    _confirm(client, admin, first["batch_id"])
+    run_sql(
+        "UPDATE spend_lines SET reconciled_month = $2 WHERE import_batch_id = $1 AND status = 'PAID'",
+        uuid.UUID(first["batch_id"]), date(2026, 7, 1),
+    )
+
+    second = _upload(client, admin, event["id"], _second_sheet()).json()
+    # The reconciled booth space stays, so the sheet's row for the same invoice is a duplicate
+    assert second["replaces"]["reconciled_count"] == 1
+    assert second["counts"]["duplicates"] == 1
+    _confirm(client, admin, second["batch_id"])
+
+    lines = _lines(event)
+    assert set(lines) == {"Booth space", "Printing"}
+    assert lines["Booth space"]["reconciled_month"] is not None and lines["Booth space"]["amount"] == 8000
+
+
+def test_sheet_travel_overlapping_navan_is_flagged(client, admin, event, categories):
+    run_sql(
+        "INSERT INTO spend_lines (initiative_id, category_id, amount, currency, incurred_on, status, source, external_ref) "
+        "VALUES ($1, $2, 900, 'USD', '2026-11-03', 'INVOICED', 'NAVAN', $3)",
+        uuid.UUID(event["id"]), categories["OTHER_TRAVEL"], f"navan:{event['id']}:USD",
+    )
+    sheet = _xlsx([
+        HEADER,
+        ["Flights to Las Vegas", "Flights", "Air Canada", 1200, None, None, None, "2026-11-03", None],
+        ["Uber to the venue", "Ground transport", "Uber", 40, None, None, None, "2026-11-04", None],
+    ])
+
+    rows = _rows(_upload(client, admin, event["id"], sheet).json())
+
+    assert rows[2]["status"] == "READY_WITH_WARNINGS"
+    assert rows[2]["messages"][0].startswith("Navan already has bookings for this event, so these flights may be counted twice.")
+    # Ubers are the sheet's to record (Navan has flights, hotels and cars)
+    assert not any("Navan" in m for m in rows[3]["messages"])

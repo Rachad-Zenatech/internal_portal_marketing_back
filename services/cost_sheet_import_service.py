@@ -15,6 +15,7 @@ import asyncpg
 
 from models.spend_model import _MAX_AMOUNT
 from postgresql_db.database import get_pool
+from services.ads_service import audit_many
 from services.import_parsing import (
     ROW_NUMBER,
     ImportFileError,
@@ -83,7 +84,6 @@ _PAYMENT_WORDS = {
     "other": "OTHER",
 }
 _PAYMENT_LABELS = {"AP_INVOICE": "AP invoice", "CORPORATE_CARD": "Corporate card", "OTHER": "Other"}
-_TRAVEL_IN_SHEET = "Travel comes from the travel management system. Leave it out of the sheet."
 
 
 class ImportNotFoundError(Exception):
@@ -102,13 +102,21 @@ class ImportExpiredError(Exception):
     """The preview is too old to confirm."""
 
 
+# Navan books flights, hotels and cars; its cost lines use Flights, Hotels, Ground transport (cars) and Other travel.
+# When an event has Navan bookings, sheet rows in these categories are probably the same travel again (ground
+# transport is left out: sheets list taxis and rideshares that Navan doesn't book).
+NAVAN_OVERLAP = {"FLIGHTS": "flights", "HOTELS": "hotels", "OTHER_TRAVEL": "travel costs"}
+
+
 # --- Checking one row ---
 
 class _Context:
     """Everything a row check needs, loaded once per upload."""
 
-    def __init__(self, initiative, categories, existing, columns: dict[str, str], decimal_comma: bool):
+    def __init__(self, initiative, categories, existing, columns: dict[str, str], decimal_comma: bool, navan: bool = False):
         self.currency = initiative["currency"]
+        # The event already has travel from Navan
+        self.navan = navan
         self.channel = initiative["channel"]
         self.start_date = initiative["start_date"]
         self.columns = columns
@@ -161,7 +169,12 @@ def _check_row(row: dict, ctx: _Context) -> tuple[dict, dict | None]:
         try:
             check_category(category, ctx.channel)
         except SpendValidationError as exc:
-            errors.append(_TRAVEL_IN_SHEET if exc.code == "MANUAL_ENTRY_NOT_ALLOWED" else f"{category['name']}: {exc}")
+            errors.append(f"{category['name']}: {exc}")
+        if ctx.navan and category["code"] in NAVAN_OVERLAP:
+            warnings.append(
+                f"Navan already has bookings for this event, so these {NAVAN_OVERLAP[category['code']]} may be counted twice. "
+                "Leave Navan bookings out of the sheet."
+            )
 
     def amount(field: str, label: str) -> Decimal | None:
         try:
@@ -300,6 +313,26 @@ def _check_row(row: dict, ctx: _Context) -> tuple[dict, dict | None]:
     return preview, staged
 
 
+# --- The upload a new one replaces ---
+
+# The event's current cost sheet upload, with its version and what's on the event from it now
+_CURRENT_UPLOAD_SQL = f"""
+    SELECT b.id, b.filename, b.confirmed_at,
+           (SELECT count(*) FROM import_batches x
+            WHERE x.initiative_id = b.initiative_id AND x.kind = b.kind AND x.status IN ('CONFIRMED', 'REPLACED')
+              AND x.confirmed_at <= b.confirmed_at) AS version,
+           count(s.id) AS line_count,
+           count(s.id) FILTER (WHERE s.updated_at > s.created_at + interval '1 second') AS edited_count,
+           count(s.id) FILTER (WHERE s.reconciled_month IS NOT NULL) AS reconciled_count
+    FROM import_batches b
+    LEFT JOIN spend_lines s ON s.import_batch_id = b.id
+    WHERE b.initiative_id = $1 AND b.kind = '{KIND}' AND b.status = 'CONFIRMED'
+    GROUP BY b.id
+    ORDER BY b.confirmed_at DESC
+    LIMIT 1
+"""
+
+
 # --- Preview ---
 
 _CATEGORIES_SQL = """
@@ -338,6 +371,7 @@ async def preview_cost_sheet(initiative_id: UUID, filename: str, data: bytes, ac
         if initiative is None:
             raise InitiativeNotFoundError
         categories = await conn.fetch(_CATEGORIES_SQL)
+        current = await conn.fetchrow(_CURRENT_UPLOAD_SQL, initiative_id)
         existing = await conn.fetch(
             """
             SELECT lower(s.vendor) AS vendor_key, s.vendor, s.invoice_ref, i.name, ed.event_code
@@ -345,11 +379,16 @@ async def preview_cost_sheet(initiative_id: UUID, filename: str, data: bytes, ac
             JOIN initiatives i ON i.id = s.initiative_id
             LEFT JOIN event_details ed ON ed.initiative_id = i.id
             WHERE lower(s.vendor) = ANY($1::text[]) AND s.invoice_ref IS NOT NULL
+              -- The current upload's costs are replaced on confirm, so its invoices aren't duplicates (reconciled ones stay)
+              AND NOT COALESCE(s.import_batch_id = $2::uuid AND s.reconciled_month IS NULL, false)
             """,
-            vendor_keys,
+            vendor_keys, current["id"] if current else None,
+        )
+        navan = await conn.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM spend_lines WHERE initiative_id = $1 AND source = 'NAVAN')", initiative_id
         )
 
-        ctx = _Context(initiative, categories, existing, match.fields, uses_decimal_comma(amount_cells))
+        ctx = _Context(initiative, categories, existing, match.fields, uses_decimal_comma(amount_cells), navan=navan)
         previews, staged = [], []
         for row in rows:
             preview, ready = _check_row(row, ctx)
@@ -389,6 +428,14 @@ async def preview_cost_sheet(initiative_id: UUID, filename: str, data: bytes, ac
             "committed": total({"COMMITTED", "INVOICED", "PAID"}),
             "actual": total({"INVOICED", "PAID"}),
         },
+        "replaces": (
+            {
+                "batch_id": current["id"], "filename": current["filename"], "confirmed_at": current["confirmed_at"],
+                "version": current["version"], "line_count": current["line_count"],
+                "edited_count": current["edited_count"], "reconciled_count": current["reconciled_count"],
+            }
+            if current else None
+        ),
     }
 
 
@@ -396,6 +443,46 @@ async def preview_cost_sheet(initiative_id: UUID, filename: str, data: bytes, ac
 
 def _is_expired(created_at: datetime) -> bool:
     return created_at < datetime.now(timezone.utc) - PREVIEW_LIFETIME
+
+
+def _staged(batch) -> list[dict]:
+    raw = batch["staged_rows"]
+    return json.loads(raw) if isinstance(raw, str) else raw
+
+
+async def _insert_lines(conn, initiative_id: UUID, batch_id: UUID, staged: list[dict], actor_id: UUID) -> list:
+    """Add a batch's checked rows as cost lines in one statement, and audit each like a cost added by hand.
+    Rows whose supplier invoice is already recorded are skipped."""
+    column = lambda key, convert=None: [  # noqa: E731
+        (convert(r[key]) if convert and r[key] is not None else r[key]) for r in staged
+    ]
+    try:
+        inserted = await conn.fetch(
+            """
+            INSERT INTO spend_lines (initiative_id, category_id, description, vendor, note, status,
+                                     estimated_amount, amount, currency, incurred_on, invoice_ref, paid_on,
+                                     payment_method, cost_type, source, import_batch_id, created_by, updated_by)
+            SELECT $1, r.category_id, r.description, r.vendor, r.note, r.status, r.estimated_amount, r.amount,
+                   r.currency, r.incurred_on, r.invoice_ref, r.paid_on, r.payment_method, r.cost_type,
+                   'COST_SHEET_UPLOAD', $2, $3, $3
+            FROM unnest($4::int[], $5::text[], $6::text[], $7::text[], $8::text[], $9::numeric[], $10::numeric[],
+                        $11::text[], $12::date[], $13::text[], $14::date[], $15::text[], $16::text[])
+                 AS r(category_id, description, vendor, note, status, estimated_amount, amount, currency,
+                      incurred_on, invoice_ref, paid_on, payment_method, cost_type)
+            -- Someone may have recorded the same supplier invoice since the preview: skip those rows
+            ON CONFLICT (lower(vendor), invoice_ref) WHERE vendor IS NOT NULL AND invoice_ref IS NOT NULL DO NOTHING
+            RETURNING *
+            """,
+            initiative_id, batch_id, actor_id,
+            column("category_id"), column("description"), column("vendor"), column("note"), column("status"),
+            column("estimated_amount", Decimal), column("amount", Decimal), column("currency"),
+            column("incurred_on", date.fromisoformat), column("invoice_ref"), column("paid_on", date.fromisoformat),
+            column("payment_method"), column("cost_type"),
+        )
+    except (asyncpg.CheckViolationError, asyncpg.ForeignKeyViolationError, asyncpg.DataError) as exc:
+        raise ImportConflictError("Some rows no longer pass the checks. Upload the file again.") from exc
+    await audit_many(conn, actor_id, SPEND_AUDIT_ENTITY, [("CREATE", line["id"], None, dict(line)) for line in inserted])
+    return inserted
 
 
 async def confirm_import(batch_id: UUID, actor_id: UUID) -> dict:
@@ -419,39 +506,35 @@ async def confirm_import(batch_id: UUID, actor_id: UUID) -> dict:
                 await conn.execute("UPDATE import_batches SET status = 'EXPIRED' WHERE id = $1", batch_id)
                 expired = True
             else:
-                staged = json.loads(batch["staged_rows"]) if isinstance(batch["staged_rows"], str) else batch["staged_rows"]
-                column = lambda key, convert=None: [  # noqa: E731
-                    (convert(r[key]) if convert and r[key] is not None else r[key]) for r in staged
-                ]
-                try:
-                    inserted = await conn.fetch(
-                        """
-                        INSERT INTO spend_lines (initiative_id, category_id, description, vendor, note, status,
-                                                 estimated_amount, amount, currency, incurred_on, invoice_ref, paid_on,
-                                                 payment_method, cost_type, source, import_batch_id, created_by, updated_by)
-                        SELECT $1, r.category_id, r.description, r.vendor, r.note, r.status, r.estimated_amount, r.amount,
-                               r.currency, r.incurred_on, r.invoice_ref, r.paid_on, r.payment_method, r.cost_type,
-                               'COST_SHEET_UPLOAD', $2, $3, $3
-                        FROM unnest($4::int[], $5::text[], $6::text[], $7::text[], $8::text[], $9::numeric[], $10::numeric[],
-                                    $11::text[], $12::date[], $13::text[], $14::date[], $15::text[], $16::text[])
-                             AS r(category_id, description, vendor, note, status, estimated_amount, amount, currency,
-                                  incurred_on, invoice_ref, paid_on, payment_method, cost_type)
-                        -- Someone may have recorded the same supplier invoice since the preview: skip those rows
-                        ON CONFLICT (lower(vendor), invoice_ref) WHERE vendor IS NOT NULL AND invoice_ref IS NOT NULL DO NOTHING
-                        RETURNING *
+                staged = _staged(batch)
+                # A new cost sheet for the event replaces its current one: people keep one living Excel file and upload
+                # it again. The current upload's costs go (reconciled ones stay, as Finance has signed them off).
+                replaced_rows, replaced_id = 0, None
+                if batch["kind"] == KIND:
+                    replaced_id = await conn.fetchval(
+                        f"""
+                        SELECT id FROM import_batches
+                        WHERE initiative_id = $1 AND kind = '{KIND}' AND status = 'CONFIRMED'
+                        ORDER BY confirmed_at DESC LIMIT 1 FOR UPDATE
                         """,
-                        batch["initiative_id"], batch_id, actor_id,
-                        column("category_id"), column("description"), column("vendor"), column("note"), column("status"),
-                        column("estimated_amount", Decimal), column("amount", Decimal), column("currency"),
-                        column("incurred_on", date.fromisoformat), column("invoice_ref"), column("paid_on", date.fromisoformat),
-                        column("payment_method"), column("cost_type"),
+                        batch["initiative_id"],
                     )
-                except (asyncpg.CheckViolationError, asyncpg.ForeignKeyViolationError, asyncpg.DataError) as exc:
-                    raise ImportConflictError("Some rows no longer pass the checks. Upload the file again.") from exc
+                if replaced_id is not None:
+                    gone = await conn.fetch(
+                        "DELETE FROM spend_lines WHERE import_batch_id = $1 AND reconciled_month IS NULL RETURNING *", replaced_id
+                    )
+                    replaced_rows = len(gone)
+                    await audit_many(conn, actor_id, SPEND_AUDIT_ENTITY, [("DELETE", line["id"], dict(line), None) for line in gone])
+                    await conn.execute(
+                        "UPDATE import_batches SET status = 'REPLACED', undone_at = now(), undone_by = $2 WHERE id = $1",
+                        replaced_id, actor_id,
+                    )
+                    await conn.execute(
+                        "UPDATE import_batches SET undo_data = $2::jsonb WHERE id = $1",
+                        batch_id, json.dumps({"replaced_batch_id": str(replaced_id), "replaced_rows": replaced_rows}),
+                    )
+                inserted = await _insert_lines(conn, batch["initiative_id"], batch_id, staged, actor_id)
                 imported, skipped = len(inserted), len(staged) - len(inserted)
-                # Each new line is audited like one added by hand, so its history starts here
-                for line in inserted:
-                    await log_audit(conn, actor_id, "CREATE", SPEND_AUDIT_ENTITY, line["id"], new_value=dict(line))
                 # Linking the new lines to monthly budgets comes with the budget tracker (Part 4)
                 await conn.execute(
                     """
@@ -464,15 +547,17 @@ async def confirm_import(batch_id: UUID, actor_id: UUID) -> dict:
                 await log_audit(
                     conn, actor_id, "IMPORT", AUDIT_ENTITY, batch_id,
                     new_value={"kind": batch["kind"], "filename": batch["filename"], "initiative_id": batch["initiative_id"],
-                               "imported_rows": imported, "skipped": skipped},
+                               "imported_rows": imported, "skipped": skipped, "replaced_batch_id": replaced_id,
+                               "replaced_rows": replaced_rows},
                 )
     if expired:
         raise ImportExpiredError
-    return {"batch_id": batch_id, "status": "CONFIRMED", "imported_rows": imported, "skipped": skipped}
+    return {"batch_id": batch_id, "status": "CONFIRMED", "imported_rows": imported, "skipped": skipped, "replaced_rows": replaced_rows}
 
 
 async def undo_import(batch_id: UUID, actor_id: UUID) -> dict:
     """Remove every cost line an upload created (including ones edited since), unless Finance reconciled any.
+    Undoing an upload that replaced the event's previous one puts the previous upload's costs back.
 
     Only the uploader can confirm their own preview, but anyone who can edit costs can undo a confirmed upload,
     so a bad sheet can be pulled while its uploader is away. Each removed line's last values are audited.
@@ -481,7 +566,7 @@ async def undo_import(batch_id: UUID, actor_id: UUID) -> dict:
     async with pool.acquire() as conn:
         async with conn.transaction():
             batch = await conn.fetchrow(
-                "SELECT kind, initiative_id, filename, status FROM import_batches WHERE id = $1 AND kind = ANY($2::text[]) FOR UPDATE",
+                "SELECT kind, initiative_id, filename, status, undo_data FROM import_batches WHERE id = $1 AND kind = ANY($2::text[]) FOR UPDATE",
                 batch_id, _KINDS,
             )
             if batch is None:
@@ -496,17 +581,36 @@ async def undo_import(batch_id: UUID, actor_id: UUID) -> dict:
                 raise ImportConflictError(f"{reconciled} of these costs {verb} already reconciled. Ask Finance to reopen them first.")
             gone = await conn.fetch("DELETE FROM spend_lines WHERE import_batch_id = $1 RETURNING *", batch_id)
             removed = len(gone)
-            for line in gone:
-                await log_audit(conn, actor_id, "DELETE", SPEND_AUDIT_ENTITY, line["id"], old_value=dict(line))
+            await audit_many(conn, actor_id, SPEND_AUDIT_ENTITY, [("DELETE", line["id"], dict(line), None) for line in gone])
             await conn.execute(
                 "UPDATE import_batches SET status = 'UNDONE', undone_at = now(), undone_by = $2 WHERE id = $1", batch_id, actor_id
             )
+            # Put back the upload this one replaced, from its checked rows (reconciled costs it kept aren't added twice)
+            undo_data = batch["undo_data"]
+            undo_data = json.loads(undo_data) if isinstance(undo_data, str) else (undo_data or {})
+            restored = 0
+            if undo_data.get("replaced_batch_id"):
+                previous = await conn.fetchrow(
+                    "SELECT id, initiative_id, staged_rows FROM import_batches WHERE id = $1 AND status = 'REPLACED' FOR UPDATE",
+                    UUID(undo_data["replaced_batch_id"]),
+                )
+                if previous is not None:
+                    kept = await conn.fetchval("SELECT count(*) FROM spend_lines WHERE import_batch_id = $1", previous["id"])
+                    rows = _staged(previous)
+                    if kept:
+                        # Its reconciled costs never left; only rows with a supplier invoice can be told apart from them,
+                        # so the rest come back only when nothing was kept
+                        rows = [r for r in rows if r.get("vendor") and r.get("invoice_ref")]
+                    restored = len(await _insert_lines(conn, previous["initiative_id"], previous["id"], rows, actor_id))
+                    await conn.execute(
+                        "UPDATE import_batches SET status = 'CONFIRMED', undone_at = NULL, undone_by = NULL WHERE id = $1", previous["id"]
+                    )
             await log_audit(
                 conn, actor_id, "UNDO_IMPORT", AUDIT_ENTITY, batch_id,
                 old_value={"kind": batch["kind"], "filename": batch["filename"], "initiative_id": batch["initiative_id"],
-                           "removed_rows": removed},
+                           "removed_rows": removed, "restored_rows": restored},
             )
-    return {"batch_id": batch_id, "status": "UNDONE", "removed_rows": removed}
+    return {"batch_id": batch_id, "status": "UNDONE", "removed_rows": removed, "restored_rows": restored}
 
 
 # --- History ---
@@ -525,7 +629,13 @@ async def list_imports(initiative_id: UUID, limit: int = 50) -> list[dict]:
                    cu.full_name AS created_by_name, b.created_at,
                    b.confirmed_at, fu.full_name AS confirmed_by_name,
                    b.undone_at, uu.full_name AS undone_by_name,
-                   COALESCE(l.line_count, 0) AS line_count, COALESCE(l.edited_count, 0) AS edited_count
+                   COALESCE(l.line_count, 0) AS line_count, COALESCE(l.edited_count, 0) AS edited_count,
+                   -- v1, v2… among the event's confirmed uploads (including replaced ones)
+                   CASE WHEN b.status IN ('CONFIRMED', 'REPLACED') THEN
+                       (SELECT count(*) FROM import_batches x
+                        WHERE x.initiative_id = b.initiative_id AND x.kind = b.kind AND x.status IN ('CONFIRMED', 'REPLACED')
+                          AND x.confirmed_at <= b.confirmed_at)::int
+                   END AS version
             FROM import_batches b
             LEFT JOIN users cu ON cu.id = b.created_by
             LEFT JOIN users fu ON fu.id = b.confirmed_by
@@ -555,7 +665,7 @@ async def build_template() -> bytes:
     pool = get_pool()
     async with pool.acquire() as conn:
         categories = await conn.fetch(_CATEGORIES_SQL)
-    # Categories people can type in for an event: no travel (it comes from the travel system), no ads-only media
+    # Categories people can type in for an event: everything but ads-only media (Navan adds its own bookings)
     choices = [c for c in categories if c["manual_entry_allowed"] and c["applies_to"] in ("ALL", "EVENTS")]
 
     workbook = Workbook()

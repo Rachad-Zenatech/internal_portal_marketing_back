@@ -6,7 +6,8 @@ from uuid import UUID
 from pydantic import BaseModel
 
 ImportRowStatus = Literal["READY", "READY_WITH_WARNINGS", "DUPLICATE", "INVALID"]
-ImportBatchStatus = Literal["PREVIEW", "CONFIRMED", "UNDONE", "EXPIRED"]
+# REPLACED: a cost sheet upload whose costs a newer upload of the same event's sheet took over
+ImportBatchStatus = Literal["PREVIEW", "CONFIRMED", "UNDONE", "EXPIRED", "REPLACED"]
 
 
 class ImportCounts(BaseModel):
@@ -45,6 +46,20 @@ class TotalsPreview(BaseModel):
     actual: float
 
 
+class ReplacedUpload(BaseModel):
+    """The event's current cost sheet upload, which confirming this one replaces."""
+
+    batch_id: UUID
+    filename: str
+    confirmed_at: datetime
+    version: int
+    # Its costs on the event now: removed on confirm, except the reconciled ones, which stay
+    line_count: int
+    # Changed in the portal after the upload; confirming replaces those changes with the new sheet
+    edited_count: int
+    reconciled_count: int
+
+
 class CostSheetPreview(BaseModel):
     batch_id: UUID
     filename: str
@@ -53,6 +68,8 @@ class CostSheetPreview(BaseModel):
     ignored_columns: list[str]
     rows: list[CostSheetPreviewRow]
     totals_preview: TotalsPreview
+    # Set when the event already has a cost sheet upload: this one replaces it
+    replaces: ReplacedUpload | None = None
 
 
 class ImportConfirmResult(BaseModel):
@@ -61,12 +78,16 @@ class ImportConfirmResult(BaseModel):
     imported_rows: int
     # Rows whose supplier invoice was recorded by someone else between preview and confirm
     skipped: int
+    # Costs of the previous upload that this one replaced
+    replaced_rows: int = 0
 
 
 class ImportUndoResult(BaseModel):
     batch_id: UUID
     status: ImportBatchStatus
     removed_rows: int
+    # Undoing an upload that replaced another puts the previous upload's costs back
+    restored_rows: int = 0
 
 
 class ImportBatchSummary(BaseModel):
@@ -91,3 +112,5 @@ class ImportBatchSummary(BaseModel):
     # so the UI can warn that undo removes edited lines too
     line_count: int
     edited_count: int
+    # 1 for an event's first confirmed upload, 2 for the next…; null for previews and undone uploads
+    version: int | None = None
