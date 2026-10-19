@@ -108,8 +108,8 @@ class EventOverviewItem(BaseModel):
     expected_cost: float
     actual_cost: float
     cost_lines: int
-    # The part of the budget for flights, hotels, ground transport and stipends, and the travel system's costs
-    # against it in the event's currency: all of them (expected) and invoiced + paid (spent)
+    # The part of the budget for flights, hotels, ground transport and stipends, and the travel costs against it
+    # (travel system, Navan and travel entered here) in the event's currency: all of them (expected) and invoiced + paid (spent)
     travel_budget_amount: float | None = None
     travel_expected: float = 0
     travel_spent: float = 0

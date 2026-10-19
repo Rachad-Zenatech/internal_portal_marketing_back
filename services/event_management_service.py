@@ -13,6 +13,7 @@ from models.event_management_model import StaffAssignmentCreate
 from postgresql_db.database import get_pool
 from services.demo_service import HELD_DEMO_SQL
 from services.rbac_service import log_audit
+from services.travel_cost_rules import travel_sql
 
 STAFF_AUDIT_ENTITY = "EventStaff"
 EVENTS_CHANNEL = "EVENTS"
@@ -251,14 +252,15 @@ _OVERVIEW_SQL = f"""
     LEFT JOIN event_details ed ON ed.initiative_id = i.id
     LEFT JOIN users u ON u.id = i.owner_user_id
     LEFT JOIN LATERAL (
-        SELECT SUM(amount) FILTER (WHERE currency = i.currency) AS expected,
-               SUM(amount) FILTER (WHERE currency = i.currency AND status IN ('INVOICED', 'PAID')) AS actual,
+        SELECT SUM(s.amount) FILTER (WHERE s.currency = i.currency) AS expected,
+               SUM(s.amount) FILTER (WHERE s.currency = i.currency AND s.status IN ('INVOICED', 'PAID')) AS actual,
                count(*) AS lines,
-               -- Costs the travel system reports, in the event's currency: all of them, and invoiced + paid
-               SUM(amount) FILTER (WHERE source = 'TRAVEL_FEED' AND currency = i.currency) AS travel_expected,
-               SUM(amount) FILTER (WHERE source = 'TRAVEL_FEED' AND currency = i.currency
-                                   AND status IN ('INVOICED', 'PAID')) AS travel_spent
-        FROM spend_lines WHERE initiative_id = i.id
+               -- Travel (from the travel system, Navan or entered here), in the event's currency: all of it, and
+               -- invoiced + paid
+               SUM(s.amount) FILTER (WHERE {travel_sql("s")} AND s.currency = i.currency) AS travel_expected,
+               SUM(s.amount) FILTER (WHERE {travel_sql("s")} AND s.currency = i.currency
+                                     AND s.status IN ('INVOICED', 'PAID')) AS travel_spent
+        FROM spend_lines s WHERE s.initiative_id = i.id
     ) cost ON true
     LEFT JOIN LATERAL (
         SELECT count(*) AS staff_count,

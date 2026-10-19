@@ -17,6 +17,7 @@ import asyncpg
 
 from postgresql_db.database import get_pool
 from services.rbac_service import log_audit
+from services.travel_cost_rules import travel_sql
 
 BUDGET_ENTITY = "MonthlyBudget"
 TRANSFER_ENTITY = "BudgetTransfer"
@@ -28,6 +29,9 @@ TBD_ALL_BRAND = "TBD_ALL"
 
 # Costs that count as spent: the invoice is in
 SPENT_STATUSES = ("INVOICED", "PAID")
+
+# Costs kept out of marketing budgets: travel (services/travel_cost_rules.py). s = the spend line.
+_OUTSIDE_BUDGET = travel_sql("s")
 
 
 class BudgetValidationError(Exception):
@@ -65,10 +69,12 @@ _UPDATABLE_COLUMNS = ("brand_id", "market_id", "channel_id", "amount", "currency
 _LINES_CTE = f"""
     lines AS (
         SELECT s.initiative_id, s.amount, s.currency, s.status, i.brand_id, i.channel_id, mk.market_id,
+               ob.outside_budget,
                (SELECT b.id FROM monthly_budgets b
                 WHERE b.month = $1 AND b.market_id = mk.market_id AND b.status <> 'CANCELLED'
                   AND (b.brand_id = i.brand_id OR b.brand_id IS NULL)
                   AND (b.channel_id = i.channel_id OR b.channel_id IS NULL)
+                  AND NOT ob.outside_budget
                 -- The most specific budget: a brand before TBD/All, then a channel before all channels
                 ORDER BY b.brand_id IS NULL, b.channel_id IS NULL
                 LIMIT 1) AS budget_id
@@ -77,6 +83,7 @@ _LINES_CTE = f"""
         CROSS JOIN LATERAL (
             SELECT COALESCE(i.market_id, (SELECT id FROM markets WHERE code = '{UNASSIGNED_MARKET}')) AS market_id
         ) mk
+        CROSS JOIN LATERAL (SELECT {_OUTSIDE_BUDGET} AS outside_budget) ob
         WHERE s.incurred_on >= $1 AND s.incurred_on < ($1::date + interval '1 month')
     )
 """
@@ -101,9 +108,18 @@ _UNBUDGETED_SQL = f"""
     JOIN brands br ON br.id = l.brand_id
     JOIN markets mk ON mk.id = l.market_id
     JOIN channels ch ON ch.id = l.channel_id
-    WHERE l.budget_id IS NULL
+    WHERE l.budget_id IS NULL AND NOT l.outside_budget
     GROUP BY l.brand_id, br.name, l.market_id, mk.name, mk.sort_order, l.channel_id, ch.name, l.currency
     ORDER BY mk.sort_order, br.name, ch.name, l.currency
+"""
+
+_OUTSIDE_BUDGET_SQL = f"""
+    WITH {_LINES_CTE}
+    SELECT l.currency, {_SPENT}, {_EXPECTED}, COUNT(DISTINCT l.initiative_id) AS initiative_count
+    FROM lines l
+    WHERE l.outside_budget
+    GROUP BY l.currency
+    ORDER BY l.currency
 """
 
 # $2 = the budget, $3 = its currency (listed first)
@@ -258,6 +274,7 @@ async def get_month(month: date) -> dict:
         rows = await conn.fetch(f"{_BUDGET_SELECT} WHERE b.month = $1 {_BUDGET_ORDER}", month)
         figures = _figures_by_budget(await conn.fetch(_BUDGET_FIGURES_SQL, month))
         unbudgeted = await conn.fetch(_UNBUDGETED_SQL, month)
+        outside = await conn.fetch(_OUTSIDE_BUDGET_SQL, month)
         notes = await conn.fetch(
             f"{_COMMENT_SELECT} WHERE c.budget_id IS NULL AND c.month = $1 ORDER BY c.created_at DESC", month
         )
@@ -285,6 +302,9 @@ async def get_month(month: date) -> dict:
         ],
         "unbudgeted": [
             {**dict(r), "spent": _money(r["spent"]), "expected": _money(r["expected"])} for r in unbudgeted
+        ],
+        "outside_budget": [
+            {**dict(r), "spent": _money(r["spent"]), "expected": _money(r["expected"])} for r in outside
         ],
         "notes": [dict(n) for n in notes],
         "previous_month_has_budgets": previous,
@@ -596,7 +616,7 @@ _WEEK_LINES_SQL = f"""
     SELECT s.id, s.incurred_on, s.description, s.vendor, s.status, s.amount, s.currency,
            sc.name AS category_name, i.id AS initiative_id, i.name AS initiative_name, ed.event_code,
            br.name AS brand_name, mkn.name AS market_name, ch.name AS channel_name,
-           bud.id AS budget_id, bud.label AS budget_label, bud.currency AS budget_currency
+           bud.id AS budget_id, bud.label AS budget_label, bud.currency AS budget_currency, ob.outside_budget
     FROM spend_lines s
     JOIN initiatives i ON i.id = s.initiative_id
     JOIN brands br ON br.id = i.brand_id
@@ -607,6 +627,7 @@ _WEEK_LINES_SQL = f"""
         SELECT COALESCE(i.market_id, (SELECT id FROM markets WHERE code = '{UNASSIGNED_MARKET}')) AS market_id
     ) mk
     JOIN markets mkn ON mkn.id = mk.market_id
+    CROSS JOIN LATERAL (SELECT {_OUTSIDE_BUDGET} AS outside_budget) ob
     LEFT JOIN LATERAL (
         SELECT b.id, b.currency, {label_sql("b", "bbr", "bmk", "bch")} AS label
         FROM monthly_budgets b
@@ -616,6 +637,7 @@ _WEEK_LINES_SQL = f"""
         WHERE b.month = date_trunc('month', s.incurred_on)::date AND b.market_id = mk.market_id AND b.status <> 'CANCELLED'
           AND (b.brand_id = i.brand_id OR b.brand_id IS NULL)
           AND (b.channel_id = i.channel_id OR b.channel_id IS NULL)
+          AND NOT ob.outside_budget
         ORDER BY b.brand_id IS NULL, b.channel_id IS NULL
         LIMIT 1
     ) bud ON true

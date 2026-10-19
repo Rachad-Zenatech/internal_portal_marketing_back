@@ -291,6 +291,43 @@ def test_matching_rule(client, admin, ref, markets, category_id):
     assert detail["spend"][0]["channel_name"] == "Paid Search"
 
 
+def test_travel_is_outside_the_budget(client, admin, ref, markets, category_id):
+    """Travel, per diems and ground transport count toward event cost, never against a marketing budget, whether
+    they came from the travel system or were entered here."""
+    month, day = "2097-05-01", date(2097, 5, 12)
+    london = markets["LONDON"]
+    budget = _make_budget(client, admin, month, london, amount=1000)
+    event = _initiative(client, admin, ref, "OTHERSHIP", "EVENTS", london)
+    no_budget = _initiative(client, admin, ref, "DESKFLEX", "SEO", markets["KOREA"])
+    hotels, per_diems = (
+        run_sql("SELECT id FROM spend_categories WHERE code = $1", code)[0]["id"] for code in ("HOTELS", "PER_DIEMS_MEALS")
+    )
+
+    _line(event, category_id, 400, day, status="PAID")  # a booth cost: counts
+    _line(event, hotels, 300, day, status="PAID")
+    _line(event, per_diems, 50, day, status="INVOICED")
+    run_sql(
+        "INSERT INTO spend_lines (initiative_id, category_id, amount, currency, incurred_on, status, source, external_ref) "
+        "VALUES ($1, $2, 120, 'USD', $3, 'COMMITTED', 'TRAVEL_FEED', $4)",
+        uuid.UUID(event["id"]), category_id, day, f"pytest-{uuid.uuid4().hex[:8]}",
+    )
+    _line(no_budget, hotels, 80, day, status="PAID")  # travel with no budget is not "spend without a budget"
+
+    view = _month(client, admin, month)
+
+    b = _by_id(view)[budget["id"]]
+    assert (b["spent"], b["expected"], b["remaining"]) == (400, 400, 600)
+    assert view["unbudgeted"] == []
+    assert view["outside_budget"] == [{"currency": "USD", "spent": 430, "expected": 550, "initiative_count": 2}]
+    detail = client.get(f"/api/budgets/{budget['id']}", headers=admin["headers"]).json()
+    assert [(s["initiative_id"], s["expected"], s["line_count"]) for s in detail["spend"]] == [(event["id"], 400, 1)]
+
+    monday = day - timedelta(days=day.weekday())
+    week = client.get("/api/budgets/week", params={"start": monday.isoformat()}, headers=admin["headers"]).json()
+    flags = sorted((line["amount"], line["budget_id"], line["outside_budget"]) for line in week["lines"])
+    assert flags == [(50, None, True), (80, None, True), (120, None, True), (300, None, True), (400, budget["id"], False)]
+
+
 def test_derived_figures_and_progress(client, admin, ref, markets, category_id):
     othership = ref["brands"]["OTHERSHIP"]
     past = _make_budget(client, admin, "2001-05-01", markets["LONDON"], amount=1000, brand_id=othership)

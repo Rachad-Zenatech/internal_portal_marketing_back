@@ -104,11 +104,21 @@ class UnbudgetedSpend(BaseModel):
     initiative_count: int
 
 
+class OutsideBudgetSpend(BaseModel):
+    """Travel, per diems and ground transport in a month. They count toward event cost, not against marketing budgets."""
+
+    currency: str
+    spent: float
+    expected: float
+    initiative_count: int
+
+
 class MonthBudgets(BaseModel):
     month: date
     budgets: list[BudgetRow]
     totals: list[BudgetTotals]
     unbudgeted: list[UnbudgetedSpend]
+    outside_budget: list[OutsideBudgetSpend]
     notes: list[Comment]
     previous_month_has_budgets: bool
 
@@ -281,6 +291,8 @@ class WeekLine(BaseModel):
     budget_id: UUID | None = None
     # e.g. "Oct 2026 · DeskFlex · North America · Paid Search"
     budget_label: str | None = None
+    # Travel, per diems and ground transport: never counted against a marketing budget
+    outside_budget: bool = False
 
 
 class WeekTotals(BaseModel):
