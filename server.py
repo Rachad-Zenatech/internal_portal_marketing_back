@@ -40,6 +40,7 @@ from services.logging_service import (
 )
 from services.travel_cost_sync_job import travel_cost_sync_enabled, travel_cost_sync_loop
 from services.travel_integration_service import cancel_recovery_tasks as cancel_travel_recovery_tasks
+from tools.ads_router import router as ads_router
 from tools.auth_router import router as auth_router
 from tools.budget_router import router as budget_router
 from tools.demo_router import router as demo_router
@@ -328,6 +329,7 @@ app.include_router(budget_router, prefix="/api", tags=["Monthly budgets"], depen
 # Service tokens only: the scope guard on each route checks who is calling
 app.include_router(travel_integration_router, prefix="/api", tags=["Travel system integration"])
 app.include_router(import_router, prefix="/api", tags=["Spreadsheet uploads"], dependencies=authenticated)
+app.include_router(ads_router, prefix="/api", tags=["Paid ads"], dependencies=authenticated)
 # People asking for a travel cost sync and its status (signed-in users; the travel system's own routes are above)
 app.include_router(travel_sync_router, prefix="/api", tags=["Travel cost sync"], dependencies=authenticated)
 

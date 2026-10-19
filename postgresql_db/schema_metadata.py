@@ -574,7 +574,12 @@ import_batches = sa.Table(
     sa.Column("confirmed_by", sa.UUID(), sa.ForeignKey("users.id", name="import_batches_confirmed_by_fkey", ondelete="SET NULL")),
     sa.Column("undone_at", postgresql.TIMESTAMP(timezone=True)),
     sa.Column("undone_by", sa.UUID(), sa.ForeignKey("users.id", name="import_batches_undone_by_fkey", ondelete="SET NULL")),
-    sa.CheckConstraint("kind IN ('COST_SHEET', 'EVENTS', 'GOOGLE_ADS', 'MICROSOFT_ADS')", name="import_batches_kind_check"),
+    # What undo needs once confirmed, for uploads that change existing rows (e.g. ad results: the rows created,
+    # the previous values of the rows updated, and the campaigns created)
+    sa.Column("undo_data", postgresql.JSONB(astext_type=sa.Text())),
+    sa.CheckConstraint(
+        "kind IN ('COST_SHEET', 'EVENTS', 'GOOGLE_ADS', 'MICROSOFT_ADS', 'ADS_RESULTS', 'BUDGETS')", name="import_batches_kind_check",
+    ),
     sa.CheckConstraint("status IN ('PREVIEW', 'CONFIRMED', 'UNDONE', 'EXPIRED')", name="import_batches_status_check"),
     sa.Index("idx_import_batches_initiative", "initiative_id"),
 )
@@ -639,6 +644,58 @@ spend_lines = sa.Table(
         "spend_lines_vendor_invoice_key", sa.text("lower(vendor)"), "invoice_ref", unique=True,
         postgresql_where=sa.text("vendor IS NOT NULL AND invoice_ref IS NOT NULL"),
     ),
+)
+
+
+# --- Paid ads results (Google Ads and Bing Ads campaigns) ---
+# One row per campaign (or one of its ad groups) per period, replacing Marketing's "SaaS PPC Campaigns" sheet.
+# CTR, CPC, CPL and the other ratios are calculated when read, never stored. Each row's spend becomes a spend line
+# and its results become monthly outcomes (services/ads_service.py keeps both in step).
+ad_results = sa.Table(
+    "ad_results", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column("initiative_id", sa.UUID(), sa.ForeignKey("initiatives.id", name="ad_results_initiative_id_fkey", ondelete="CASCADE"), nullable=False),
+    # e.g. "Ad Group 1a"; empty = the whole campaign
+    sa.Column("ad_group", sa.TEXT()),
+    sa.Column("period_start", sa.DATE(), nullable=False),
+    # Empty while the campaign is running
+    sa.Column("period_end", sa.DATE()),
+    sa.Column("budget_amount", sa.NUMERIC(precision=14, scale=2)),
+    sa.Column("spend", sa.NUMERIC(precision=14, scale=2)),
+    sa.Column("impressions", sa.BIGINT()),
+    sa.Column("clicks", sa.BIGINT()),
+    # "Ads Conv." in the sheet
+    sa.Column("conversions", sa.NUMERIC(precision=14, scale=2)),
+    # "HS contact" in the sheet: contacts created in HubSpot
+    sa.Column("hubspot_contacts", sa.INTEGER()),
+    sa.Column("mqls", sa.INTEGER()),
+    sa.Column("sqls", sa.INTEGER()),
+    sa.Column("status", sa.TEXT(), nullable=False, server_default=sa.text("'ACTIVE'")),
+    # The Data Studio (Looker Studio) report
+    sa.Column("report_url", sa.TEXT()),
+    sa.Column("tracking_detail", sa.TEXT()),
+    sa.Column("source", sa.TEXT(), nullable=False, server_default=sa.text("'MANUAL'")),
+    # The spreadsheet upload that last created or updated the row
+    sa.Column("import_batch_id", sa.UUID(), sa.ForeignKey("import_batches.id", name="ad_results_import_batch_id_fkey", ondelete="SET NULL")),
+    sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="ad_results_created_by_fkey", ondelete="SET NULL")),
+    sa.Column("updated_by", sa.UUID(), sa.ForeignKey("users.id", name="ad_results_updated_by_fkey", ondelete="SET NULL")),
+    sa.CheckConstraint("period_end IS NULL OR period_end >= period_start", name="ad_results_dates_check"),
+    sa.CheckConstraint("budget_amount >= 0", name="ad_results_budget_amount_check"),
+    sa.CheckConstraint("spend >= 0", name="ad_results_spend_check"),
+    sa.CheckConstraint("impressions >= 0", name="ad_results_impressions_check"),
+    sa.CheckConstraint("clicks >= 0", name="ad_results_clicks_check"),
+    sa.CheckConstraint("conversions >= 0", name="ad_results_conversions_check"),
+    sa.CheckConstraint("hubspot_contacts >= 0", name="ad_results_hubspot_contacts_check"),
+    sa.CheckConstraint("mqls >= 0", name="ad_results_mqls_check"),
+    sa.CheckConstraint("sqls >= 0", name="ad_results_sqls_check"),
+    sa.CheckConstraint("status IN ('ACTIVE', 'PAUSED', 'ENDED')", name="ad_results_status_check"),
+    sa.CheckConstraint("report_url ~* '^https://'", name="ad_results_report_url_check"),
+    sa.CheckConstraint("source IN ('MANUAL', 'SPREADSHEET', 'DATA_STUDIO')", name="ad_results_source_check"),
+    # One row per campaign, ad group (empty counts as one value) and period start
+    sa.Index("ad_results_key", "initiative_id", sa.text("COALESCE(ad_group, '')"), "period_start", unique=True),
+    sa.Index("idx_ad_results_period", "period_start"),
 )
 
 

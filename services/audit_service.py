@@ -99,6 +99,19 @@ def entity_title_sql(alias: str) -> str:
                  LEFT JOIN initiatives i
                         ON CAST(i.id AS TEXT) = COALESCE({alias}.new_value->>'initiative_id', {alias}.old_value->>'initiative_id')
                  LEFT JOIN event_details ed ON ed.initiative_id = i.id)
+            -- "London - Wfinder - LP1 · Ad Group 1a · Sep 2026"; deleted results fall back to the values in the entry
+            WHEN {alias}.entity_type = 'AdResult' THEN COALESCE(
+                (SELECT i.name || COALESCE(' · ' || r.ad_group, '') || ' · ' || to_char(r.period_start, 'Mon YYYY')
+                 FROM ad_results r JOIN initiatives i ON i.id = r.initiative_id
+                 WHERE CAST(r.id AS TEXT) = {alias}.entity_id LIMIT 1),
+                (SELECT COALESCE(i.name, {alias}.old_value->>'campaign_name', {alias}.new_value->>'campaign_name', 'Ad result')
+                        || COALESCE(' · ' || COALESCE({alias}.old_value->>'ad_group', {alias}.new_value->>'ad_group'), '')
+                        || COALESCE(' · ' || to_char(CAST(COALESCE({alias}.old_value->>'period_start',
+                                                                   {alias}.new_value->>'period_start') AS DATE), 'Mon YYYY'), '')
+                 FROM (SELECT 1) one
+                 LEFT JOIN initiatives i
+                        ON CAST(i.id AS TEXT) = COALESCE({alias}.old_value->>'initiative_id', {alias}.new_value->>'initiative_id'))
+            )
             -- Spreadsheet uploads: the file name
             WHEN {alias}.entity_type = 'ImportBatch' THEN COALESCE(
                 (SELECT filename FROM import_batches WHERE CAST(id AS TEXT) = {alias}.entity_id LIMIT 1),

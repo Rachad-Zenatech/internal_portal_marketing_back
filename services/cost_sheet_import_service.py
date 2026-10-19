@@ -38,6 +38,8 @@ from services.spend_service import (
 )
 
 KIND = "COST_SHEET"
+# Uploads this module confirms and undoes; ads and budget uploads have their own routes
+_KINDS = ["COST_SHEET", "EVENTS"]
 AUDIT_ENTITY = "ImportBatch"
 MAX_FILE_BYTES = 5 * 1024 * 1024
 PREVIEW_LIFETIME = timedelta(hours=24)
@@ -403,8 +405,9 @@ async def confirm_import(batch_id: UUID, actor_id: UUID) -> dict:
     async with pool.acquire() as conn:
         async with conn.transaction():
             batch = await conn.fetchrow(
-                "SELECT kind, initiative_id, filename, status, staged_rows, created_by, created_at FROM import_batches WHERE id = $1 FOR UPDATE",
-                batch_id,
+                "SELECT kind, initiative_id, filename, status, staged_rows, created_by, created_at FROM import_batches "
+                "WHERE id = $1 AND kind = ANY($2::text[]) FOR UPDATE",
+                batch_id, _KINDS,
             )
             if batch is None:
                 raise ImportNotFoundError
@@ -478,7 +481,8 @@ async def undo_import(batch_id: UUID, actor_id: UUID) -> dict:
     async with pool.acquire() as conn:
         async with conn.transaction():
             batch = await conn.fetchrow(
-                "SELECT kind, initiative_id, filename, status FROM import_batches WHERE id = $1 FOR UPDATE", batch_id
+                "SELECT kind, initiative_id, filename, status FROM import_batches WHERE id = $1 AND kind = ANY($2::text[]) FOR UPDATE",
+                batch_id, _KINDS,
             )
             if batch is None:
                 raise ImportNotFoundError

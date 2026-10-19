@@ -61,7 +61,15 @@ def _csv_rows(data: bytes) -> list[list[str]]:
     return [[cell.strip() for cell in row] for row in csv.reader(io.StringIO(text), delimiter=delimiter)]
 
 
-def _xlsx_rows(data: bytes) -> list[list[str]]:
+def _has_header(sheet, known: set[str]) -> bool:
+    """Whether one of the sheet's first rows names at least two of the known columns."""
+    for row in sheet.iter_rows(max_row=_HEADER_SEARCH_ROWS, values_only=True):
+        if sum(normalise_header(cell) in known for cell in row if cell is not None) >= 2:
+            return True
+    return False
+
+
+def _xlsx_rows(data: bytes, sheet_names: Iterable[str] | None = None, known: set[str] | None = None) -> list[list[str]]:
     from openpyxl import load_workbook  # only needed for .xlsx uploads
 
     try:
@@ -70,20 +78,32 @@ def _xlsx_rows(data: bytes) -> list[list[str]]:
     except (zipfile.BadZipFile, KeyError, OSError, ValueError) as exc:
         raise ImportFileError("This isn't a valid .xlsx file. Open it in Excel, save it as .xlsx and try again.") from exc
     try:
-        sheet = next((ws for ws in workbook.worksheets if ws.sheet_state == "visible"), None)
-        if sheet is None:
+        visible = [ws for ws in workbook.worksheets if ws.sheet_state == "visible"]
+        if not visible:
             raise ImportFileError("The workbook has no visible sheets.")
+        sheet = visible[0]
+        if sheet_names is not None:
+            # The sheet with one of these names, else the first whose header matches, else the first one
+            wanted = {normalise_header(name) for name in sheet_names}
+            named = next((ws for ws in visible if normalise_header(ws.title) in wanted), None)
+            if named is not None:
+                sheet = named
+            elif known:
+                sheet = next((ws for ws in visible if _has_header(ws, known)), sheet)
         rows = [[_cell_text(value) for value in row] for row in sheet.iter_rows(values_only=True)]
     finally:
         workbook.close()
     return rows
 
 
-def read_table(filename: str, data: bytes, known_columns: Iterable[str] | None = None) -> list[dict[str, str | int]]:
+def read_table(
+    filename: str, data: bytes, known_columns: Iterable[str] | None = None, sheet_names: Iterable[str] | None = None,
+) -> list[dict[str, str | int]]:
     """Read a CSV or .xlsx upload into one dict per row, keyed by the sheet's own header text.
 
     - .csv: UTF-8 with or without a BOM; comma or semicolon separated.
-    - .xlsx: the first visible sheet; calculated values, not formulas.
+    - .xlsx: the first visible sheet; calculated values, not formulas. With `sheet_names`, the visible sheet with
+      one of those names, else the first whose header has at least two of `known_columns`.
     - The header is the first row with at least two of `known_columns` (compared after normalise_header),
       so title rows above it are skipped. Without `known_columns`, it's the first non-blank row.
     - Fully blank rows are skipped. Each row keeps its sheet row number under ROW_NUMBER.
@@ -95,10 +115,11 @@ def read_table(filename: str, data: bytes, known_columns: Iterable[str] | None =
         raise ImportFileError("The file is empty.")
     if name.endswith(".xls"):
         raise ImportFileError("This is an old Excel file (.xls). Save it as .xlsx and try again.")
+    known = {normalise_header(c) for c in known_columns} if known_columns is not None else None
     if name.endswith(".xlsx"):
         if data.startswith(_OLE_SIGNATURE):
             raise ImportFileError("This file is password-protected. Remove the password in Excel and try again.")
-        raw_rows = _xlsx_rows(data)
+        raw_rows = _xlsx_rows(data, sheet_names, known)
     elif name.endswith(".csv"):
         raw_rows = _csv_rows(data)
     else:
@@ -108,7 +129,6 @@ def read_table(filename: str, data: bytes, known_columns: Iterable[str] | None =
     if not numbered:
         raise ImportFileError("The file has no rows.")
 
-    known = {normalise_header(c) for c in known_columns} if known_columns is not None else None
     header_index = None
     for index, (_, row) in enumerate(numbered[:_HEADER_SEARCH_ROWS]):
         if known is None or sum(normalise_header(cell) in known for cell in row) >= 2:
