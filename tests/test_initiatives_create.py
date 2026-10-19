@@ -107,3 +107,21 @@ def test_owner_options_requires_view_permission(client, viewer):
     response = client.get("/api/initiatives/owner-options", headers=viewer["headers"])
 
     assert response.status_code == 403
+
+
+def test_list_several_channels_at_once(client, admin, ref):
+    """The sidebar's "Other channels" lists every channel that doesn't have its own link."""
+    tag = "Pytest Channels Filter"
+    seo = client.post("/api/initiatives", json={"name": f"{tag} SEO", "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["SEO"]}, headers=admin["headers"]).json()
+    pr = client.post("/api/initiatives", json={"name": f"{tag} PR", "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["PR_COMMUNICATIONS"]}, headers=admin["headers"]).json()
+    partner = client.post("/api/initiatives", json={"name": f"{tag} Partner", "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["PARTNERSHIPS"]}, headers=admin["headers"]).json()
+
+    response = client.get(
+        "/api/initiatives",
+        params={"search": tag, "channel_ids": [ref["channels"]["PR_COMMUNICATIONS"], ref["channels"]["PARTNERSHIPS"]]},
+        headers=admin["headers"],
+    )
+
+    assert response.status_code == 200, response.text
+    assert {item["id"] for item in response.json()["items"]} == {pr["id"], partner["id"]}
+    assert seo["id"] not in {item["id"] for item in response.json()["items"]}

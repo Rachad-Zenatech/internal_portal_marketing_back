@@ -33,6 +33,7 @@ router = APIRouter()
 )
 async def list_initiatives(
     channel_id: int | None = None,
+    channel_ids: list[int] | None = Query(None, description="Several channels at once, e.g. ?channel_ids=7&channel_ids=8"),
     sub_channel_id: int | None = None,
     brand_id: int | None = None,
     market_id: int | None = None,
@@ -44,6 +45,7 @@ async def list_initiatives(
     """Marketing initiatives across all channels, with optional filters."""
     items, total = await fetch_initiatives(
         channel_id=channel_id,
+        channel_ids=channel_ids,
         sub_channel_id=sub_channel_id,
         brand_id=brand_id,
         market_id=market_id,

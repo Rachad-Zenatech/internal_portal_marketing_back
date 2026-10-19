@@ -169,6 +169,7 @@ def _constraint_error(exc: asyncpg.PostgresError) -> InitiativeValidationError:
 async def list_initiatives(
     *,
     channel_id: int | None = None,
+    channel_ids: list[int] | None = None,
     sub_channel_id: int | None = None,
     brand_id: int | None = None,
     market_id: int | None = None,
@@ -177,7 +178,10 @@ async def list_initiatives(
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[dict], int]:
-    """Return one page of initiatives (newest start date first) and the total match count."""
+    """Return one page of initiatives (newest start date first) and the total match count.
+
+    channel_ids lists several channels at once (the sidebar's "Other channels").
+    """
     conditions: list[str] = []
     args: list = []
 
@@ -187,6 +191,8 @@ async def list_initiatives(
 
     if channel_id is not None:
         add("i.channel_id = ${n}", channel_id)
+    if channel_ids:
+        add("i.channel_id = ANY(${n}::int[])", channel_ids)
     if sub_channel_id is not None:
         add("i.sub_channel_id = ${n}", sub_channel_id)
     if brand_id is not None:
