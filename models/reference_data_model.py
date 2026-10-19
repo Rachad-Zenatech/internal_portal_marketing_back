@@ -42,12 +42,11 @@ class OutcomeMetricItem(ReferenceItem):
 
 
 class EvaluationDefaultItem(BaseModel):
-    """What success means by default for a sub-channel (pre-fills the goal, KPI and maturity window)."""
+    """What success means by default for a sub-channel (pre-fills the goal and maturity window)."""
 
     sub_channel_id: int
     funnel_stage_id: int | None = None
     goal_id: int | None = None
-    primary_kpi_id: int | None = None
     maturity_days: int
 
 
@@ -62,7 +61,6 @@ class ReferenceDataResponse(BaseModel):
     sub_channels: list[ReferenceItem]
     funnel_stages: list[ReferenceItem]
     goals: list[GoalItem]
-    primary_kpis: list[ReferenceItem]
     performance_ratings: list[DescribedReferenceItem]
     scale_or_cut_options: list[DescribedReferenceItem]
     regions: list[ReferenceItem]
@@ -72,8 +70,6 @@ class ReferenceDataResponse(BaseModel):
     expense_types: list[ExpenseTypeItem]
     spend_categories: list[SpendCategoryItem]
     outcome_metrics: list[OutcomeMetricItem]
-    # Channel code → primary KPI codes it can use; channels not listed can use any
-    kpi_choices_by_channel: dict[str, list[str]]
     # Channel code → result codes it can record, in form order; channels not listed can record any
     result_metrics_by_channel: dict[str, list[str]]
     evaluation_defaults: list[EvaluationDefaultItem]

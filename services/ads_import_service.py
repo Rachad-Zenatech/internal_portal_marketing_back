@@ -41,7 +41,8 @@ PREVIEW_LIFETIME = timedelta(hours=24)
 SHEET_NAMES = ["SaaS PPC Campaigns"]
 
 # Sheet header → our field (compared case-insensitively; spaces, underscores and dashes count the same).
-# CTR, CPC, Ads Conv Rate, CPL and Last Update aren't read: the portal calculates them.
+# CTR, CPC, Ads Conv Rate, CPL and Last Update aren't read: the portal calculates them. Primary KPI
+# stays in the template only because it's Marketing's own layout: it's ignored, no KPI is set on campaigns.
 COLUMN_ALIASES: dict[str, list[str]] = {
     "brand": ["Brand"],
     "market": ["Market/Region", "Market", "Region"],
@@ -51,7 +52,6 @@ COLUMN_ALIASES: dict[str, list[str]] = {
     "sub_channel": ["Sub-Channel", "Sub channel", "Platform"],
     "campaign": ["Campaign Name", "Campaign"],
     "ad_group": ["Ad Group", "Ad group name"],
-    "primary_kpi": ["Primary KPI"],
     "budget_amount": ["Budget Allocated ($)", "Budget Allocated", "Budget"],
     "spend": ["Actual Spend", "Spend", "Cost"],
     "impressions": ["Impressions", "Impr."],

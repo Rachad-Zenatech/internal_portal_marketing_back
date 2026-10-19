@@ -1,11 +1,11 @@
-"""Marketing reference data (brands, channels, funnel stages, goals, KPIs, ratings, cost classification).
+"""Marketing reference data (brands, channels, funnel stages, goals, ratings, cost classification).
 
 Read-mostly lookup lists, served from master_data_cache. Any future write to these
 tables must call emit_cache_invalidation(scope="master_data", key=REFERENCE_DATA_CACHE_KEY).
 """
 from postgresql_db.database import get_pool
 from services.cache_service import master_data_cache
-from services.initiative_metrics import KPI_CHOICES_BY_CHANNEL, RESULT_METRICS_BY_CHANNEL
+from services.initiative_metrics import RESULT_METRICS_BY_CHANNEL
 
 REFERENCE_DATA_CACHE_KEY = "reference_data"
 _CACHE_TTL_SECONDS = 300
@@ -14,7 +14,6 @@ _SIMPLE_LISTS = {
     "brands": "SELECT id, code, name, sort_order FROM brands WHERE is_active ORDER BY sort_order, name",
     "sub_channels": "SELECT id, code, name, sort_order FROM sub_channels WHERE is_active ORDER BY sort_order, name",
     "funnel_stages": "SELECT id, code, name, sort_order FROM funnel_stages WHERE is_active ORDER BY sort_order, name",
-    "primary_kpis": "SELECT id, code, name, sort_order FROM primary_kpis WHERE is_active ORDER BY sort_order, name",
     "performance_ratings": (
         "SELECT id, code, name, description, sort_order FROM performance_ratings "
         "WHERE is_active ORDER BY sort_order, name"
@@ -40,7 +39,7 @@ _SIMPLE_LISTS = {
     ),
     "outcome_metrics": "SELECT id, code, name, unit, sort_order FROM outcome_metrics WHERE is_active ORDER BY sort_order, name",
     "evaluation_defaults": (
-        "SELECT sub_channel_id, funnel_stage_id, goal_id, primary_kpi_id, maturity_days FROM evaluation_defaults "
+        "SELECT sub_channel_id, funnel_stage_id, goal_id, maturity_days FROM evaluation_defaults "
         "ORDER BY sub_channel_id"
     ),
     "demo_types": "SELECT id, code, name, sort_order FROM demo_types WHERE is_active ORDER BY sort_order, name",
@@ -77,8 +76,7 @@ async def get_reference_data() -> dict:
             for r in await conn.fetch(_CHANNELS_SQL)
         ]
 
-    # Which primary KPIs and results each channel can use (rules in code, not tables)
-    result["kpi_choices_by_channel"] = KPI_CHOICES_BY_CHANNEL
+    # Which results each channel can record (rules in code, not tables)
     result["result_metrics_by_channel"] = RESULT_METRICS_BY_CHANNEL
 
     await master_data_cache.set(REFERENCE_DATA_CACHE_KEY, result, ttl_seconds=_CACHE_TTL_SECONDS)

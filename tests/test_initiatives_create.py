@@ -12,7 +12,6 @@ def _payload(ref, **overrides) -> dict:
         "sub_channel_id": ref["sub_channels"]["IN_PERSON_EVENTS"],
         "funnel_stage_id": ref["funnel_stages"]["CONVERSION"],
         "goal_id": ref["goals"]["DEMOS"],
-        "primary_kpi_id": ref["primary_kpis"]["CP_SQL"],
         "start_date": "2026-12-01",
         "end_date": "2026-12-03",
         "budget_amount": 12500,
@@ -33,6 +32,8 @@ def test_create_initiative(client, admin, ref):
     assert body["channel_name"] == "Events"
     assert body["sub_channel_name"] == "In-Person Events"
     assert body["goal_name"] == "Demos"
+    # No KPI is set when an initiative is created
+    assert not any("kpi" in key for key in body)
     assert body["currency"] == "USD"
     assert body["status"] == "PLANNED"
     # Owner defaults to the person creating it

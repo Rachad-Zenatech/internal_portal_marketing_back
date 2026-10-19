@@ -61,16 +61,15 @@ def test_every_category_has_an_expense_type(cost_lists):
     assert type_ids == {c["expense_type_id"] for c in categories}
 
 
-def test_travel_categories_cannot_be_entered_by_hand(cost_lists):
+def test_travel_categories_can_be_entered_by_hand(cost_lists):
     expense_types, categories = cost_lists
     travel_id = next(t["id"] for t in expense_types if t["code"] == "TRAVEL_ACCOMMODATION")
     travel = [c for c in categories if c["expense_type_id"] == travel_id]
 
     assert [c["code"] for c in travel] == ["FLIGHTS", "HOTELS", "GROUND_TRANSPORT", "PER_DIEMS_MEALS", "OTHER_TRAVEL"]
-    assert all(c["manual_entry_allowed"] is False for c in travel)
-    assert all(c["help_text"] == "Comes from the travel management system" for c in travel)
-    # every other category can be entered by hand
-    assert all(c["manual_entry_allowed"] for c in categories if c["expense_type_id"] != travel_id)
+    assert all(c["help_text"] == "Navan adds flights, hotels and cars booked there. Enter anything else here." for c in travel)
+    # every category can be entered by hand
+    assert all(c["manual_entry_allowed"] for c in categories)
 
 
 def test_category_defaults(cost_lists):

@@ -76,7 +76,7 @@ async def save_outcomes(
 
 @router.get("/initiatives/{initiative_id}/evaluation", response_model=Evaluation, dependencies=_VIEW)
 async def get_evaluation(initiative_id: UUID):
-    """The target for the primary KPI and the maturity window — the sub-channel's defaults until someone sets them."""
+    """The maturity window (how long to wait before judging): the sub-channel's default until someone sets it."""
     try:
         return await fetch_evaluation(initiative_id)
     except InitiativeNotFoundError as exc:
@@ -90,7 +90,7 @@ async def save_evaluation(
     user_id: Annotated[UUID, Depends(require_permission("INITIATIVES_UPDATE"))],
 ):
     try:
-        return await store_evaluation(initiative_id, payload.target_value, payload.maturity_days, user_id)
+        return await store_evaluation(initiative_id, payload.maturity_days, user_id)
     except InitiativeNotFoundError as exc:
         raise _not_found(exc) from exc
 

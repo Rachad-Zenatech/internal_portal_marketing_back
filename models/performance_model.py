@@ -51,23 +51,9 @@ class OutcomePeriodInput(BaseModel):
 # --- Evaluation settings ---
 
 
-class KpiRef(BaseModel):
-    id: int
-    code: str
-    name: str
-    direction: Literal["lower", "higher"] | None = None
-    unit: Literal["MONEY", "PERCENT", "COUNT"] | None = None
-    # False for KPIs that can't be worked out yet (Conversion Rate, LTV/CAC)
-    supported: bool
-
-
 class Evaluation(BaseModel):
-    # The initiative's own primary KPI, or the sub-channel's default when it has none
-    primary_kpi: KpiRef | None = None
-    kpi_from_default: bool
-    # Set when the initiative's own KPI doesn't apply to its channel (e.g. CPM on an event) and the default is used
-    kpi_note: str | None = None
-    target_value: float | None = None
+    """How long to wait before judging. There is no KPI or target: the verdict is judged on the return."""
+
     maturity_days: int
     revenue_basis: Literal["CLOSED_REVENUE"]
     # True until someone saves settings for this initiative
@@ -77,8 +63,6 @@ class Evaluation(BaseModel):
 
 
 class EvaluationInput(BaseModel):
-    # In the KPI's unit: money for cost KPIs, % for CTR and ROI, a count for Impressions
-    target_value: float | None = Field(default=None, ge=0, le=999_999_999_999)
     maturity_days: int = Field(default=180, ge=0, le=730)
 
 
@@ -133,8 +117,6 @@ class Rating(BaseModel):
     code: Literal["HIGH", "MEDIUM", "LOW", "TEST"]
     name: str
     reason: str
-    # How far the KPI is from its target, in %
-    gap_percent: float | None = None
 
 
 class Performance(BaseModel):
@@ -158,12 +140,9 @@ class Performance(BaseModel):
     has_results: bool
     demos_from_log: bool
     evaluation: Evaluation
-    kpi_actual: float | None = None
     matures_on: date | None = None
-    # UPCOMING before it starts; EARLY until the maturity window ends (early read only); FINAL after that
+    # UPCOMING before it starts; EARLY until the maturity window ends; FINAL after that
     stage: Literal["UPCOMING", "EARLY", "FINAL"]
-    # Provisional rating on the primary KPI during EARLY; null otherwise
-    early_read: Rating | None = None
     # The verdict: Test until FINAL
     rating: Rating
     suggested_decision: str

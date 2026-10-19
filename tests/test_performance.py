@@ -211,8 +211,6 @@ def test_ceo_example(client, admin, event, codes):
         {"metric_code": "CUSTOMERS", "value": 2},
         {"metric_code": "REVENUE", "value": 20000},
     ])
-    client.put(f"/api/initiatives/{event['id']}/evaluation", json={"target_value": 1000, "maturity_days": 180}, headers=admin["headers"])
-
     p = _performance(client, admin, event["id"])
 
     assert p["cost"] == 20000
@@ -222,9 +220,7 @@ def test_ceo_example(client, admin, event, codes):
     assert (ladder["DEMOS"]["from_previous"], ladder["CUSTOMERS"]["from_previous"]) == (10.0, 10.0)
     assert p["roi_percent"] == 0.0
     assert p["money_outcome"] == "BROKE_EVEN"
-    # In-Person Events default KPI is CP-Demo; $1,000 meets the $1,000 target, but breaking even isn't a success
-    assert p["evaluation"]["primary_kpi"]["code"] == "CP_DEMO"
-    assert p["kpi_actual"] == 1000
+    # Breaking even isn't a success
     assert p["rating"]["code"] == "LOW"
     assert "broke even" in p["rating"]["reason"]
     assert p["suggested_decision"] == "PAUSE"
@@ -239,16 +235,28 @@ def test_high_rating_with_a_positive_return(client, admin, ref, codes):
         {"metric_code": "CUSTOMERS", "value": 3},
         {"metric_code": "REVENUE", "value": 36000},
     ])
-    client.put(f"/api/initiatives/{sponsorship['id']}/evaluation", json={"target_value": 150, "maturity_days": 120}, headers=admin["headers"])
+    client.put(f"/api/initiatives/{sponsorship['id']}/evaluation", json={"maturity_days": 120}, headers=admin["headers"])
 
     p = _performance(client, admin, sponsorship["id"])
 
-    assert p["evaluation"]["primary_kpi"]["code"] == "CPL"
-    assert p["kpi_actual"] == 122.73
     assert p["roi_percent"] == 166.7
     assert p["money_outcome"] == "PROFIT"
-    assert p["rating"]["code"] == "HIGH"
+    assert p["rating"] == {"code": "HIGH", "name": "High", "reason": "It made money: ROI 166.7%."}
     assert p["suggested_decision"] == "SCALE"
+    assert not any("kpi" in key for key in p) and "early_read" not in p
+
+
+def test_no_revenue_after_the_window_is_test(client, admin, event, codes):
+    """Judged on the return only: without revenue there's no verdict, whatever the leads or demos."""
+    _cost(client, admin, event["id"], codes, 5000)
+    _save(client, admin, event["id"], "2025-09-01", [{"metric_code": "LEADS", "value": 500}])
+
+    p = _performance(client, admin, event["id"])
+
+    assert p["stage"] == "FINAL"
+    assert p["rating"]["code"] == "TEST"
+    assert p["rating"]["reason"].startswith("No revenue recorded yet")
+    assert p["suggested_decision"] == "TEST_MORE"
 
 
 def test_upcoming_event_has_no_verdict(client, admin, ref, codes):
@@ -260,14 +268,13 @@ def test_upcoming_event_has_no_verdict(client, admin, ref, codes):
     assert p["stage"] == "UPCOMING"
     assert p["rating"]["code"] == "TEST"
     assert p["rating"]["reason"].startswith("Not started yet.")
-    assert p["early_read"] is None
     assert p["matures_on"] == "2031-05-05"
     assert p["money_outcome"] == "NO_REVENUE"
     assert p["has_results"] is False
 
 
-def test_early_read_inside_the_maturity_window(client, admin, ref, codes):
-    """Just after an event: an early read on cost per lead now, the final verdict once deals have closed."""
+def test_no_verdict_inside_the_maturity_window(client, admin, ref, codes):
+    """Just after an event: the final verdict comes once deals have closed."""
     from datetime import date, timedelta
 
     start = date.today() - timedelta(days=12)
@@ -277,64 +284,35 @@ def test_early_read_inside_the_maturity_window(client, admin, ref, codes):
     )
     _cost(client, admin, recent["id"], codes, 10000)
     _save(client, admin, recent["id"], f"{start.isoformat()[:7]}-01", [{"metric_code": "LEADS", "value": 80}])
-    client.put(f"/api/initiatives/{recent['id']}/evaluation", json={"target_value": 150, "maturity_days": 180}, headers=admin["headers"])
+    client.put(f"/api/initiatives/{recent['id']}/evaluation", json={"maturity_days": 180}, headers=admin["headers"])
 
     p = _performance(client, admin, recent["id"])
 
     assert p["stage"] == "EARLY"
     assert p["rating"]["code"] == "TEST"
     assert "final verdict is due on" in p["rating"]["reason"]
-    # $10,000 ÷ 80 leads = $125 per lead, under the $150 target
-    assert p["early_read"]["code"] == "HIGH"
-    assert p["kpi_actual"] == 125
 
 
-def test_kpi_must_fit_the_channel(client, admin, ref):
-    """CPM (cost per thousand ad impressions) can't judge a trade show."""
+def test_a_kpi_sent_by_an_older_client_is_ignored(client, admin, ref):
+    """No KPI is set by hand any more: a primary_kpi_id sent anyway changes nothing."""
     response = client.post(
         "/api/initiatives",
-        json={"name": "Pytest CPM Expo", "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["EVENTS"],
-              "sub_channel_id": ref["sub_channels"]["IN_PERSON_EVENTS"], "primary_kpi_id": ref["primary_kpis"]["CPM"]},
+        json={"name": "Pytest Old Client Expo", "brand_id": ref["brands"]["DESKFLEX"], "channel_id": ref["channels"]["EVENTS"],
+              "sub_channel_id": ref["sub_channels"]["IN_PERSON_EVENTS"], "primary_kpi_id": 1,
+              "event": {"city": "Las Vegas", "country_code": "US"}},
         headers=admin["headers"],
     )
-    assert response.status_code == 422
-    assert response.json()["detail"] == "CPM isn't used to judge Events. Choose another main KPI."
-
-    event = _event(client, admin, ref)
-    changed = client.patch(f"/api/initiatives/{event['id']}", json={"primary_kpi_id": ref["primary_kpis"]["CTR"]}, headers=admin["headers"])
-    assert changed.status_code == 422
-    allowed = client.patch(f"/api/initiatives/{event['id']}", json={"primary_kpi_id": ref["primary_kpis"]["CP_DEMO"]}, headers=admin["headers"])
-    assert allowed.status_code == 200, allowed.text
-
-
-def test_an_older_mismatched_kpi_falls_back_to_the_default(client, admin, event, ref):
-    # Saved before the rule existed
-    run_sql("UPDATE initiatives SET primary_kpi_id = $2 WHERE id = $1", uuid.UUID(event["id"]), ref["primary_kpis"]["CPM"])
-
-    evaluation = client.get(f"/api/initiatives/{event['id']}/evaluation", headers=admin["headers"]).json()
-
-    assert evaluation["primary_kpi"]["code"] == "CP_DEMO"
-    assert evaluation["kpi_from_default"] is True
-    assert evaluation["kpi_note"].startswith("CPM doesn't apply to Events")
-    # Other fields can still be edited without fixing the KPI first
-    assert client.patch(f"/api/initiatives/{event['id']}", json={"name": "Renamed expo"}, headers=admin["headers"]).status_code == 200
-
-
-def test_kpi_choices_in_reference_data(client, admin):
-    choices = client.get("/api/reference-data", headers=admin["headers"]).json()["kpi_choices_by_channel"]
-    assert "CP_DEMO" in choices["EVENTS"] and "CPM" not in choices["EVENTS"]
-    assert "CPM" in choices["PAID_SEARCH"]
+    assert response.status_code == 201, response.text
+    assert not any("kpi" in key for key in response.json())
+    run_sql("DELETE FROM initiatives WHERE id = $1", uuid.UUID(response.json()["id"]))
 
 
 def test_choices_by_channel_use_real_codes(client, admin):
-    """Every channel, KPI and result named in the rules exists, so a typo can't quietly hide a choice."""
+    """Every channel and result named in the rules exists, so a typo can't quietly hide a choice."""
     body = client.get("/api/reference-data", headers=admin["headers"]).json()
     channels = {c["code"] for c in body["channels"]}
-    kpis = {k["code"] for k in body["primary_kpis"]}
     results = {m["code"] for m in body["outcome_metrics"]}
-    assert set(body["kpi_choices_by_channel"]) <= channels
     assert set(body["result_metrics_by_channel"]) <= channels
-    assert {code for codes in body["kpi_choices_by_channel"].values() for code in codes} <= kpis
     assert {code for codes in body["result_metrics_by_channel"].values() for code in codes} <= results
     assert "IMPRESSIONS" not in body["result_metrics_by_channel"]["EVENTS"]
 
@@ -409,36 +387,24 @@ def test_other_currencies_are_reported_not_converted(client, admin, event, codes
 
 def test_evaluation_defaults_by_sub_channel(client, admin, event):
     evaluation = client.get(f"/api/initiatives/{event['id']}/evaluation", headers=admin["headers"]).json()
-    assert evaluation["primary_kpi"]["code"] == "CP_DEMO"
-    assert evaluation["primary_kpi"]["direction"] == "lower"
-    assert evaluation["primary_kpi"]["unit"] == "MONEY"
-    assert evaluation["kpi_from_default"] is True
     assert evaluation["maturity_days"] == 180
     assert evaluation["is_default"] is True
-    assert evaluation["target_value"] is None
-
-
-def test_initiatives_own_kpi_wins_over_the_default(client, admin, ref):
-    own = _event(client, admin, ref, funnel_stage_id=ref["funnel_stages"]["CONVERSION"], goal_id=ref["goals"]["CUSTOMERS"],
-                 primary_kpi_id=ref["primary_kpis"]["CAC"])
-    evaluation = client.get(f"/api/initiatives/{own['id']}/evaluation", headers=admin["headers"]).json()
-    assert evaluation["primary_kpi"]["code"] == "CAC"
-    assert evaluation["kpi_from_default"] is False
+    assert set(evaluation) == {"maturity_days", "revenue_basis", "is_default", "updated_at", "updated_by_name"}
 
 
 def test_save_evaluation(client, admin, event):
-    response = client.put(f"/api/initiatives/{event['id']}/evaluation", json={"target_value": 900, "maturity_days": 90}, headers=admin["headers"])
+    response = client.put(f"/api/initiatives/{event['id']}/evaluation", json={"maturity_days": 90}, headers=admin["headers"])
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert (body["target_value"], body["maturity_days"], body["is_default"]) == (900, 90, False)
+    assert (body["maturity_days"], body["is_default"]) == (90, False)
     assert body["updated_by_name"] == "Pytest User"
     audit = run_sql("SELECT new_value FROM audit_logs WHERE entity_type = 'Evaluation' AND entity_id = $1", event["id"])
-    assert json.loads(audit[0]["new_value"]) == {"target_value": 900, "maturity_days": 90}
+    assert json.loads(audit[0]["new_value"]) == {"maturity_days": 90}
 
 
 def test_evaluation_rejects_out_of_range(client, admin, event):
-    for body in ({"target_value": -1, "maturity_days": 90}, {"target_value": 1, "maturity_days": 731}):
+    for body in ({"maturity_days": -1}, {"maturity_days": 731}):
         assert client.put(f"/api/initiatives/{event['id']}/evaluation", json=body, headers=admin["headers"]).status_code == 422
 
 
@@ -452,7 +418,7 @@ def test_record_decisions(client, admin, event, codes):
         headers=admin["headers"],
     )
     assert first.status_code == 201, first.text
-    # No results or target yet, so the system's suggestion at the time was Test
+    # No revenue yet, so the system's suggestion at the time was Test
     assert first.json()["suggested_rating"] == "TEST"
     assert first.json()["note"] == "Wait for Q1 deals"
 
@@ -509,7 +475,7 @@ def test_reference_data_has_results_lists(client, admin):
     data = client.get("/api/reference-data", headers=admin["headers"]).json()
     metrics = {m["code"]: m["unit"] for m in data["outcome_metrics"]}
     assert metrics["REVENUE"] == "MONEY" and metrics["LEADS"] == "COUNT"
-    assert {"CP_VISITOR", "CP_DEMO", "CP_FOLLOW_UP"} <= {k["code"] for k in data["primary_kpis"]}
+    assert "primary_kpis" not in data and "kpi_choices_by_channel" not in data
     in_person = next(s["id"] for s in data["sub_channels"] if s["code"] == "IN_PERSON_EVENTS")
     default = next(d for d in data["evaluation_defaults"] if d["sub_channel_id"] == in_person)
     assert default["maturity_days"] == 180

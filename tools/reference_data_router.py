@@ -8,5 +8,5 @@ router = APIRouter()
 
 @router.get("/reference-data", response_model=ReferenceDataResponse)
 async def get_reference_data():
-    """All marketing lookup lists (brands, channels, goals, KPIs, ...) for dropdowns."""
+    """All marketing lookup lists (brands, channels, goals, ...) for dropdowns."""
     return await fetch_reference_data()

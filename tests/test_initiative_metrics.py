@@ -6,15 +6,6 @@ import pytest
 from services import initiative_metrics as m
 
 
-def _rating(**overrides):
-    args = {
-        "kpi_code": "CPL", "kpi_name": "CPL", "actual": 100.0, "target": 100.0, "matures": date(2026, 1, 1),
-        "maturity_days": 180, "today": date(2026, 10, 14), "roi": None, "revenue_recorded": False, "currency": "USD",
-    }
-    args.update(overrides)
-    return m.suggest_rating(**args)
-
-
 def test_ceo_example():
     """$20,000, 200 leads, 20 demos, 2 customers, $20,000 revenue: $100 / $1,000 / $10,000, ROI 0 — broke even."""
     counts = {"LEADS": 200, "DEMOS": 20, "CUSTOMERS": 2}
@@ -28,9 +19,7 @@ def test_ceo_example():
     assert ladder["CUSTOMERS"]["from_previous"] == 10.0  # 10% of demos became customers
     assert m.roi_percent(20000, 20000) == 0.0
     assert m.money_outcome(20000, 20000, 0.0) == "BROKE_EVEN"
-    assert m.kpi_actual("CPL", 20000, counts, 20000, None) == 100
-    assert m.kpi_actual("CP_DEMO", 20000, counts, 20000, None) == 1000
-    assert m.kpi_actual("CAC", 20000, counts, 20000, None) == 10000
+    assert m.suggest_rating(roi=0.0, revenue_recorded=True)["code"] == "LOW"
 
 
 def test_ladder_skips_missing_steps_and_never_divides_by_zero():
@@ -53,21 +42,20 @@ def test_summary_ratios():
     assert m.summary_ratios(2000, counts, 5000, "SEO") == {"ctr": 1.5, "cpc": None, "cpm": None, "roi_percent": 150.0}
 
 
-@pytest.mark.parametrize("channel", sorted(m.KPI_CHOICES_BY_CHANNEL))
-def test_channel_kpis_only_use_results_it_records(channel):
-    """A KPI a channel can pick must be measurable from results that channel can record."""
+@pytest.mark.parametrize("channel", sorted(m.AD_RATIOS_BY_CHANNEL))
+def test_ad_ratios_only_use_results_the_channel_records(channel):
+    """An ad ratio shown for a channel must be measurable from results that channel can record."""
     recorded = set(m.RESULT_METRICS_BY_CHANNEL[channel])
-    for kpi in m.KPI_CHOICES_BY_CHANNEL[channel]:
-        assert m.KPI_NEEDS.get(kpi, set()) <= recorded, f"{channel} can pick {kpi} but can't record {m.KPI_NEEDS[kpi] - recorded}"
+    for ratio in m.AD_RATIOS_BY_CHANNEL[channel]:
+        assert m.AD_RATIO_NEEDS[ratio] <= recorded, f"{channel} shows {ratio} but can't record {m.AD_RATIO_NEEDS[ratio] - recorded}"
 
 
-def test_every_calculated_kpi_says_what_it_needs():
-    assert set(m.KPI_NEEDS) == set(m.KPI_DEFINITIONS)
-    assert set(m.KPI_CHOICES_BY_CHANNEL) == set(m.RESULT_METRICS_BY_CHANNEL)
+def test_every_channel_has_ad_ratio_rules():
+    assert set(m.AD_RATIOS_BY_CHANNEL) == set(m.RESULT_METRICS_BY_CHANNEL)
 
 
 def test_events_never_get_ad_measures():
-    assert not {"IMPRESSIONS", "CTR", "CPC", "CPM"} & set(m.KPI_CHOICES_BY_CHANNEL["EVENTS"])
+    assert not m.AD_RATIOS_BY_CHANNEL["EVENTS"]
     assert not {"IMPRESSIONS", "CLICKS", "CONVERSIONS"} & set(m.RESULT_METRICS_BY_CHANNEL["EVENTS"])
     assert not m.result_fits_channel("IMPRESSIONS", "EVENTS")
     assert m.result_fits_channel("IMPRESSIONS", "OTHER")
@@ -87,72 +75,24 @@ def test_matures_on():
 
 
 @pytest.mark.parametrize(
-    "actual, expected",
+    "roi, revenue_recorded, expected, phrase",
     [
-        (100.0, "HIGH"),    # exactly on target
-        (80.0, "HIGH"),     # beat it
-        (119.9, "MEDIUM"),  # 19.9% over
-        (120.0, "MEDIUM"),  # 20% over: still within
-        (120.1, "LOW"),     # 20.1% over
+        (50.0, True, "HIGH", "It made money: ROI 50%."),
+        (0.1, True, "HIGH", "It made money: ROI 0.1%."),
+        # The CEO's rule: breaking even or losing money isn't a success
+        (0.0, True, "LOW", "It broke even (ROI 0%), so it's not a success."),
+        (-10.0, True, "LOW", "It lost money (ROI -10%), so it's not a success."),
+        # No revenue yet (e.g. an awareness push): no verdict, whatever the leads or demos
+        (None, False, "TEST", "No revenue recorded yet"),
+        # Revenue but no cost: the return can't be worked out
+        (None, True, "TEST", "No costs recorded yet"),
     ],
 )
-def test_rating_when_lower_is_better(actual, expected):
-    assert _rating(actual=actual)["code"] == expected
-
-
-@pytest.mark.parametrize(
-    "actual, expected",
-    [(25.0, "HIGH"), (30.0, "HIGH"), (20.0, "MEDIUM"), (20.1, "MEDIUM"), (19.9, "LOW")],
-)
-def test_rating_when_higher_is_better(actual, expected):
-    assert _rating(kpi_code="ROI", kpi_name="ROI", actual=actual, target=25.0)["code"] == expected
-
-
-def test_rating_is_test_inside_the_maturity_window():
-    rating = _rating(matures=date(2026, 11, 13))
-    assert rating["code"] == "TEST"
-    assert "30 days left in the 180-day waiting period" in rating["reason"]
-    assert "13 November 2026" in rating["reason"]
-
-
-@pytest.mark.parametrize(
-    "overrides, phrase",
-    [
-        ({"kpi_code": None, "kpi_name": None}, "Choose a main KPI"),
-        ({"kpi_code": "CONVERSION_RATE", "kpi_name": "Conversion Rate"}, "isn't calculated yet"),
-        ({"target": None}, "Set a target"),
-        ({"actual": None}, "Not enough results"),
-    ],
-)
-def test_rating_is_test_without_what_it_needs(overrides, phrase):
-    rating = _rating(**overrides)
-    assert rating["code"] == "TEST"
-    assert phrase in rating["reason"]
-
-
-def test_breaking_even_is_low_whatever_the_kpi_says():
-    """The CEO's rule: once revenue is in, breaking even or losing money isn't a success."""
-    even = _rating(actual=50.0, roi=0.0, revenue_recorded=True)
-    assert even["code"] == "LOW"
-    assert "broke even" in even["reason"]
-    assert _rating(actual=50.0, roi=-10.0, revenue_recorded=True)["code"] == "LOW"
-    # No revenue recorded (e.g. an awareness push): judged on the KPI alone
-    assert _rating(actual=50.0, roi=None, revenue_recorded=False)["code"] == "HIGH"
-    # Still inside the window: too early, even if it looks like break-even so far
-    assert _rating(actual=50.0, roi=0.0, revenue_recorded=True, matures=date(2027, 1, 1))["code"] == "TEST"
-
-
-def test_final_verdict_leads_with_the_return():
-    # Made money and met the KPI
-    assert _rating(actual=90.0, roi=50.0, revenue_recorded=True)["code"] == "HIGH"
-    # Made money, no target set: still worth it
-    made_money = _rating(target=None, roi=50.0, revenue_recorded=True)
-    assert made_money["code"] == "HIGH"
-    assert made_money["reason"] == "It made money: ROI 50%."
-    # Made money but cost far more per lead than planned
-    costly = _rating(actual=150.0, roi=20.0, revenue_recorded=True)
-    assert costly["code"] == "MEDIUM"
-    assert costly["reason"].startswith("It made money (ROI 20%), but CPL USD 150 missed the target of USD 100 by 50%")
+def test_rating_is_judged_on_the_return(roi, revenue_recorded, expected, phrase):
+    rating = m.suggest_rating(roi=roi, revenue_recorded=revenue_recorded)
+    assert rating["code"] == expected
+    assert rating["name"] == m.RATING_NAMES[expected]
+    assert rating["reason"].startswith(phrase)
 
 
 def test_verdict_stage():
@@ -163,13 +103,12 @@ def test_verdict_stage():
     assert m.verdict_stage(None, None, today) == "FINAL"
 
 
-def test_kpi_fits_channel():
-    assert m.kpi_fits_channel("CP_DEMO", "EVENTS")
-    assert not m.kpi_fits_channel("CPM", "EVENTS")
-    assert m.kpi_fits_channel("CPM", "PAID_SEARCH")
-    assert not m.kpi_fits_channel("CPM", "SEO")  # organic search doesn't buy impressions
-    assert m.kpi_fits_channel("CPM", "OTHER")  # only "Other" can use any KPI
-    assert m.kpi_fits_channel(None, "EVENTS")
+def test_ad_ratio_fits_channel():
+    assert not m.ad_ratio_fits_channel("CPM", "EVENTS")
+    assert m.ad_ratio_fits_channel("CPM", "PAID_SEARCH")
+    assert not m.ad_ratio_fits_channel("CPM", "SEO")  # organic search doesn't buy impressions
+    assert m.ad_ratio_fits_channel("CTR", "SEO")
+    assert m.ad_ratio_fits_channel("CPM", "OTHER")  # only "Other" gets every ratio
 
 
 def test_suggested_decisions():
