@@ -7,8 +7,9 @@ Usage:
 Refuses to run unless DATABASE_URL points at localhost. Safe to re-run: initiatives
 whose name already exists are skipped, and costs are only added to initiatives that have
 none yet (likewise demos and results). Markets are only set where none is set yet, and
-monthly budgets, money moves and budget comments are only added when they don't exist.
-Owner is the first super admin user.
+monthly budgets, money moves and budget comments are only added when they don't exist; likewise
+travel budgets, travel-system costs (by their reference) and ad results (by campaign, ad group and period).
+Events the Navan sync created are never touched. Owner is the first super admin user.
 """
 import asyncio
 import os
@@ -33,6 +34,8 @@ SAMPLES = [
     ("Facility Expo 2026 - Booth", "DESKFLEX", "EVENTS", "IN_PERSON_EVENTS", date(2026, 9, 21), date(2026, 9, 23), 20000, "USD", "COMPLETED"),
     ("Safety Compliance Webinar", "WORKAWARE", "EVENTS", "WEBINARS", date(2026, 10, 22), date(2026, 10, 22), 800, "AUD", "PLANNED"),
     ("Drone Industry Summit Sponsorship", "K9SKY", "EVENTS", "SPONSORSHIPS", date(2026, 5, 12), date(2026, 5, 14), 15000, "USD", "COMPLETED"),
+    ("Proptech Connect London 2026", "OTHERSHIP", "EVENTS", "IN_PERSON_EVENTS", date(2026, 6, 9), date(2026, 6, 10), 9000, "GBP", "COMPLETED"),
+    ("Safety Week Sydney 2026", "WORKAWARE", "EVENTS", "IN_PERSON_EVENTS", date(2026, 8, 18), date(2026, 8, 20), 18000, "AUD", "COMPLETED"),
     ("Reseller Launch - EMEA", "ZOO_OFFICE", "PARTNERSHIPS", "RESELLERS", date(2026, 10, 15), None, 4000, "GBP", "PLANNED"),
     ("Creator Program Pilot", "PACE_PLUS", "INFLUENCER_MARKETING", "COMMUNITY", date(2026, 8, 1), date(2026, 9, 30), 3500, "USD", "CANCELLED"),
 ]
@@ -45,6 +48,8 @@ INITIATIVE_MARKETS = [
     ("London - Wfinder - LP2", "LONDON"),
     ("Hybrid Work Retargeting", "LONDON"),
     ("Reseller Launch - EMEA", "LONDON"),
+    ("Proptech Connect London 2026", "LONDON"),
+    ("Safety Week Sydney 2026", "AUSTRALIA"),
     ("NA - Desk Booking - Main LP", "NORTH_AMERICA"),
     ("NA - Desk Booking - Main LP (Bing)", "NORTH_AMERICA"),
     ("Facilities Managers - LinkedIn Lead Gen", "NORTH_AMERICA"),
@@ -60,12 +65,15 @@ INITIATIVE_MARKETS = [
 EVENT_DETAILS = [
     ("Facility Expo 2026 - Booth", "TRADE_SHOW", "Las Vegas Convention Center", "Las Vegas", "US", "NORTH_AMERICA"),
     ("Drone Industry Summit Sponsorship", "CONFERENCE", "Dubai World Trade Centre", "Dubai", "AE", "MIDDLE_EAST"),
+    ("Proptech Connect London 2026", "TRADE_SHOW", "ExCeL London", "London", "GB", "UK_EUROPE"),
+    ("Safety Week Sydney 2026", "TRADE_SHOW", "ICC Sydney", "Sydney", "AU", "AUSTRALIA_NZ"),
     ("Safety Compliance Webinar", None, None, None, None, None),
 ]
 
 
-# Costs for the sample trade show (Sep 21-23), adding up to its $20,000 budget (the CEO example). The show is
-# over, so most bills are in: $16,900 invoiced or paid; giveaways and staff time ($3,100) are still expected.
+# Costs for the sample trade show (Sep 21-23), adding up to its $20,000 budget (the CEO example; travel is on top,
+# see TRAVEL_COSTS). The show is over, so most bills are in: $16,900 invoiced or paid; giveaways and staff time
+# ($3,100) are still expected.
 # (initiative, category, description, vendor, status, estimated amount, amount, currency, incurred on,
 #  invoice no., paid on, payment method, source). Cost type comes from the category's default.
 SPEND_LINES = [
@@ -94,35 +102,10 @@ SPEND_LINES = [
      12000, 12000, "USD", date(2026, 3, 1), "DIS-2026-114", date(2026, 3, 20), "AP_INVOICE", "MANUAL"),
     ("Drone Industry Summit Sponsorship", "BOOTH_CATERING", "Hospitality lounge catering", "Summit Catering", "PAID",
      1500, 1500, "USD", date(2026, 5, 14), "SC-5521", date(2026, 6, 10), "AP_INVOICE", "MANUAL"),
-    # Ad spend and other costs behind the sample monthly budgets (Aug-Oct 2026), modelled on Marketing's budget sheet.
-    # Othership London, August: £9,700 against £7,500, the SEO team's campaign having run on; the pool covers the rest
-    ("London - Wfinder - LP1", "MEDIA_ADS", "Google Ads, Aug 1-15", "Google Ads", "PAID",
-     None, 4300, "GBP", date(2026, 8, 15), "GADS-0815-UK", date(2026, 8, 20), "CORPORATE_CARD", "MANUAL"),
-    ("London - Wfinder - LP1", "MEDIA_ADS", "SEO team's ad campaign, left running in early August", "Google Ads", "PAID",
-     None, 1550, "GBP", date(2026, 8, 10), "GADS-0810-UK", date(2026, 8, 12), "CORPORATE_CARD", "MANUAL"),
-    ("London - Wfinder - LP1", "MEDIA_ADS", "Google Ads, Aug 16-31", "Google Ads", "INVOICED",
-     None, 3850, "GBP", date(2026, 8, 31), "GADS-0831-UK", None, "CORPORATE_CARD", "MANUAL"),
-    # Othership London, September: paused on Sep 21
-    ("London - Wfinder - LP2", "MEDIA_ADS", "Google Ads, Sep 1-15", "Google Ads", "PAID",
-     None, 5200, "GBP", date(2026, 9, 15), "GADS-0915-UK", date(2026, 9, 18), "CORPORATE_CARD", "MANUAL"),
-    ("London - Wfinder - LP2", "MEDIA_ADS", "Google Ads, Sep 16-21 (paused)", "Google Ads", "INVOICED",
-     None, 3550, "GBP", date(2026, 9, 21), "GADS-0921-UK", None, "CORPORATE_CARD", "MANUAL"),
-    # DeskFlex North America search: Google and Bing under one budget
-    ("NA - Desk Booking - Main LP", "MEDIA_ADS", "Google Ads, September", "Google Ads", "PAID",
-     None, 9000, "USD", date(2026, 9, 30), "GADS-0930-NA", date(2026, 10, 5), "CORPORATE_CARD", "MANUAL"),
-    ("NA - Desk Booking - Main LP", "MEDIA_ADS", "Google Ads, Oct 1", "Google Ads", "INVOICED",
-     None, 300, "USD", date(2026, 10, 1), "GADS-1001-NA", None, "CORPORATE_CARD", "MANUAL"),
-    ("NA - Desk Booking - Main LP (Bing)", "MEDIA_ADS", "Microsoft Ads, Sep 21-30", "Microsoft Ads", "PAID",
-     None, 2400, "USD", date(2026, 9, 30), "MSADS-0930", date(2026, 10, 5), "CORPORATE_CARD", "MANUAL"),
-    ("NA - Desk Booking - Main LP (Bing)", "MEDIA_ADS", "Microsoft Ads, Oct 1-14", "Microsoft Ads", "INVOICED",
-     None, 1900, "USD", date(2026, 10, 14), "MSADS-1014", None, "CORPORATE_CARD", "MANUAL"),
+    # Other costs behind the sample monthly budgets (Aug-Oct 2026), modelled on Marketing's budget sheet. Google and
+    # Bing spend isn't here: it comes from the ad results (AD_RESULTS), the way the ads upload records it.
     ("Facilities Managers - LinkedIn Lead Gen", "MEDIA_ADS", "LinkedIn Ads, Oct 1-14", "LinkedIn", "INVOICED",
      None, 1250, "USD", date(2026, 10, 14), "LI-1014", None, "CORPORATE_CARD", "MANUAL"),
-    # WorkAware Australia, in Australian dollars
-    ("AU - Safety Mgm Software - Main LP", "MEDIA_ADS", "Google Ads, Sep 19-30", "Google Ads", "PAID",
-     None, 4200, "AUD", date(2026, 9, 30), "GADS-0930-AU", date(2026, 10, 3), "CORPORATE_CARD", "MANUAL"),
-    ("AU - Safety Mgm Software - Main LP", "MEDIA_ADS", "Google Ads, Oct 1-14", "Google Ads", "INVOICED",
-     None, 3600, "AUD", date(2026, 10, 14), "GADS-1014-AU", None, "CORPORATE_CARD", "MANUAL"),
     # No market: these count against the TBD/All Unassigned pool
     ("Workplace Analytics Blog Series", "AGENCY_FEES", "Freelance writer, August posts", "Copy Collective", "PAID",
      None, 400, "USD", date(2026, 8, 28), "CC-0828", date(2026, 9, 2), "AP_INVOICE", "MANUAL"),
@@ -135,6 +118,102 @@ SPEND_LINES = [
     # London, but no budget covers Zoo Office: shows as spend without a budget
     ("Reseller Launch - EMEA", "OTHER", "Reseller launch kit", "PrintHouse", "COMMITTED",
      None, 1500, "GBP", date(2026, 10, 15), None, None, "AP_INVOICE", "MANUAL"),
+    # Proptech Connect London: a shell-scheme stand, came in under its £9,000 budget (travel below)
+    ("Proptech Connect London 2026", "BOOTH_SPACE", "3x6m shell scheme stand", "Proptech Connect", "PAID",
+     None, 4200, "GBP", date(2026, 3, 20), "PC-2231", date(2026, 4, 10), "AP_INVOICE", "MANUAL"),
+    ("Proptech Connect London 2026", "PRINT_SIGNAGE", "Stand graphics and flyers", "PrintHouse", "PAID",
+     None, 650, "GBP", date(2026, 5, 28), "PH-1877", date(2026, 6, 12), "AP_INVOICE", "MANUAL"),
+    ("Proptech Connect London 2026", "GIVEAWAYS", "Branded notebooks", "SwagWorks", "PAID",
+     None, 300, "GBP", date(2026, 5, 28), "SW-0528", date(2026, 6, 12), "AP_INVOICE", "MANUAL"),
+    ("Proptech Connect London 2026", "LEAD_RETRIEVAL", "Badge scanner rental", "Proptech Connect", "PAID",
+     None, 180, "GBP", date(2026, 6, 9), None, date(2026, 6, 9), "CORPORATE_CARD", "MANUAL"),
+    ("Proptech Connect London 2026", "STAFF_TIME", "Staff time: 2 people x 2 days", None, "COMMITTED",
+     None, 1600, "GBP", date(2026, 6, 10), None, None, None, "STAFF_CALCULATOR"),
+    # Safety Week Sydney: the stand build ran over its quote, and with travel the event went over its A$18,000
+    ("Safety Week Sydney 2026", "BOOTH_SPACE", "6x6m space", "Safety Week Australia", "PAID",
+     None, 7500, "AUD", date(2026, 4, 30), "SWA-0430", date(2026, 5, 20), "AP_INVOICE", "MANUAL"),
+    ("Safety Week Sydney 2026", "BOOTH_BUILD", "Custom stand build", "ExhibitWorks AU", "PAID",
+     3200, 3800, "AUD", date(2026, 8, 17), "EWA-2210", date(2026, 9, 10), "AP_INVOICE", "MANUAL"),
+    ("Safety Week Sydney 2026", "AV_TECH", "Screen and demo kiosk hire", "ICC Event Services", "INVOICED",
+     None, 1200, "AUD", date(2026, 8, 18), "ICC-5512", None, "AP_INVOICE", "MANUAL"),
+    ("Safety Week Sydney 2026", "PRINT_SIGNAGE", "Banners and brochures", "PrintHouse AU", "PAID",
+     None, 900, "AUD", date(2026, 8, 5), "PHA-0805", date(2026, 8, 25), "AP_INVOICE", "MANUAL"),
+    ("Safety Week Sydney 2026", "FREIGHT", "Stand freight from Brisbane", "Expo Freight Co.", "PAID",
+     None, 650, "AUD", date(2026, 8, 12), "EFC-0812", date(2026, 8, 30), "AP_INVOICE", "MANUAL"),
+]
+
+
+# How much of each event's budget is set aside for travel (always less than the budget). The travel system books
+# against it, and the event pages show how much of it travel has used.
+TRAVEL_BUDGETS = [
+    ("Facility Expo 2026 - Booth", 6000),
+    ("Drone Industry Summit Sponsorship", 3500),
+    ("Proptech Connect London 2026", 1500),
+    ("Safety Week Sydney 2026", 5000),
+]
+
+# Travel costs as the travel management system sends them (source Travel feed, never typed in here):
+# (initiative, category, description, vendor, status, amount, currency, incurred on, paid on, the travel system's id).
+# The expo uses most of its travel budget, Proptech three quarters, the drone summit nearly all and Safety Week
+# goes over. Travel counts toward an event's cost and return, never against a monthly marketing budget.
+TRAVEL_COSTS = [
+    ("Facility Expo 2026 - Booth", "FLIGHTS", "Flights x3, Toronto to Las Vegas", "Air Canada", "PAID",
+     1860, "USD", date(2026, 9, 20), date(2026, 9, 20), "seed-travel-0001"),
+    ("Facility Expo 2026 - Booth", "HOTELS", "Hotel, 3 rooms x 4 nights", "Westgate Las Vegas", "INVOICED",
+     2640, "USD", date(2026, 9, 20), None, "seed-travel-0002"),
+    ("Facility Expo 2026 - Booth", "GROUND_TRANSPORT", "Airport transfers and taxis", "Uber", "PAID",
+     210, "USD", date(2026, 9, 23), date(2026, 9, 23), "seed-travel-0003"),
+    ("Facility Expo 2026 - Booth", "PER_DIEMS_MEALS", "Meal stipends, 3 people x 4 days", "Travel desk", "PAID",
+     600, "USD", date(2026, 9, 23), date(2026, 9, 25), "seed-travel-0004"),
+    ("Drone Industry Summit Sponsorship", "FLIGHTS", "Flights x2, New York to Dubai", "Emirates", "PAID",
+     1980, "USD", date(2026, 5, 10), date(2026, 5, 10), "seed-travel-0005"),
+    ("Drone Industry Summit Sponsorship", "HOTELS", "Hotel, 2 rooms x 4 nights", "Jumeirah Emirates Towers", "PAID",
+     1150, "USD", date(2026, 5, 11), date(2026, 5, 15), "seed-travel-0006"),
+    ("Proptech Connect London 2026", "OTHER_TRAVEL", "Train tickets x2, Manchester to London", "Avanti West Coast", "PAID",
+     240, "GBP", date(2026, 6, 8), date(2026, 6, 8), "seed-travel-0007"),
+    ("Proptech Connect London 2026", "HOTELS", "Hotel, 2 rooms x 2 nights", "Premier Inn", "PAID",
+     880, "GBP", date(2026, 6, 8), date(2026, 6, 11), "seed-travel-0008"),
+    ("Safety Week Sydney 2026", "FLIGHTS", "Flights x4, Brisbane to Sydney", "Qantas", "PAID",
+     2240, "AUD", date(2026, 8, 17), date(2026, 8, 17), "seed-travel-0009"),
+    ("Safety Week Sydney 2026", "HOTELS", "Hotel, 4 rooms x 4 nights", "Novotel Darling Harbour", "INVOICED",
+     3520, "AUD", date(2026, 8, 17), None, "seed-travel-0010"),
+    ("Safety Week Sydney 2026", "GROUND_TRANSPORT", "Airport transfers", "13cabs", "PAID",
+     180, "AUD", date(2026, 8, 20), date(2026, 8, 20), "seed-travel-0011"),
+    ("Safety Week Sydney 2026", "PER_DIEMS_MEALS", "Meal stipends, 4 people x 3 days", "Travel desk", "PAID",
+     300, "AUD", date(2026, 8, 20), date(2026, 8, 24), "seed-travel-0012"),
+]
+
+
+# Google and Bing results per campaign, ad group and period, as Marketing's PPC sheet records them. Saving them
+# creates each period's spend line (Invoiced, Google Ads or Microsoft Ads) and the monthly impressions, clicks,
+# conversions, leads, MQLs and SQLs, exactly as the ads upload does.
+# (campaign, ad group, period start, period end, budget, spend, impressions, clicks, conversions, HubSpot contacts,
+#  MQLs, SQLs, status, note)
+AD_RESULTS = [
+    ("London - Wfinder - LP1", "Workspace finder - Brand", date(2026, 8, 1), date(2026, 8, 15),
+     4000, 4300, 61200, 2140, 96, 58, 21, 6, "ENDED", None),
+    ("London - Wfinder - LP1", "Workspace finder - Brand", date(2026, 8, 16), date(2026, 8, 31),
+     3500, 3850, 55900, 1930, 81, 49, 17, 5, "ENDED", None),
+    ("London - Wfinder - LP1", "SEO team campaign", date(2026, 8, 1), date(2026, 8, 10),
+     None, 1550, 24800, 610, 12, 9, 2, 0, "ENDED", "Left running in early August; not part of the plan."),
+    ("London - Wfinder - LP2", "Workspace finder - Brand", date(2026, 9, 1), date(2026, 9, 15),
+     3750, 5200, 70400, 2480, 104, 63, 24, 7, "ENDED", None),
+    ("London - Wfinder - LP2", "Workspace finder - Brand", date(2026, 9, 16), date(2026, 9, 21),
+     1750, 3550, 46100, 1610, 58, 35, 12, 3, "PAUSED", "Paused Sep 21 per management decision."),
+    ("NA - Desk Booking - Main LP", "Desk booking - Generic", date(2026, 9, 1), date(2026, 9, 30),
+     9000, 9000, 182000, 5460, 212, 140, 52, 18, "ENDED", None),
+    ("NA - Desk Booking - Main LP", "Desk booking - Generic", date(2026, 10, 1), date(2026, 10, 1),
+     300, 300, 6100, 180, 6, 4, 1, 0, "ENDED", "Campaign ended Oct 1."),
+    ("NA - Desk Booking - Main LP (Bing)", "Desk booking - Generic", date(2026, 9, 21), date(2026, 9, 30),
+     2500, 2400, 38600, 1150, 41, 27, 9, 3, "ENDED", None),
+    ("NA - Desk Booking - Main LP (Bing)", "Desk booking - Generic", date(2026, 10, 1), date(2026, 10, 18),
+     4500, 3250, 52300, 1620, 57, 38, 13, 4, "ACTIVE", None),
+    ("AU - Safety Mgm Software - Main LP", "Safety software - Generic", date(2026, 9, 19), date(2026, 9, 30),
+     4500, 4200, 54800, 1590, 48, 31, 11, 3, "ENDED", None),
+    ("AU - Safety Mgm Software - Main LP", "Safety software - Generic", date(2026, 10, 1), date(2026, 10, 18),
+     6000, 4900, 63900, 1880, 59, 37, 14, 4, "ACTIVE", None),
+    ("AU - Safety Mgm Software - Main LP", "Competitor terms", date(2026, 10, 1), date(2026, 10, 18),
+     1500, 1100, 9800, 410, 9, 6, 2, 1, "ACTIVE", None),
 ]
 
 
@@ -168,6 +247,21 @@ DEMOS = [
     ("Facility Expo 2026 - Booth", "2026-09-23 15:30-08", "SCHEDULED", "Fairhaven Clinics", "Desk booking app", "NO_SHOW"),
     ("Facility Expo 2026 - Booth", "2026-10-27 10:00-07", "SCHEDULED", "Lakeside Property Group", "Desk booking app", "PENDING"),
     ("Facility Expo 2026 - Booth", "2026-11-05 14:00-08", "SCHEDULED", "Metro Campus Services", "Occupancy analytics", "PENDING"),
+    # Proptech Connect London (British Summer Time)
+    ("Proptech Connect London 2026", "2026-06-09 10:20+01", "BOOTH", "Thameside Estates", "Workspace finder", "CUSTOMER"),
+    ("Proptech Connect London 2026", "2026-06-09 12:05+01", "BOOTH", "Kingsgate Offices", "Workspace finder", "FOLLOW_UP"),
+    ("Proptech Connect London 2026", "2026-06-09 15:40+01", "LIVE", None, "Workspace finder", "PENDING"),
+    ("Proptech Connect London 2026", "2026-06-10 10:45+01", "BOOTH", "Mayfair Lettings", "Workspace finder", "DEAL_OPENED"),
+    ("Proptech Connect London 2026", "2026-06-10 13:30+01", "SCHEDULED", "Canary Desk Co.", "Workspace finder", "CUSTOMER"),
+    ("Proptech Connect London 2026", "2026-06-10 15:10+01", "BOOTH", "Hackney Studios", "Workspace finder", "NOT_A_FIT"),
+    # Safety Week Sydney (Australian Eastern Standard Time)
+    ("Safety Week Sydney 2026", "2026-08-18 10:15+10", "BOOTH", "Harbourline Construction", "Safety management", "FOLLOW_UP"),
+    ("Safety Week Sydney 2026", "2026-08-18 13:00+10", "BOOTH", "Redgum Mining Services", "Safety management", "NOT_A_FIT"),
+    ("Safety Week Sydney 2026", "2026-08-19 09:40+10", "SCHEDULED", "Coastal Civil Works", "Safety management", "CUSTOMER"),
+    ("Safety Week Sydney 2026", "2026-08-19 11:30+10", "BOOTH", "Blue Ridge Logistics", "Contractor management", "FOLLOW_UP"),
+    ("Safety Week Sydney 2026", "2026-08-19 14:45+10", "LIVE", None, "Safety management", "PENDING"),
+    ("Safety Week Sydney 2026", "2026-08-20 10:00+10", "BOOTH", "Southern Cross Energy", "Safety management", "DEAL_OPENED"),
+    ("Safety Week Sydney 2026", "2026-08-20 12:20+10", "SCHEDULED", "Ironbark Fabrication", "Contractor management", "NO_SHOW"),
 ]
 
 
@@ -185,6 +279,20 @@ OUTCOMES = [
     ("Drone Industry Summit Sponsorship", date(2026, 6, 1), "SQLS", 14, None),
     ("Drone Industry Summit Sponsorship", date(2026, 7, 1), "CUSTOMERS", 3, None),
     ("Drone Industry Summit Sponsorship", date(2026, 7, 1), "REVENUE", 36000, "USD"),
+    # Proptech made money: about £8,000 all in, £14,400 back
+    ("Proptech Connect London 2026", date(2026, 6, 1), "VISITORS", 380, None),
+    ("Proptech Connect London 2026", date(2026, 6, 1), "LEADS", 95, None),
+    ("Proptech Connect London 2026", date(2026, 6, 1), "FOLLOW_UPS", 40, None),
+    ("Proptech Connect London 2026", date(2026, 7, 1), "SQLS", 9, None),
+    ("Proptech Connect London 2026", date(2026, 8, 1), "CUSTOMERS", 3, None),
+    ("Proptech Connect London 2026", date(2026, 8, 1), "REVENUE", 14400, "GBP"),
+    # Safety Week lost money: about A$20,300 all in, one customer worth A$9,000 so far
+    ("Safety Week Sydney 2026", date(2026, 8, 1), "VISITORS", 520, None),
+    ("Safety Week Sydney 2026", date(2026, 8, 1), "LEADS", 140, None),
+    ("Safety Week Sydney 2026", date(2026, 8, 1), "FOLLOW_UPS", 60, None),
+    ("Safety Week Sydney 2026", date(2026, 9, 1), "SQLS", 11, None),
+    ("Safety Week Sydney 2026", date(2026, 10, 1), "CUSTOMERS", 1, None),
+    ("Safety Week Sydney 2026", date(2026, 10, 1), "REVENUE", 9000, "AUD"),
 ]
 
 # Monthly budgets, modelled on Marketing's budget sheet: (month, brand (None = TBD/All), market, channel (None = all),
@@ -343,6 +451,71 @@ async def _seed_budgets(conn, owner_id) -> tuple[int, int, int]:
     return len(budgets), len(moves), len(comments)
 
 
+async def _seed_travel(conn) -> tuple[int, int]:
+    """Travel budgets (only where none is set) and travel-system costs (only references not seen before)."""
+    budget_columns = list(zip(*TRAVEL_BUDGETS))
+    budgets = await conn.fetch(
+        """
+        UPDATE event_details ed SET travel_budget_amount = t.amount, updated_at = now()
+        FROM unnest($1::text[], $2::numeric[]) AS t(name, amount)
+        JOIN initiatives i ON i.name = t.name
+        WHERE ed.initiative_id = i.id AND ed.travel_budget_amount IS NULL
+        RETURNING ed.initiative_id
+        """,
+        *[list(col) for col in budget_columns],
+    )
+    cost_columns = list(zip(*TRAVEL_COSTS))
+    costs = await conn.fetch(
+        """
+        INSERT INTO spend_lines (initiative_id, category_id, description, vendor, status, amount, currency, incurred_on,
+                                 paid_on, cost_type, source, external_ref)
+        SELECT i.id, sc.id, t.description, t.vendor, t.status, t.amount, t.currency, t.incurred_on, t.paid_on,
+               sc.default_cost_type, 'TRAVEL_FEED', t.ref
+        FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::numeric[], $7::text[], $8::date[],
+                    $9::date[], $10::text[])
+             AS t(name, category, description, vendor, status, amount, currency, incurred_on, paid_on, ref)
+        JOIN initiatives i ON i.name = t.name
+        JOIN spend_categories sc ON sc.code = t.category
+        WHERE NOT EXISTS (SELECT 1 FROM spend_lines s WHERE s.source = 'TRAVEL_FEED' AND s.external_ref = t.ref)
+        RETURNING id
+        """,
+        *[list(col) for col in cost_columns],
+    )
+    return len(budgets), len(costs)
+
+
+async def _seed_ad_results(conn, owner_id) -> int:
+    """Ad results through the ads service, so their spend lines and monthly results are made the way an upload makes
+    them. Results already there (same campaign, ad group and period) are left alone. Returns how many were added."""
+    from services import ads_service
+
+    names = sorted({r[0] for r in AD_RESULTS})
+    ids = {r["name"]: r["id"] for r in await conn.fetch("SELECT id, name FROM initiatives WHERE name = ANY($1::text[])", names)}
+    rows = [
+        {
+            "initiative_id": ids[name], "ad_group": group, "period_start": start, "period_end": end,
+            "budget_amount": budget, "spend": spend, "impressions": impressions, "clicks": clicks,
+            "conversions": conversions, "hubspot_contacts": contacts, "mqls": mqls, "sqls": sqls,
+            "status": status, "report_url": None, "tracking_detail": note,
+        }
+        for (name, group, start, end, budget, spend, impressions, clicks, conversions, contacts, mqls, sqls, status,
+             note) in AD_RESULTS
+        if name in ids
+    ]
+    async with conn.transaction():
+        # Only new ones: an edit someone made to a result is kept
+        existing = {
+            (r["initiative_id"], r["ad_group"] or "", r["period_start"])
+            for r in await conn.fetch("SELECT initiative_id, ad_group, period_start FROM ad_results WHERE initiative_id = ANY($1::uuid[])", list(ids.values()))
+        }
+        new_rows = [r for r in rows if (r["initiative_id"], r["ad_group"] or "", r["period_start"]) not in existing]
+        if not new_rows:
+            return 0
+        result = await ads_service.apply_results(conn, new_rows, "MANUAL", owner_id)
+        await ads_service.sync_initiatives(conn, {r["initiative_id"] for r in new_rows}, owner_id)
+    return len(result["created"])
+
+
 async def seed() -> None:
     await create_pool()
     _require_local_database()
@@ -478,9 +651,13 @@ async def seed() -> None:
                 owner_id,
             )
             budgets, moves, comments = await _seed_budgets(conn, owner_id)
+            travel_budgets, travel_costs = await _seed_travel(conn)
+            ad_results = await _seed_ad_results(conn, owner_id)
         print(f"Inserted {len(inserted)} sample initiative(s); {len(SAMPLES) - len(inserted)} already existed.")
         print(f"Set the market on {len(markets_set)} initiative(s).")
         print(f"Added {budgets} monthly budget(s), {moves} money move(s) and {comments} budget comment(s).")
+        print(f"Set {travel_budgets} travel budget(s) and added {travel_costs} travel cost(s) from the travel system.")
+        print(f"Added {ad_results} ad result(s) with their spend and results.")
         print(f"Added {len(outcomes)} sample result(s) and {len(evaluations)} success setting(s).")
         print(f"Added {len(demos)} sample demo(s).")
         print(f"Added event details for {len(details)} event(s): {', '.join(d['event_code'] for d in details) or 'none'}.")
