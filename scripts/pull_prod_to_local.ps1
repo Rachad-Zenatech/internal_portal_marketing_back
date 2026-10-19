@@ -1,4 +1,4 @@
-# Pull Production Data into Local Docker Database (Port 3006)
+# Pull Production Data into Local Docker Database (Port 3009)
 $ErrorActionPreference = "Stop"
 
 $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
@@ -28,7 +28,7 @@ if (-not $prodUrl -or ($prodUrl -like "*localhost*") -or ($prodUrl -like "*127.0
 }
 
 Write-Host "Source DB    : $prodUrl" -ForegroundColor Gray
-Write-Host "Target Local : marketing_db_local (localhost:3006 / marketing_portal_dev)" -ForegroundColor Green
+Write-Host "Target Local : marketing_db_local (localhost:3009 / marketing_portal_dev)" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "[1/3] Ensuring local Docker database is running..." -ForegroundColor Cyan
@@ -51,5 +51,5 @@ docker exec marketing_db_local rm -f /tmp/prod.dump
 
 Write-Host ""
 Write-Host "? Local Docker database successfully updated with live data!" -ForegroundColor Green
-Write-Host "You can now inspect all real rows in DataGrip on localhost:3006." -ForegroundColor Cyan
+Write-Host "You can now inspect all real rows in DataGrip on localhost:3009." -ForegroundColor Cyan
 Write-Host "================================================================" -ForegroundColor Cyan

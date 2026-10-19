@@ -216,9 +216,9 @@ Columns: Brand, Market/Region, Period Start, Period End, Channel, Sub-Channel, C
 
 | Service | Port |
 |---|---|
-| Backend (FastAPI) | 8006 (temporarily 8002 locally, borrowing Admin's Microsoft redirect URI) |
-| Web (Vite) | 5177 |
+| Backend (FastAPI) | 8010 (temporarily 8002 locally, borrowing Admin's Microsoft redirect URI) |
+| Web (Vite) | 5180 |
 | Mobile bundler (Expo Metro) | 8091 |
-| Local Postgres (Docker, `marketing_portal_dev`) | 3006 |
+| Local Postgres (Docker, `marketing_portal_dev`) | 3009 |
 
 Sample initiatives for local development: `python scripts/seed_sample_initiatives.py` (refuses to run against a non-local database; safe to re-run).

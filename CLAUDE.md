@@ -104,8 +104,8 @@ This document defines the architectural standards, performance requirements, and
 
 The Marketing portal uses **Option 2**: one frontend repo (`internal_portal_marketing_front`) serves the web app (Vite) and the Android/iOS app (Expo / React Native), following the CEO Dashboard pattern.
 
-* **Web**: React 19 + Vite + Tailwind v4 + shadcn on `:5177` (`npm run dev`).
+* **Web**: React 19 + Vite + Tailwind v4 + shadcn on `:5180` (`npm run dev`).
 * **Mobile**: Expo Metro on `:8091`; entry `index.js` → `src/App.native.tsx`; screens are `*.native.tsx` and use `@/components/native`.
 * **Shared code** (`src/services`, `src/types`, `src/lib`) must run on both: use `appStorage` (`src/lib/storage.ts`) and `getEnv`/`getApiBaseUrl` (`src/lib/env.ts`), never `localStorage`, `sessionStorage`, `import.meta.env` or `window` directly.
-* **Ports**: backend `:8006`, web `:5177`, Metro `:8091`, local Postgres `:3006` (`marketing_portal_dev`).
-* `npm run android` starts the emulator and sets `adb reverse` for 8091/8006/5177.
+* **Ports**: backend `:8010`, web `:5180`, Metro `:8091`, local Postgres `:3009` (`marketing_portal_dev`).
+* `npm run android` starts the emulator and sets `adb reverse` for 8091/8010/5180.

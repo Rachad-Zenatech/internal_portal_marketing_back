@@ -31,10 +31,10 @@ RUN useradd --create-home --uid 10001 appuser \
 
 USER appuser
 
-EXPOSE 8006 8002
+EXPOSE 8010 8002
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8006/health/live')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8010/health/live')" || exit 1
 
 # Start FastAPI application
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8006", "--workers", "2"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8010", "--workers", "2"]

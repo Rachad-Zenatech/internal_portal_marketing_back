@@ -9,7 +9,7 @@ Reference enterprise boilerplate backend providing a turnkey foundation for Zena
 ```mermaid
 flowchart TD
     subgraph ClientLayer [Client Consumers]
-        FrontApp["Marketing Frontend (web :5177 / mobile)"]
+        FrontApp["Marketing Frontend (web :5180 / mobile)"]
         MCPClient[MCP AI Agents & Inspectors]
         ThirdParty[External REST Integrations]
     end
@@ -142,8 +142,8 @@ pip install -r requirements.txt
 ### 3. Environment Variables (.env)
 ```env
 PORT=8002
-FRONTEND_URL=http://localhost:5177
-DATABASE_URL=postgresql://postgres:postgres@localhost:3006/marketing_portal_dev
+FRONTEND_URL=http://localhost:5180
+DATABASE_URL=postgresql://postgres:postgres@localhost:3009/marketing_portal_dev
 DATABASE_SSL=false
 SESSION_SECRET=your-32-byte-secret-key-goes-here
 MICROSOFT_CLIENT_ID=your-azure-ad-client-id
@@ -165,10 +165,10 @@ Each project in the ZenaTech ecosystem runs an isolated local PostgreSQL contain
 
 ### 1. Local Database Configuration
 * **Container Name**: `marketing_db_local`
-* **Host Port**: `localhost:3006` (mapped to internal PostgreSQL 5432)
+* **Host Port**: `localhost:3009` (mapped to internal PostgreSQL 5432)
 * **Database Name**: `marketing_portal_dev`
 * **User / Password**: `postgres` / `postgres`
-* **Connection String**: `postgresql://postgres:postgres@localhost:3006/marketing_portal_dev`
+* **Connection String**: `postgresql://postgres:postgres@localhost:3009/marketing_portal_dev`
 
 ### 2. Managing the Local Database
 ```bash
@@ -182,7 +182,7 @@ docker compose down
 1. Create a new **PostgreSQL** Data Source in DataGrip.
 2. Settings:
    * **Host**: `localhost`
-   * **Port**: `3006`
+   * **Port**: `3009`
    * **Database**: `marketing_portal_dev`
    * **User**: `postgres`
    * **Password**: `postgres`
@@ -193,7 +193,7 @@ To pull a copy of real live records from AWS RDS into your local Docker DB for r
 ```powershell
 .\scripts\pull_prod_to_local.ps1
 ```
-* Safely downloads an RDS snapshot and restores it into `localhost:3006`.
+* Safely downloads an RDS snapshot and restores it into `localhost:3009`.
 * Read-only pull: live AWS RDS remains untouched and safe.
 
 ### 5. Creating Schema Changes & Migrations (PR Workflow)
@@ -209,7 +209,7 @@ When making table or column changes on a new branch:
    ```powershell
    .\scripts\pull_prod_to_local.ps1
    ```
-   *(Safely pulls real current rows into your local Docker DB on port 3006 so you can build and test queries with actual data).*
+   *(Safely pulls real current rows into your local Docker DB on port 3009 so you can build and test queries with actual data).*
 
 3. **Update Code Schema**:
    Edit `postgresql_db/schema_metadata.py` to add or modify columns/tables.
@@ -224,7 +224,7 @@ When making table or column changes on a new branch:
    ```bash
    alembic upgrade head
    ```
-   Verify your changes and tables in DataGrip on `127.0.0.1:3006` with your test data.
+   Verify your changes and tables in DataGrip on `127.0.0.1:3009` with your test data.
 
 6. **Submit in PR**:
    Commit and push:
