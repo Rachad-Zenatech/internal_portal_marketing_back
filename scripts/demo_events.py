@@ -106,7 +106,8 @@ DEAL_SIZE = 14500  # revenue per customer, in the event's currency
 
 def _require_local_database() -> None:
     host = urlparse(os.environ.get("DATABASE_URL", "")).hostname
-    if host not in LOCAL_HOSTS:
+    # Another database only when its host is named on purpose (scripts/setup_prod_db.py --sample-data)
+    if host not in LOCAL_HOSTS and not (host and host == os.environ.get("ALLOW_SAMPLE_DATA_HOST")):
         sys.exit("Refusing to run: DATABASE_URL is not a local database (localhost or 127.0.0.1).")
 
 
@@ -238,7 +239,7 @@ async def add() -> None:
             row = await create_initiative(InitiativeCreate(
                 name=event["name"], brand_id=refs["brands"][event["brand"]], channel_id=refs["channel"],
                 sub_channel_id=refs["sub_channel"], market_id=refs["markets"][event["market"]], owner_user_id=owner,
-                start_date=event["start"], end_date=event["end"], budget_amount=event["budget"], currency=CURRENCY,
+                start_date=event["start"], end_date=event["end"], budget_amount=event["budget"] or 0, currency=CURRENCY,
                 status=timing,
                 event=EventDetailsInput(
                     event_type_id=refs["event_types"][event["event_type"]], venue=event["venue"],
@@ -247,6 +248,10 @@ async def add() -> None:
             ), owner)
             initiative_id = row["id"]
             created += 1
+            if event["budget"] is None:
+                # New initiatives need a budget now; this one shows the "No budget" flag that older initiatives get
+                async with pool.acquire() as conn:
+                    await conn.execute("UPDATE initiatives SET budget_amount = NULL WHERE id = $1", initiative_id)
         async with pool.acquire() as conn:
             has_costs = await conn.fetchval(
                 "SELECT EXISTS (SELECT 1 FROM spend_lines WHERE initiative_id = $1 AND source <> 'NAVAN')", initiative_id

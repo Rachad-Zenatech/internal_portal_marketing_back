@@ -287,38 +287,45 @@ async def connect_provider_instant(
     Performs OAuth authorization, retrieves accounts, and encrypts credentials.
     """
     try:
-        adapter = get_oauth_adapter(provider)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        try:
+            adapter = get_oauth_adapter(provider)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    token_info = await adapter.exchange_code(code="simulated_auth_grant", redirect_uri="http://localhost:5180/oauth/callback")
-    discovered = await adapter.discover_accounts(token_info["access_token"])
-    primary = discovered[0] if discovered else {
-        "account_id": f"acc_{uuid.uuid4().hex[:8]}",
-        "account_name": f"{adapter.name} Account",
-    }
+        token_info = await adapter.exchange_code(code="simulated_auth_grant", redirect_uri="http://localhost:5180/oauth/callback")
+        discovered = await adapter.discover_accounts(token_info["access_token"])
+        primary = discovered[0] if discovered else {
+            "account_id": f"acc_{uuid.uuid4().hex[:8]}",
+            "account_name": f"{adapter.name} Account",
+        }
 
-    account_name = data.account_name or primary.get("account_name")
-    provider_account_id = data.provider_account_id or primary.get("account_id")
+        account_name = data.account_name or primary.get("account_name")
+        provider_account_id = data.provider_account_id or primary.get("account_id")
 
-    create_payload = OAuthConnectionCreate(
-        organization_id=data.organization_id,
-        company_id=data.company_id,
-        provider=provider,
-        provider_account_id=provider_account_id,
-        account_name=account_name,
-        access_token=token_info["access_token"],
-        refresh_token=token_info.get("refresh_token"),
-        token_type=token_info.get("token_type", "Bearer"),
-        expires_at=token_info.get("expires_at"),
-        scopes=token_info.get("scopes", adapter.default_scopes),
-        connection_metadata={"discovered_accounts": discovered},
-    )
+        create_payload = OAuthConnectionCreate(
+            organization_id=data.organization_id,
+            company_id=data.company_id,
+            provider=provider,
+            provider_account_id=provider_account_id,
+            account_name=account_name,
+            access_token=token_info["access_token"],
+            refresh_token=token_info.get("refresh_token"),
+            token_type=token_info.get("token_type", "Bearer"),
+            expires_at=token_info.get("expires_at"),
+            scopes=token_info.get("scopes", adapter.default_scopes),
+            connection_metadata={"discovered_accounts": discovered},
+        )
 
-    conn = await oauth_svc.store_connection(create_payload, user_id=user_id)
-    await log_audit_event("OAuthConnection", str(conn.id), "OAUTH_INSTANT_CONNECT", user_id, {"provider": provider})
+        conn = await oauth_svc.store_connection(create_payload, user_id=user_id)
+        await log_audit_event("OAuthConnection", str(conn.id), "OAUTH_INSTANT_CONNECT", user_id, {"provider": provider})
 
-    return OAuthConnectResponse(
-        connection=conn,
-        discovered_accounts=discovered,
-    )
+        return OAuthConnectResponse(
+            connection=conn,
+            discovered_accounts=discovered,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"{type(exc).__name__}: {str(exc)}")

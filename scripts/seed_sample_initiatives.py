@@ -15,6 +15,7 @@ import asyncio
 import os
 import sys
 from datetime import date, datetime, timezone
+from urllib.parse import urlsplit
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -361,6 +362,9 @@ EVALUATIONS = [
 
 def _require_local_database() -> None:
     url = os.environ.get("DATABASE_URL", "")
+    # Another database only when its host is named on purpose (scripts/setup_prod_db.py --sample-data)
+    if urlsplit(url).hostname and urlsplit(url).hostname == os.environ.get("ALLOW_SAMPLE_DATA_HOST"):
+        return
     if not any(host in url for host in ("localhost", "127.0.0.1", "host.docker.internal")):
         sys.exit("Refusing to seed sample data: DATABASE_URL is not a local database.")
 

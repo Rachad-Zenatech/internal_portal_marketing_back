@@ -27,6 +27,13 @@ STEPS = [
     [sys.executable, "-m", "postgresql_db.notifications_schema"],
     [sys.executable, "-m", "alembic", "upgrade", "head"],
 ]
+# --sample-data: the local mock data. Demo events and campaigns can be taken out again with their "remove" command;
+# the sample initiatives can't
+SAMPLE_STEPS = [
+    [sys.executable, "scripts/seed_sample_initiatives.py"],
+    [sys.executable, "scripts/demo_events.py", "add"],
+    [sys.executable, "scripts/demo_ads.py", "add"],
+]
 # Schema changes give up after this long on a busy table, instead of making the live app's queries wait
 LOCK_TIMEOUT_MS = "10000"
 BACKUP_DIR = Path.home() / "marketing_db_backups"
@@ -46,12 +53,17 @@ def prod_settings() -> dict[str, str]:
     url = env.get("PROD_DATABASE_URL") or ""
     if not url:
         sys.exit("PROD_DATABASE_URL is not set in .env.")
-    if url == env.get("DATABASE_URL"):
-        sys.exit("DATABASE_URL and PROD_DATABASE_URL are the same. Keep DATABASE_URL on the local database.")
     settings = {"DATABASE_URL": url, "DATABASE_SSL": env.get("PROD_DATABASE_SSL") or "true", "DB_LOCK_TIMEOUT": LOCK_TIMEOUT_MS}
     if env.get("PROD_INITIAL_SUPER_ADMIN_EMAILS"):
         settings["INITIAL_SUPER_ADMIN_EMAILS"] = env["PROD_INITIAL_SUPER_ADMIN_EMAILS"]
     return settings
+
+
+def local_database_url() -> str | None:
+    """The local database, for comparing; .env's DATABASE_URL may point at production"""
+    env = dotenv_values(os.path.join(ROOT, ".env"))
+    url = env.get("LOCAL_DATABASE_URL") or env.get("DATABASE_URL")
+    return url if url and urlsplit(url).hostname in ("localhost", "127.0.0.1", "host.docker.internal") else None
 
 
 async def connect(settings: dict[str, str]) -> asyncpg.Connection:
@@ -95,7 +107,7 @@ async def check(settings: dict[str, str]) -> str | None:
         # Is this our schema? Compare its tables with the local database's
         columns_sql = "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public'"
         prod_cols = {(r[0], r[1]) for r in await conn.fetch(columns_sql)}
-        local_url = dotenv_values(os.path.join(ROOT, ".env")).get("DATABASE_URL")
+        local_url = local_database_url()
         if local_url:
             local = await asyncpg.connect(local_url, timeout=10)
             try:
@@ -152,7 +164,9 @@ async def line_up(settings: dict[str, str], version: str) -> None:
                 WHERE c.table_schema = 'public' AND c.table_name = ANY($1::text[]) AND c.is_nullable = 'NO'
                   AND c.column_default IS NULL AND c.is_identity = 'NO'
             """, INSERTED_TABLES)
-            local_url = dotenv_values(os.path.join(ROOT, ".env")).get("DATABASE_URL")
+            local_url = local_database_url()
+            if not local_url:
+                raise SystemExit("Set LOCAL_DATABASE_URL in .env: lining up compares with the local database.")
             local = await asyncpg.connect(local_url, timeout=10)
             try:
                 ours = {(r[0], r[1]) for r in await local.fetch(
@@ -174,6 +188,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--check", action="store_true", help="read-only: show what's there and stop")
     parser.add_argument("--no-backup", action="store_true", help="skip the pg_dump backup (not recommended)")
+    parser.add_argument("--sample-data", action="store_true", help="also add the mock initiatives, demo events and demo ads")
     args = parser.parse_args()
 
     settings = prod_settings()
@@ -197,6 +212,13 @@ def main() -> None:
     for step in STEPS:
         print(f"\n> {' '.join(step[2:])}")
         subprocess.run(step, cwd=ROOT, env=env, check=True)
+    if args.sample_data:
+        if input("Add the mock data (sample initiatives, demo events and ads) to this database? Type yes: ").strip() != "yes":
+            sys.exit("Mock data not added. The schema is up to date.")
+        sample_env = {**env, "ALLOW_SAMPLE_DATA_HOST": target.hostname or ""}
+        for step in SAMPLE_STEPS:
+            print(f"\n> {' '.join(step[1:])}")
+            subprocess.run(step, cwd=ROOT, env=sample_env, check=True)
     print()
     asyncio.run(check(settings))
     print("Done.")

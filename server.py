@@ -499,7 +499,7 @@ async def request_observability(request: Request, call_next):
     except (asyncio.CancelledError, ConnectionResetError):
         request_id_ctx.reset(token)
         return JSONResponse(status_code=499, content={"detail": "Client closed request"})
-    except Exception:
+    except Exception as exc:
         unhandled = True
         duration_ms = round((time.perf_counter() - started) * 1000, 2)
         logger.exception(
@@ -517,7 +517,7 @@ async def request_observability(request: Request, call_next):
         )
         response = JSONResponse(
             status_code=500,
-            content={"detail": "Internal server error", "request_id": request_id},
+            content={"detail": f"{type(exc).__name__}: {str(exc)}", "request_id": request_id},
         )
     finally:
         duration_ms = round((time.perf_counter() - started) * 1000, 2)

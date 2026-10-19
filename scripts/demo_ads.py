@@ -119,7 +119,8 @@ CAMPAIGNS = [
 
 def _require_local_database() -> None:
     host = urlparse(os.environ.get("DATABASE_URL", "")).hostname
-    if host not in LOCAL_HOSTS:
+    # Another database only when its host is named on purpose (scripts/setup_prod_db.py --sample-data)
+    if host not in LOCAL_HOSTS and not (host and host == os.environ.get("ALLOW_SAMPLE_DATA_HOST")):
         sys.exit("Refusing to run: DATABASE_URL is not a local database (localhost or 127.0.0.1).")
 
 
