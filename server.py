@@ -49,6 +49,7 @@ from tools.import_router import router as import_router
 from tools.initiative_router import router as initiative_router
 from tools.log_router import router as log_router
 from tools.navan_router import router as navan_router
+from tools.oauth_router import router as oauth_router
 from tools.notification_router import notification_router
 from tools.observability import router as observability_router
 from tools.performance_router import router as performance_router
@@ -325,6 +326,7 @@ app.include_router(budget_router, prefix="/api", tags=["Monthly budgets"], depen
 app.include_router(import_router, prefix="/api", tags=["Spreadsheet uploads"], dependencies=authenticated)
 app.include_router(ads_router, prefix="/api", tags=["Paid ads"], dependencies=authenticated)
 app.include_router(navan_router, prefix="/api", tags=["Navan travel costs"], dependencies=authenticated)
+app.include_router(oauth_router, prefix="/api", tags=["OAuth & Integrations"], dependencies=authenticated)
 
 
 # --- Session Middleware ---

@@ -149,8 +149,13 @@ async def start_cache_invalidation_listener():
     logger.info("Starting distributed cache invalidation listener...")
     handler = _create_notification_handler()
 
-    ssl_mode = os.getenv("DATABASE_SSL", "false").lower()
-    ssl_opt = "require" if (ssl_mode in ("true", "require", "1") or "rds.amazonaws.com" in db_url or "supabase.com" in db_url) else False
+    ssl_mode = os.getenv("DATABASE_SSL", "").lower().strip()
+    if ssl_mode in ("false", "0", "no", "disable", "off"):
+        ssl_opt = False
+    elif ssl_mode in ("true", "1", "yes", "require"):
+        ssl_opt = "require"
+    else:
+        ssl_opt = False if any(h in db_url for h in ("localhost", "127.0.0.1", "host.docker.internal")) else "require"
 
     while True:
         conn = None
