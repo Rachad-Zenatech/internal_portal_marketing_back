@@ -57,26 +57,7 @@ async def create_notification(data: NotificationCreate) -> NotificationResponse:
     return res
 
 
-def broadcast_workflow_sync(entity_type: str = "PurchaseRequest", entity_id: str = ""):
-    """Broadcast an instant workflow update to all active SSE client streams."""
-    from datetime import datetime
-    sync_event = NotificationResponse(
-        id=0,
-        user_id="*",
-        type="WORKFLOW_SYNC",
-        title="Workflow Update",
-        message="A request workflow status has changed.",
-        link_url=f"/purchasing/requests/{entity_id}" if entity_id else "/purchasing/requests",
-        entity_type=entity_type,
-        entity_id=str(entity_id),
-        sender_name="System",
-        sender_avatar=None,
-        attachments=None,
-        is_read=True,
-        read_at=None,
-        created_at=datetime.utcnow()
-    )
-    broadcaster.broadcast(sync_event)
+
 
 
 async def get_recent_notifications(user_id: str, limit: int = 20) -> List[NotificationResponse]:

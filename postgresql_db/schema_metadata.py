@@ -244,20 +244,6 @@ notifications = sa.Table(
     sa.Index("idx_notifications_is_read", "is_read"),
 )
 
-workflow_assignments = sa.Table(
-    "workflow_assignments", metadata,
-    sa.Column("id", sa.INTEGER(), primary_key=True, server_default=sa.text("nextval('workflow_assignments_id_seq'::regclass)")),
-    sa.Column("role", sa.VARCHAR(length=100), nullable=False),
-    sa.Column("user_id", sa.UUID()),
-    sa.Column("user_ids", postgresql.ARRAY(sa.UUID()), server_default=sa.text("ARRAY[]::uuid[]")),
-    sa.Column("team_id", sa.UUID()),
-    sa.Column("request_type", sa.VARCHAR(length=100)),
-    sa.Column("active", sa.BOOLEAN(), server_default=sa.text("true")),
-    sa.Column("effective_from", postgresql.TIMESTAMP(timezone=True), server_default=sa.text("now()")),
-    sa.Column("effective_to", postgresql.TIMESTAMP(timezone=True)),
-    sa.UniqueConstraint("role", "request_type", name="workflow_assignments_role_request_type_key"),
-)
-
 
 # --- Marketing reference data (taxonomy from Marketing's channel sheet) ---
 
@@ -803,4 +789,58 @@ integration_sync_state = sa.Table(
     sa.Column("last_error", sa.TEXT()),
     # Counts from the last run, e.g. {"fetched": 12, "created": 3, ...}
     sa.Column("last_run_summary", postgresql.JSONB(astext_type=sa.Text())),
+)
+
+# --- Multi-Entity & OAuth Connections ---
+organizations = sa.Table(
+    "organizations", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column("name", sa.VARCHAR(length=255), nullable=False),
+    sa.Column("slug", sa.VARCHAR(length=100), nullable=False),
+    sa.Column("description", sa.TEXT()),
+    sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.UniqueConstraint("slug", name="organizations_slug_key"),
+)
+
+companies = sa.Table(
+    "companies", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column("organization_id", sa.UUID(), sa.ForeignKey("organizations.id", name="companies_organization_id_fkey", ondelete="CASCADE"), nullable=False),
+    sa.Column("name", sa.VARCHAR(length=255), nullable=False),
+    sa.Column("code", sa.VARCHAR(length=50), nullable=False),
+    sa.Column("parent_company_id", sa.UUID(), sa.ForeignKey("companies.id", name="companies_parent_company_id_fkey", ondelete="SET NULL")),
+    sa.Column("brand_id", sa.INTEGER(), sa.ForeignKey("brands.id", name="companies_brand_id_fkey", ondelete="SET NULL")),
+    sa.Column("currency", sa.VARCHAR(length=3), nullable=False, server_default=sa.text("'USD'")),
+    sa.Column("is_active", sa.BOOLEAN(), nullable=False, server_default=sa.text("true")),
+    sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.UniqueConstraint("organization_id", "code", name="companies_org_code_key"),
+    sa.Index("idx_companies_organization", "organization_id"),
+    sa.Index("idx_companies_brand", "brand_id"),
+)
+
+oauth_connections = sa.Table(
+    "oauth_connections", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column("organization_id", sa.UUID(), sa.ForeignKey("organizations.id", name="oauth_connections_organization_id_fkey", ondelete="CASCADE"), nullable=False),
+    sa.Column("company_id", sa.UUID(), sa.ForeignKey("companies.id", name="oauth_connections_company_id_fkey", ondelete="CASCADE")),
+    sa.Column("provider", sa.VARCHAR(length=50), nullable=False),
+    sa.Column("provider_account_id", sa.VARCHAR(length=255)),
+    sa.Column("account_name", sa.VARCHAR(length=255)),
+    sa.Column("access_token_encrypted", sa.TEXT(), nullable=False),
+    sa.Column("refresh_token_encrypted", sa.TEXT()),
+    sa.Column("token_type", sa.VARCHAR(length=50), nullable=False, server_default=sa.text("'Bearer'")),
+    sa.Column("expires_at", postgresql.TIMESTAMP(timezone=True)),
+    sa.Column("scopes", postgresql.ARRAY(sa.TEXT()), server_default=sa.text("'{}'::text[]")),
+    sa.Column("status", sa.VARCHAR(length=50), nullable=False, server_default=sa.text("'CONNECTED'")),
+    sa.Column("error_detail", sa.TEXT()),
+    sa.Column("connection_metadata", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'::jsonb")),
+    sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("created_by", sa.UUID(), sa.ForeignKey("users.id", name="oauth_connections_created_by_fkey", ondelete="SET NULL")),
+    sa.Column("updated_by", sa.UUID(), sa.ForeignKey("users.id", name="oauth_connections_updated_by_fkey", ondelete="SET NULL")),
+    sa.Index("idx_oauth_connections_org_company", "organization_id", "company_id"),
+    sa.Index("idx_oauth_connections_provider", "provider"),
+    sa.Index("idx_oauth_connections_status", "status"),
 )

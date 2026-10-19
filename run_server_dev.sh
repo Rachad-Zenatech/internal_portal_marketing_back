@@ -14,5 +14,5 @@ else
     PYTHON_CMD="python3"
 fi
 
-PORT="${PORT:-8006}"
+PORT="${PORT:-8010}"
 exec $PYTHON_CMD -m uvicorn server:app --host 0.0.0.0 --port "$PORT" --reload

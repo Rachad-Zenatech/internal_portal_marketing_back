@@ -65,7 +65,7 @@ def run_migrations_offline() -> None:
 
 
 def include_object(object, name, type_, reflected, compare_to):
-    # Only track public schema objects; ignore Supabase internal schemas (auth, storage, vault, etc.)
+    # Only track public schema objects; ignore non-public / managed internal schemas
     if type_ == "table" and object.schema and object.schema != "public":
         return False
     return True
@@ -87,7 +87,7 @@ async def run_async_migrations() -> None:
     """Run migrations using an asyncpg-backed async engine.
 
     Mirrors the ssl handling in postgresql_db/database.py so migrations can
-    target the same Supabase/managed Postgres instances as the app.
+    target the same AWS RDS / managed Postgres instances as the app.
     """
     ssl_required = os.getenv("DATABASE_SSL", "false").lower() in ("true", "require")
     connectable = create_async_engine(

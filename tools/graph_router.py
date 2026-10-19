@@ -1,7 +1,7 @@
 """
 Graph User Search Router
 Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
-Used by the CEO Dashboard autocomplete to find Entra users to assign as approvers.
+Used for user search autocomplete across system configurations.
 """
 
 from typing import List, Optional
@@ -29,7 +29,7 @@ class GraphUserResult(BaseModel):
     response_model=List[GraphUserResult],
     dependencies=[Depends(get_current_user_id_dependency)],
     summary="Search Entra users via Microsoft Graph",
-    description="Searches active Entra/Azure AD users by display name or email. Used for approver role assignment autocomplete.",
+    description="Searches active Entra/Azure AD users by display name or email.",
 )
 async def graph_user_search(q: Optional[str] = Query(None, description="Search query (name or email)")):
     results = await search_users(q or "")

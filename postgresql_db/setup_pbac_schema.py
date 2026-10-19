@@ -232,20 +232,6 @@ async def setup():
                 settings_json TEXT,
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             );
-
-            -- Workflow Assignments (approver roles per request type; read by get_my_permissions)
-            CREATE TABLE IF NOT EXISTS workflow_assignments (
-                id SERIAL PRIMARY KEY,
-                role VARCHAR(100) NOT NULL,
-                user_id UUID,
-                user_ids UUID[] DEFAULT ARRAY[]::uuid[],
-                team_id UUID,
-                request_type VARCHAR(100),
-                active BOOLEAN DEFAULT TRUE,
-                effective_from TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                effective_to TIMESTAMP WITH TIME ZONE,
-                CONSTRAINT workflow_assignments_role_request_type_key UNIQUE (role, request_type)
-            );
         """)
 
         print("Seeding permission actions...")
@@ -364,6 +350,14 @@ async def setup():
                 SELECT $1, id FROM permission_groups
                 ON CONFLICT DO NOTHING
             """, super_admin_role_id)
+
+        user_role_id = await conn.fetchval("SELECT id FROM roles WHERE code = 'USER'")
+        if user_role_id:
+            await conn.execute("""
+                INSERT INTO role_permission_groups (role_id, permission_group_id)
+                SELECT $1, id FROM permission_groups WHERE code IN ('MAIN_VIEW_DASHBOARD', 'MARKETING_VIEW_INITIATIVES')
+                ON CONFLICT DO NOTHING
+            """, user_role_id)
 
         # Seed Super Admin Users
         admin_emails_env = os.getenv("INITIAL_SUPER_ADMIN_EMAILS", "admin@example.com")

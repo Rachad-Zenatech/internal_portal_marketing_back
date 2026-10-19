@@ -33,7 +33,7 @@ if [ -z "$PROD_URL" ] || [[ "$PROD_URL" == *"localhost"* ]] || [[ "$PROD_URL" ==
   exit 1
 fi
 
-echo "Target Local : marketing_db_local (localhost:3006 / marketing_portal_dev)"
+echo "Target Local : marketing_db_local (localhost:3009 / marketing_portal_dev)"
 
 echo "[1/3] Ensuring local Docker database is running..."
 "$DOCKER_CMD" compose up -d db > /dev/null 2>&1 || "$DOCKER_CMD" compose up -d db
