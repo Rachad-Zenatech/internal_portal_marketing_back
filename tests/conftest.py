@@ -112,11 +112,13 @@ def _make_user(*, super_admin: bool) -> uuid.UUID:
     )
     user_id = rows[0]["id"]
     if not super_admin:
-        # A regular role with no Marketing permissions
-        run_sql(
-            "INSERT INTO user_roles (user_id, role_id, is_active) SELECT $1, id, true FROM roles WHERE code = 'USER'",
-            user_id,
-        )
+        # A temporary role with no permissions at all (code PYTEST_…, removed with the user). Not the shared USER
+        # role: that one may be given Marketing permissions (setup_pbac_schema gives it View Initiatives).
+        role_id = run_sql(
+            "INSERT INTO roles (code, name, is_active) VALUES ($1, 'Pytest No Access', true) RETURNING id",
+            f"PYTEST_NO_ACCESS_{uuid.uuid4().hex[:8].upper()}",
+        )[0]["id"]
+        run_sql("INSERT INTO user_roles (user_id, role_id, is_active) VALUES ($1, $2, true)", user_id, role_id)
     return user_id
 
 
