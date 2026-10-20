@@ -29,6 +29,7 @@ from services import oauth_connection_service as oauth_svc
 from services.audit_service import log_audit_event
 from services.auth_service import get_current_user_id_dependency, require_permission
 from services.google_ads_client import GoogleAdsApiError
+from services.microsoft_ads_client import MicrosoftAdsApiError
 from services.oauth_adapters import get_oauth_adapter
 from services.oauth_adapters.base import OAuthProviderNotReady
 
@@ -260,7 +261,7 @@ async def handle_oauth_callback(
     # Discover accounts
     try:
         discovered = await adapter.discover_accounts(token_info["access_token"])
-    except GoogleAdsApiError as exc:
+    except (GoogleAdsApiError, MicrosoftAdsApiError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     primary = discovered[0] if discovered else {
         "account_id": f"acc_{uuid.uuid4().hex[:8]}",

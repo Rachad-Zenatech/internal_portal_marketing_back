@@ -731,7 +731,7 @@ ad_results = sa.Table(
     sa.CheckConstraint("sqls >= 0", name="ad_results_sqls_check"),
     sa.CheckConstraint("status IN ('ACTIVE', 'PAUSED', 'ENDED')", name="ad_results_status_check"),
     sa.CheckConstraint("report_url ~* '^https://'", name="ad_results_report_url_check"),
-    sa.CheckConstraint("source IN ('MANUAL', 'SPREADSHEET', 'DATA_STUDIO', 'GOOGLE_ADS_API')", name="ad_results_source_check"),
+    sa.CheckConstraint("source IN ('MANUAL', 'SPREADSHEET', 'DATA_STUDIO', 'GOOGLE_ADS_API', 'MICROSOFT_ADS_API')", name="ad_results_source_check"),
     # One row per campaign, ad group (empty counts as one value) and period start
     sa.Index("ad_results_key", "initiative_id", sa.text("COALESCE(ad_group, '')"), "period_start", unique=True),
     sa.Index("idx_ad_results_period", "period_start"),

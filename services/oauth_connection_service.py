@@ -494,6 +494,9 @@ async def _execute_provider_refresh(
     # A Google Ads connection made in mock mode has fake tokens: "refresh" it without calling Google
     if provider == "GOOGLE_ADS" and metadata.get("mode") == "mock":
         return {"access_token": f"ya29.demo_refreshed_google_ads_{uuid.uuid4().hex[:20]}", "expires_in": 90 * 86400}
+    # ... and so does a Microsoft Ads one
+    if provider == "MICROSOFT_ADS" and metadata.get("mode") == "mock":
+        return {"access_token": f"EwBoA_msft_refreshed_{uuid.uuid4().hex[:20]}", "expires_in": 60 * 86400}
 
     client_id = metadata.get("client_id") or ""
     client_secret = metadata.get("client_secret") or ""
@@ -512,6 +515,9 @@ async def _execute_provider_refresh(
         "client_id": client_id,
         "client_secret": client_secret,
     }
+    if provider == "MICROSOFT_ADS":
+        # The Microsoft identity platform wants the scopes again when refreshing
+        payload["scope"] = "https://ads.microsoft.com/msads.manage offline_access"
 
     try:
         def _call_refresh():

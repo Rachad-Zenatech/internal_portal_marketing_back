@@ -31,19 +31,16 @@ os.environ["MQTT_PRESENCE_ENABLED"] = "false"
 os.environ["RABBITMQ_ENABLED"] = "false"
 os.environ["NAVAN_COST_SYNC_ENABLED"] = "false"
 os.environ["GOOGLE_ADS_SYNC_ENABLED"] = "false"
+os.environ["MICROSOFT_ADS_SYNC_ENABLED"] = "false"
 # Tests use live mode whatever the local .env says (demo mode only touches [Demo] events)
 os.environ["NAVAN_MODE"] = "live"
 # Only this app's own token issuer, whatever a local .env accepts (e.g. another portal's issuer)
 os.environ["JWT_ACCEPTED_ISSUERS"] = ""
 
-# Tests create and delete rows, so they only ever run on a local database: LOCAL_DATABASE_URL when .env's
-# DATABASE_URL points at production, and never a remote host
-if os.environ.get("LOCAL_DATABASE_URL"):
-    os.environ["DATABASE_URL"] = os.environ["LOCAL_DATABASE_URL"]
-    os.environ["DATABASE_SSL"] = "false"
+# Tests create and delete rows, so they never run on a remote database (e.g. production)
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 if DATABASE_URL and urlsplit(DATABASE_URL).hostname not in ("localhost", "127.0.0.1", "host.docker.internal"):
-    pytest.exit("Refusing to run tests: DATABASE_URL is not a local database. Set LOCAL_DATABASE_URL in .env.", returncode=2)
+    pytest.exit("Refusing to run tests: DATABASE_URL is not a local database.", returncode=2)
 
 
 def run_sql(sql: str, *args):

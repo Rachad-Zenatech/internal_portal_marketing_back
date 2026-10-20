@@ -15,7 +15,7 @@ import pytest
 
 from services import google_ads_client, google_ads_sync_job
 from services import token_crypto_service as crypto
-from services.google_ads_sync_job import initiative_status, objective_for, read_window, result_status
+from services.google_ads_sync_job import campaign_budget, initiative_status, objective_for, read_window, result_status
 from services.oauth_adapters import google_ads as google_ads_adapter
 from services.oauth_adapters.microsoft_ads import MicrosoftAdsOAuthProvider
 from tests.conftest import run_sql
@@ -130,6 +130,25 @@ def test_status_mapping():
     assert [result_status(s) for s in ("ACTIVE", "PLANNED", "PAUSED", "COMPLETED", "CANCELLED")] == [
         "ACTIVE", "ACTIVE", "PAUSED", "ENDED", "ENDED"]
     assert objective_for("SEARCH") == "LEADS" and objective_for("VIDEO") == "AWARENESS"
+
+
+def test_campaign_budget_is_the_budget_so_far_without_an_end_date():
+    today = date(2026, 10, 20)
+    daily = Decimal("100.00")
+    base = {"daily_budget": daily, "total_budget": None, "start_date": date(2026, 10, 1), "weeks": {}}
+    # A total budget wins; with an end date it's the whole run
+    assert campaign_budget({**base, "total_budget": Decimal("5000"), "status": "ENABLED", "end_date": None}, today) == Decimal("5000")
+    assert campaign_budget({**base, "status": "ENABLED", "end_date": date(2026, 10, 10)}, today) == Decimal("1000.00")
+    # Running without an end date: up to today (20 days)
+    assert campaign_budget({**base, "status": "ENABLED", "end_date": None}, today) == Decimal("2000.00")
+    # Not started yet: nothing so far
+    assert campaign_budget({**base, "status": "ENABLED", "end_date": None, "start_date": date(2026, 11, 1)}, today) == Decimal("0.00")
+    # Paused: up to the end of its last week with spend (Oct 5 to 11), not today
+    weeks = {date(2026, 9, 28): {"spend": Decimal("80")}, date(2026, 10, 5): {"spend": Decimal("50")}, date(2026, 10, 12): {"spend": 0}}
+    assert campaign_budget({**base, "status": "PAUSED", "end_date": None, "weeks": weeks}, today) == Decimal("1100.00")
+    # Paused with no spend in the window: unknown (the portal keeps the budget it has)
+    assert campaign_budget({**base, "status": "PAUSED", "end_date": None}, today) is None
+    assert campaign_budget({**base, "daily_budget": None, "status": "ENABLED", "end_date": None}, today) is None
 
 
 def test_read_window_starts_on_a_monday(monkeypatch):

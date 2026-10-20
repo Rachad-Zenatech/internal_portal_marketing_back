@@ -26,8 +26,8 @@ from datetime import date, timedelta
 from uuid import UUID
 
 from postgresql_db.database import get_pool
+from services import google_ads_client, microsoft_ads_client
 from services.ads_service import CAMPAIGN_JOINS, PLATFORMS
-from services.google_ads_client import connection_mode, google_ads_mode
 
 # --- Rules ---
 BUDGET_ALERT_PERCENT = 90.0
@@ -44,6 +44,13 @@ CONNECTION_PROVIDERS = {
     "GOOGLE_ADS": "GOOGLE_ADS", "YOUTUBE_ADS": "GOOGLE_ADS", "BING_ADS": "MICROSOFT_ADS",
     "META_ADS": "META_ADS", "LINKEDIN_ADS": "LINKEDIN_ADS",
 }
+# Providers with a campaign and results sync: (the mode a connection was made in, the current mode), and the sync's
+# integration_sync_state name in live mode ("_mock" added in mock mode)
+SYNCED_PROVIDERS = {
+    "GOOGLE_ADS": (google_ads_client.connection_mode, google_ads_client.google_ads_mode),
+    "MICROSOFT_ADS": (microsoft_ads_client.connection_mode, microsoft_ads_client.microsoft_ads_mode),
+}
+SYNC_STATE_NAMES = {"GOOGLE_ADS": "google_ads", "MICROSOFT_ADS": "microsoft_ads"}
 # Primary KPIs that are a cost per lead: the "cost per lead too high" rule compares with their target
 COST_PER_LEAD_KPIS = {"COST_PER_LEAD": "cpl", "COST_PER_MQL": "cost_per_mql"}
 # Objective -> the figure that says whether the campaign works
@@ -400,29 +407,31 @@ async def _fetch_connections(conn) -> dict[str, list[dict]]:
         """,
         sorted(set(CONNECTION_PROVIDERS.values())),
     )
-    mode = google_ads_mode()
     out: dict[str, list[dict]] = defaultdict(list)
     for r in rows:
         row = dict(r)
         meta, token = row.pop("connection_metadata"), row.pop("access_token_encrypted")
-        # Google Ads connections made in the other mode (mock or live) don't count: mock ones are never real
-        if r["provider"] == "GOOGLE_ADS":
+        # Google Ads and Microsoft Ads connections made in the other mode (mock or live) don't count: mock ones are
+        # never real
+        if r["provider"] in SYNCED_PROVIDERS:
+            mode_of, sync_mode = SYNCED_PROVIDERS[r["provider"]]
             if isinstance(meta, str):
                 meta = json.loads(meta or "{}")
-            if connection_mode(meta, token) != mode:
+            if mode_of(meta, token) != sync_mode():
                 continue
         out[r["provider"]].append(row)
     return out
 
 
-async def _fetch_google_ads_sync(conn) -> dict | None:
-    """When the Google Ads sync last worked in the current mode, and its mode (services/google_ads_sync_job.py)."""
-    mode = google_ads_mode()
-    row = await conn.fetchrow(
-        "SELECT last_success_at, last_attempt_at, last_error FROM integration_sync_state WHERE name = $1",
-        "google_ads_mock" if mode == "mock" else "google_ads",
+async def _fetch_ad_syncs(conn) -> dict[str, dict]:
+    """Per provider with a sync (Google Ads, Microsoft Ads): when it last worked in the current mode, and its mode."""
+    modes = {provider: sync_mode() for provider, (_, sync_mode) in SYNCED_PROVIDERS.items()}
+    names = {f"{SYNC_STATE_NAMES[p]}_mock" if mode == "mock" else SYNC_STATE_NAMES[p]: p for p, mode in modes.items()}
+    rows = await conn.fetch(
+        "SELECT name, last_success_at, last_attempt_at, last_error FROM integration_sync_state WHERE name = ANY($1::text[])",
+        list(names),
     )
-    return {**dict(row), "mode": mode} if row else None
+    return {names[r["name"]]: {**dict(r), "mode": modes[names[r["name"]]]} for r in rows}
 
 
 def connection_status(platform: str, connections: dict[str, list[dict]]) -> str | None:
@@ -756,7 +765,7 @@ async def health(filters: dict, today: date | None = None) -> dict:
         ids = [c["initiative_id"] for c in campaigns]
         to_date = await _fetch_to_date(conn, ids, today) if ids else {}
         connections = await _fetch_connections(conn)
-        google_sync = await _fetch_google_ads_sync(conn)
+        syncs = await _fetch_ad_syncs(conn)
 
     platforms = []
     for platform in PLATFORMS:
@@ -782,6 +791,7 @@ async def health(filters: dict, today: date | None = None) -> dict:
                 })
         problems.sort(key=lambda p: (p["last_data_date"] or date.min, p["name"].lower()))
         provider = CONNECTION_PROVIDERS.get(platform)
+        sync = syncs.get(provider or "")
         platforms.append({
             "platform": platform,
             "connection_status": status,
@@ -797,9 +807,9 @@ async def health(filters: dict, today: date | None = None) -> dict:
             "active_campaign_count": sum(1 for c in items if c["status"] == "ACTIVE"),
             "last_data_date": max(last_dates) if last_dates else None,
             "last_updated_at": max(updated) if updated else None,
-            # The Google Ads sync, for the platforms it fills (Google Ads and YouTube Ads)
-            "last_sync_at": google_sync["last_success_at"] if google_sync and provider == "GOOGLE_ADS" else None,
-            "sync_mode": google_sync["mode"] if google_sync and provider == "GOOGLE_ADS" else None,
+            # The platform's sync, for the platforms one fills (Google Ads and YouTube Ads, Bing Ads)
+            "last_sync_at": sync["last_success_at"] if sync else None,
+            "sync_mode": sync["mode"] if sync else None,
             "problems": problems,
         })
     return {"today": today, "stale_after_days": STALE_DAYS, "platforms": platforms}

@@ -39,6 +39,7 @@ from services.logging_service import (
     log_background_task_result,
     request_id_ctx,
 )
+from services.microsoft_ads_sync_job import microsoft_ads_sync_enabled, microsoft_ads_sync_loop
 from services.navan_cost_sync_job import navan_cost_sync_enabled, navan_cost_sync_loop
 from tools.ads_router import router as ads_router
 from tools.auth_router import router as auth_router
@@ -50,6 +51,7 @@ from tools.graph_router import router as graph_router
 from tools.import_router import router as import_router
 from tools.initiative_router import router as initiative_router
 from tools.log_router import router as log_router
+from tools.microsoft_ads_router import router as microsoft_ads_router
 from tools.navan_router import router as navan_router
 from tools.notification_router import notification_router
 from tools.oauth_router import router as oauth_router
@@ -147,6 +149,17 @@ async def lifespan(app: FastAPI):
         logger.info(
             "Google Ads sync disabled (set GOOGLE_ADS_SYNC_ENABLED=true to enable)",
             extra={"event": "google_ads_sync_disabled"},
+        )
+
+    # The same for Microsoft Ads (Bing Ads) campaigns and results, if enabled
+    if microsoft_ads_sync_enabled():
+        microsoft_ads_task = asyncio.create_task(microsoft_ads_sync_loop(), name="microsoft-ads-sync")
+        microsoft_ads_task.add_done_callback(partial(log_background_task_result, task_name="microsoft-ads-sync"))
+        background_tasks.append(microsoft_ads_task)
+    else:
+        logger.info(
+            "Microsoft Ads sync disabled (set MICROSOFT_ADS_SYNC_ENABLED=true to enable)",
+            extra={"event": "microsoft_ads_sync_disabled"},
         )
 
     presence = None
@@ -340,6 +353,7 @@ app.include_router(import_router, prefix="/api", tags=["Spreadsheet uploads"], d
 app.include_router(ads_router, prefix="/api", tags=["Paid ads"], dependencies=authenticated)
 app.include_router(navan_router, prefix="/api", tags=["Navan travel costs"], dependencies=authenticated)
 app.include_router(google_ads_router, prefix="/api", tags=["Google Ads"], dependencies=authenticated)
+app.include_router(microsoft_ads_router, prefix="/api", tags=["Microsoft Ads"], dependencies=authenticated)
 app.include_router(oauth_router, prefix="/api", tags=["OAuth & Integrations"], dependencies=authenticated)
 
 
