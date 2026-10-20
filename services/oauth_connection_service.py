@@ -15,6 +15,7 @@ import requests
 from models.oauth_connection_model import (
     Company,
     CompanyCreate,
+    CompanyUpdate,
     OAuthConnection,
     OAuthConnectionCreate,
     OAuthConnectionUpdate,
@@ -131,6 +132,51 @@ async def create_company(data: CompanyCreate) -> Company:
             RETURNING id, organization_id, name, code, parent_company_id, brand_id, currency, is_active, created_at, updated_at
         """, data.organization_id, data.name, data.code, data.parent_company_id, data.brand_id, data.currency, data.is_active)
         return await get_company(row["id"])
+
+
+async def update_company(company_id: UUID, data: CompanyUpdate) -> Company | None:
+    pool = get_pool()
+    updates = []
+    args: list[Any] = [company_id]
+    if data.name is not None:
+        args.append(data.name)
+        updates.append(f"name = ${len(args)}")
+    if data.code is not None:
+        args.append(data.code)
+        updates.append(f"code = ${len(args)}")
+    if data.organization_id is not None:
+        args.append(data.organization_id)
+        updates.append(f"organization_id = ${len(args)}")
+    if data.parent_company_id is not None:
+        args.append(data.parent_company_id)
+        updates.append(f"parent_company_id = ${len(args)}")
+    if data.brand_id is not None:
+        args.append(data.brand_id)
+        updates.append(f"brand_id = ${len(args)}")
+    if data.currency is not None:
+        args.append(data.currency)
+        updates.append(f"currency = ${len(args)}")
+    if data.is_active is not None:
+        args.append(data.is_active)
+        updates.append(f"is_active = ${len(args)}")
+
+    if not updates:
+        return await get_company(company_id)
+
+    updates.append("updated_at = now()")
+    query = f"UPDATE companies SET {', '.join(updates)} WHERE id = $1 RETURNING id"
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(query, *args)
+        if not row:
+            return None
+        return await get_company(company_id)
+
+
+async def delete_company(company_id: UUID) -> bool:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        res = await conn.execute("DELETE FROM companies WHERE id = $1", company_id)
+        return "DELETE 1" in res
 
 
 # ==============================================================================

@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from models.oauth_connection_model import (
     Company,
     CompanyCreate,
+    CompanyUpdate,
     OAuthAuthorizeResponse,
     OAuthCallbackRequest,
     OAuthConnection,
@@ -28,6 +29,7 @@ from models.oauth_connection_model import (
 from services import oauth_connection_service as oauth_svc
 from services.audit_service import log_audit_event
 from services.auth_service import get_current_user_id_dependency, require_permission
+from services.cache_service import emit_cache_invalidation
 from services.oauth_adapters import get_oauth_adapter
 
 router = APIRouter(prefix="/oauth", tags=["OAuth & Multi-Entity Integrations"])
@@ -92,7 +94,38 @@ async def create_company(data: CompanyCreate, user_id: AdminUser):
     try:
         comp = await oauth_svc.create_company(data)
         await log_audit_event("Company", str(comp.id), "CREATE", user_id, {"name": comp.name, "code": comp.code, "organization_id": str(comp.organization_id)})
+        await emit_cache_invalidation(scope="master_data")
         return comp
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.put("/companies/{company_id}", response_model=Company)
+async def update_company(company_id: UUID, data: CompanyUpdate, user_id: AdminUser):
+    try:
+        comp = await oauth_svc.update_company(company_id, data)
+        if not comp:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+        await log_audit_event("Company", str(comp.id), "UPDATE", user_id, {"name": comp.name, "code": comp.code})
+        await emit_cache_invalidation(scope="master_data")
+        return comp
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.delete("/companies/{company_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_company(company_id: UUID, user_id: AdminUser):
+    try:
+        success = await oauth_svc.delete_company(company_id)
+        if not success:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+        await log_audit_event("Company", str(company_id), "DELETE", user_id, {})
+        await emit_cache_invalidation(scope="master_data")
+        return None
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 

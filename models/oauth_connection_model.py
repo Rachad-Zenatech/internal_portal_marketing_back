@@ -57,6 +57,16 @@ class CompanyCreate(CompanyBase):
     pass
 
 
+class CompanyUpdate(BaseModel):
+    organization_id: UUID | None = None
+    name: str | None = Field(None, min_length=1, max_length=255)
+    code: str | None = Field(None, min_length=1, max_length=50)
+    parent_company_id: UUID | None = None
+    brand_id: int | None = None
+    currency: str | None = Field(None, min_length=3, max_length=3)
+    is_active: bool | None = None
+
+
 class Company(CompanyBase):
     id: UUID
     organization_name: str | None = None
