@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16
+    image: postgres:17  # same major version as production (Supabase), so pull_prod_to_local can copy it
     container_name: marketing_db_local
     restart: unless-stopped
     environment:
@@ -10,7 +10,7 @@ services:
     ports:
       - "3009:5432"
     volumes:
-      - marketing_db_data:/var/lib/postgresql/data
+      - marketing_db_data_17:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d marketing_portal_dev"]
       interval: 5s
@@ -18,4 +18,4 @@ services:
       retries: 10
 
 volumes:
-  marketing_db_data:
+  marketing_db_data_17:
