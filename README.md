@@ -209,7 +209,6 @@ When making table or column changes on a new branch:
    ```bash
    git checkout -b feature/your-feature-name
    ```
-   *(The Git `post-checkout` hook in `.git/hooks/post-checkout` automatically triggers to ensure your local database is synced and ready).*
 
 2. **Sync Live Data into Local DataGrip (Optional / Recommended)**:
    ```powershell
@@ -243,7 +242,7 @@ To tear down and recreate your local container from scratch to match the current
 ```powershell
 .\scripts\reset_local_db.ps1
 ```
-* A Git `post-checkout` hook is installed in `.git/hooks/post-checkout` to trigger this automatically on branch switches.
+* Run it by hand when you want an empty database; nothing runs it automatically (it would wipe local data on every branch switch).
 * Built-in safety guards immediately block resets if `DATABASE_URL` points to a remote host.
 
 

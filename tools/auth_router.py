@@ -93,10 +93,8 @@ async def microsoft_callback(request: Request):
                 "event": "microsoft_oauth_callback_failed",
                 "error_type": type(exc).__name__,
             },
+            exc_info=True,
         )
-        import traceback
-        with open("ms_error.log", "w") as f:
-            f.write(traceback.format_exc())
         raise HTTPException(status_code=400, detail=f"Microsoft sign-in failed: {str(exc)}") from exc
 
     # Reuse the access token to fetch the employee's Graph profile
