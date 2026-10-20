@@ -30,6 +30,7 @@ import postgresql_db.database  # noqa: E402,F401
 os.environ["MQTT_PRESENCE_ENABLED"] = "false"
 os.environ["RABBITMQ_ENABLED"] = "false"
 os.environ["NAVAN_COST_SYNC_ENABLED"] = "false"
+os.environ["GOOGLE_ADS_SYNC_ENABLED"] = "false"
 # Tests use live mode whatever the local .env says (demo mode only touches [Demo] events)
 os.environ["NAVAN_MODE"] = "live"
 # Only this app's own token issuer, whatever a local .env accepts (e.g. another portal's issuer)

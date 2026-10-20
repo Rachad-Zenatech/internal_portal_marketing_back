@@ -20,12 +20,14 @@ Campaigns needing attention (worked out for today, whatever the range):
 - Data delayed: an active, running campaign without results in the last 7 days, or whose platform's API connection
   isn't connected.
 """
+import json
 from collections import defaultdict
 from datetime import date, timedelta
 from uuid import UUID
 
 from postgresql_db.database import get_pool
 from services.ads_service import CAMPAIGN_JOINS, PLATFORMS
+from services.google_ads_client import connection_mode, google_ads_mode
 
 # --- Rules ---
 BUDGET_ALERT_PERCENT = 90.0
@@ -391,16 +393,36 @@ async def _fetch_connections(conn) -> dict[str, list[dict]]:
         return {}
     rows = await conn.fetch(
         """
-        SELECT provider, status, account_name, provider_account_id, updated_at
+        SELECT provider, status, account_name, provider_account_id, updated_at, connection_metadata,
+               access_token_encrypted
         FROM oauth_connections WHERE provider = ANY($1::text[])
         ORDER BY provider, (status = 'CONNECTED') DESC, updated_at DESC
         """,
         sorted(set(CONNECTION_PROVIDERS.values())),
     )
+    mode = google_ads_mode()
     out: dict[str, list[dict]] = defaultdict(list)
     for r in rows:
-        out[r["provider"]].append(dict(r))
+        row = dict(r)
+        meta, token = row.pop("connection_metadata"), row.pop("access_token_encrypted")
+        # Google Ads connections made in the other mode (mock or live) don't count: mock ones are never real
+        if r["provider"] == "GOOGLE_ADS":
+            if isinstance(meta, str):
+                meta = json.loads(meta or "{}")
+            if connection_mode(meta, token) != mode:
+                continue
+        out[r["provider"]].append(row)
     return out
+
+
+async def _fetch_google_ads_sync(conn) -> dict | None:
+    """When the Google Ads sync last worked in the current mode, and its mode (services/google_ads_sync_job.py)."""
+    mode = google_ads_mode()
+    row = await conn.fetchrow(
+        "SELECT last_success_at, last_attempt_at, last_error FROM integration_sync_state WHERE name = $1",
+        "google_ads_mock" if mode == "mock" else "google_ads",
+    )
+    return {**dict(row), "mode": mode} if row else None
 
 
 def connection_status(platform: str, connections: dict[str, list[dict]]) -> str | None:
@@ -734,6 +756,7 @@ async def health(filters: dict, today: date | None = None) -> dict:
         ids = [c["initiative_id"] for c in campaigns]
         to_date = await _fetch_to_date(conn, ids, today) if ids else {}
         connections = await _fetch_connections(conn)
+        google_sync = await _fetch_google_ads_sync(conn)
 
     platforms = []
     for platform in PLATFORMS:
@@ -774,6 +797,9 @@ async def health(filters: dict, today: date | None = None) -> dict:
             "active_campaign_count": sum(1 for c in items if c["status"] == "ACTIVE"),
             "last_data_date": max(last_dates) if last_dates else None,
             "last_updated_at": max(updated) if updated else None,
+            # The Google Ads sync, for the platforms it fills (Google Ads and YouTube Ads)
+            "last_sync_at": google_sync["last_success_at"] if google_sync and provider == "GOOGLE_ADS" else None,
+            "sync_mode": google_sync["mode"] if google_sync and provider == "GOOGLE_ADS" else None,
             "problems": problems,
         })
     return {"today": today, "stale_after_days": STALE_DAYS, "platforms": platforms}

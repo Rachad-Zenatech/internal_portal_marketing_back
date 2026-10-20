@@ -10,7 +10,7 @@ AdPlatform = Literal[
     "DISPLAY_PROGRAMMATIC", "OTHER",
 ]
 AdResultStatus = Literal["ACTIVE", "PAUSED", "ENDED"]
-AdResultSource = Literal["MANUAL", "SPREADSHEET", "DATA_STUDIO"]
+AdResultSource = Literal["MANUAL", "SPREADSHEET", "DATA_STUDIO", "GOOGLE_ADS_API"]
 AdImportRowStatus = Literal["NEW", "UPDATE", "UNCHANGED", "INVALID", "NEW_CAMPAIGN"]
 AdImportBatchStatus = Literal["PREVIEW", "CONFIRMED", "UNDONE", "EXPIRED"]
 
@@ -226,7 +226,7 @@ CampaignObjectiveCode = Literal["AWARENESS", "TRAFFIC", "LEADS", "CONVERSIONS", 
 InitiativeStatusCode = Literal["DRAFT", "PLANNED", "ACTIVE", "COMPLETED", "PAUSED", "CANCELLED"]
 AttentionKind = Literal["BUDGET", "CPL_ABOVE_TARGET", "CPL_ABOVE_PLATFORM", "UNEXPECTEDLY_PAUSED", "DATA_DELAYED"]
 DataHealthStatus = Literal["OK", "STALE", "NO_DATA", "CONNECTION", "NOT_STARTED"]
-DataSourceKind = Literal["API", "MANUAL", "SPREADSHEET", "DATA_STUDIO"]
+DataSourceKind = Literal["API", "MANUAL", "SPREADSHEET", "DATA_STUDIO", "GOOGLE_ADS_API"]
 
 
 class AdsKpis(BaseModel):
@@ -495,6 +495,9 @@ class AdsHealthPlatform(BaseModel):
     active_campaign_count: int
     last_data_date: date | None = None
     last_updated_at: datetime | None = None
+    # When the Google Ads sync last worked, and in which mode ("mock" or "live"); Google Ads and YouTube Ads only
+    last_sync_at: datetime | None = None
+    sync_mode: str | None = None
     problems: list[AdsHealthProblem]
 
 

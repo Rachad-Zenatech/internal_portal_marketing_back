@@ -18,8 +18,10 @@ class MicrosoftAdsOAuthProvider(BaseOAuthProvider):
     default_scopes = ["https://ads.microsoft.com/msads.manage", "offline_access"]
 
     def __init__(self):
-        client_id = os.getenv("MICROSOFT_ADS_CLIENT_ID") or os.getenv("MICROSOFT_CLIENT_ID", "")
-        client_secret = os.getenv("MICROSOFT_ADS_CLIENT_SECRET") or os.getenv("MICROSOFT_CLIENT_SECRET", "")
+        # Only the Microsoft Ads app's own credentials: MICROSOFT_CLIENT_ID / _SECRET are the portal's sign-in (SSO)
+        # app and must never be used here
+        client_id = os.getenv("MICROSOFT_ADS_CLIENT_ID", "")
+        client_secret = os.getenv("MICROSOFT_ADS_CLIENT_SECRET", "")
         super().__init__(client_id=client_id, client_secret=client_secret)
 
     async def exchange_code(self, code: str, redirect_uri: str) -> dict[str, Any]:

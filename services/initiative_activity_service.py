@@ -20,6 +20,7 @@ SOURCE_NAMES = {
     "LINKEDIN_ADS": "LinkedIn Ads",
     "META_ADS": "Meta Ads",
     "DATA_STUDIO": "Data Studio",
+    "GOOGLE_ADS_API": "Google Ads",
 }
 _LINK_SYSTEMS = {k: v for k, v in SOURCE_NAMES.items() if k in {"HUBSPOT", "GOOGLE_ADS", "MICROSOFT_ADS", "LINKEDIN_ADS", "META_ADS"}}
 
