@@ -60,9 +60,8 @@ def prod_settings() -> dict[str, str]:
 
 
 def local_database_url() -> str | None:
-    """The local database, for comparing; .env's DATABASE_URL may point at production"""
-    env = dotenv_values(os.path.join(ROOT, ".env"))
-    url = env.get("LOCAL_DATABASE_URL") or env.get("DATABASE_URL")
+    """The local database (.env's DATABASE_URL), for comparing; None if it isn't local"""
+    url = dotenv_values(os.path.join(ROOT, ".env")).get("DATABASE_URL")
     return url if url and urlsplit(url).hostname in ("localhost", "127.0.0.1", "host.docker.internal") else None
 
 
@@ -166,7 +165,7 @@ async def line_up(settings: dict[str, str], version: str) -> None:
             """, INSERTED_TABLES)
             local_url = local_database_url()
             if not local_url:
-                raise SystemExit("Set LOCAL_DATABASE_URL in .env: lining up compares with the local database.")
+                raise SystemExit("Point DATABASE_URL in .env at the local database: lining up compares with it.")
             local = await asyncpg.connect(local_url, timeout=10)
             try:
                 ours = {(r[0], r[1]) for r in await local.fetch(

@@ -8,6 +8,10 @@ from typing import Any
 from urllib.parse import urlencode
 
 
+class OAuthProviderNotReady(Exception):
+    """The provider can't be connected in the current setup. The message is safe to show to users."""
+
+
 class BaseOAuthProvider(ABC):
     provider: str
     name: str
@@ -23,6 +27,14 @@ class BaseOAuthProvider(ABC):
     def is_configured(self) -> bool:
         """Returns True if live production client credentials are set in environment."""
         return bool(self.client_id and self.client_secret)
+
+    def ensure_ready(self, instant: bool = False) -> None:
+        """Raise OAuthProviderNotReady when connecting can't work (instant: the test connection without sign-in)."""
+        return None
+
+    def connection_metadata(self) -> dict[str, Any]:
+        """Extra values stored in a new connection's connection_metadata (e.g. the mode it was made in)."""
+        return {}
 
     def get_authorization_url(self, state: str, redirect_uri: str, extra_params: dict[str, str] | None = None) -> str:
         """Generates standard OAuth 2.0 authorization URL."""

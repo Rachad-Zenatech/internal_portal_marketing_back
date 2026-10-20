@@ -145,6 +145,9 @@ PORT=8010
 FRONTEND_URL=http://localhost:5180
 DATABASE_URL=postgresql://postgres:postgres@localhost:3009/marketing_portal_dev
 DATABASE_SSL=false
+# Production (Supabase): only read by scripts/pull_prod_to_local and run by scripts/setup_prod_db.py
+PROD_DATABASE_URL=postgresql://user:password@your-project.pooler.supabase.com:5432/postgres
+PROD_DATABASE_SSL=true
 SESSION_SECRET=your-32-byte-secret-key-goes-here
 MICROSOFT_CLIENT_ID=your-azure-ad-client-id
 MICROSOFT_CLIENT_SECRET=your-azure-ad-client-secret
@@ -188,13 +191,16 @@ docker compose down
    * **Password**: `postgres`
 3. Click **Test Connection** and apply.
 
-### 4. Syncing Latest Live Data from AWS RDS (Optional)
-To pull a copy of real live records from AWS RDS into your local Docker DB for realistic development:
+### 4. Copying Production into the Local Database (one way)
+The app, tests and seed scripts always run on the local database (`DATABASE_URL`). To make local match production:
 ```powershell
-.\scripts\pull_prod_to_local.ps1
+.\scripts\pull_prod_to_local.ps1      # or: bash scripts/pull_prod_to_local.sh
 ```
-* Safely downloads an RDS snapshot and restores it into `localhost:3009`.
-* Read-only pull: live AWS RDS remains untouched and safe.
+* **One way:** production (`PROD_DATABASE_URL`) is only read with `pg_dump`; nothing local is ever written back.
+* Copies the app's tables (the `public` schema), replaces the local database with them, then runs `alembic upgrade head` so migrations on your branch that production doesn't have yet are applied on top.
+* Everything local is replaced, including test and sample data.
+* The local container runs the same Postgres major version as production (17), which `pg_dump` needs.
+* Schema changes reach production only through migrations: `scripts/setup_prod_db.py` (backs up first).
 
 ### 5. Creating Schema Changes & Migrations (PR Workflow)
 When making table or column changes on a new branch:
@@ -203,13 +209,12 @@ When making table or column changes on a new branch:
    ```bash
    git checkout -b feature/your-feature-name
    ```
-   *(The Git `post-checkout` hook in `.git/hooks/post-checkout` automatically triggers to ensure your local database is synced and ready).*
 
 2. **Sync Live Data into Local DataGrip (Optional / Recommended)**:
    ```powershell
    .\scripts\pull_prod_to_local.ps1
    ```
-   *(Safely pulls real current rows into your local Docker DB on port 3009 so you can build and test queries with actual data).*
+   *(Copies production's current rows into your local Docker DB on port 3009, one way, so you can build and test queries with actual data).*
 
 3. **Update Code Schema**:
    Edit `postgresql_db/schema_metadata.py` to add or modify columns/tables.
@@ -237,8 +242,8 @@ To tear down and recreate your local container from scratch to match the current
 ```powershell
 .\scripts\reset_local_db.ps1
 ```
-* A Git `post-checkout` hook is installed in `.git/hooks/post-checkout` to trigger this automatically on branch switches.
-* Built-in safety guards immediately block resets if `DATABASE_URL` points to a remote AWS RDS host.
+* Run it by hand when you want an empty database; nothing runs it automatically (it would wipe local data on every branch switch).
+* Built-in safety guards immediately block resets if `DATABASE_URL` points to a remote host.
 
 
 

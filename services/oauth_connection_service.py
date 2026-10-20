@@ -6,6 +6,7 @@ Organization -> Companies/Entities -> OAuth connections
 import asyncio
 import json
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
@@ -26,6 +27,7 @@ from models.oauth_connection_model import (
 )
 from postgresql_db.database import get_pool
 from services import token_crypto_service as crypto
+from services.oauth_adapters import get_oauth_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -535,8 +537,23 @@ async def _execute_provider_refresh(
         logger.error(f"Unknown provider for OAuth refresh: {provider}")
         return None
 
+    # A Google Ads connection made in mock mode has fake tokens: "refresh" it without calling Google
+    if provider == "GOOGLE_ADS" and metadata.get("mode") == "mock":
+        return {"access_token": f"ya29.demo_refreshed_google_ads_{uuid.uuid4().hex[:20]}", "expires_in": 90 * 86400}
+    # ... and so does a Microsoft Ads one
+    if provider == "MICROSOFT_ADS" and metadata.get("mode") == "mock":
+        return {"access_token": f"EwBoA_msft_refreshed_{uuid.uuid4().hex[:20]}", "expires_in": 60 * 86400}
+
     client_id = metadata.get("client_id") or ""
     client_secret = metadata.get("client_secret") or ""
+    if not client_id or not client_secret:
+        # The app's own OAuth client from the environment (connections don't store it)
+        try:
+            adapter = get_oauth_adapter(provider)
+            client_id = client_id or adapter.client_id
+            client_secret = client_secret or adapter.client_secret
+        except ValueError:
+            pass
 
     payload = {
         "grant_type": "refresh_token",
@@ -544,6 +561,9 @@ async def _execute_provider_refresh(
         "client_id": client_id,
         "client_secret": client_secret,
     }
+    if provider == "MICROSOFT_ADS":
+        # The Microsoft identity platform wants the scopes again when refreshing
+        payload["scope"] = "https://ads.microsoft.com/msads.manage offline_access"
 
     try:
         def _call_refresh():

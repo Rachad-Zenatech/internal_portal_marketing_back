@@ -30,7 +30,10 @@ from services import oauth_connection_service as oauth_svc
 from services.audit_service import log_audit_event
 from services.auth_service import get_current_user_id_dependency, require_permission
 from services.cache_service import emit_cache_invalidation
+from services.google_ads_client import GoogleAdsApiError
+from services.microsoft_ads_client import MicrosoftAdsApiError
 from services.oauth_adapters import get_oauth_adapter
+from services.oauth_adapters.base import OAuthProviderNotReady
 
 router = APIRouter(prefix="/oauth", tags=["OAuth & Multi-Entity Integrations"])
 
@@ -239,6 +242,10 @@ async def get_authorization_url(
         adapter = get_oauth_adapter(provider)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    try:
+        adapter.ensure_ready()
+    except OAuthProviderNotReady as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     state_payload = {
         "org_id": str(organization_id),
@@ -276,12 +283,19 @@ async def handle_oauth_callback(
 
     redirect_uri = data.redirect_uri or "http://localhost:5180/oauth/callback"
     try:
+        adapter.ensure_ready()
+    except OAuthProviderNotReady as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    try:
         token_info = await adapter.exchange_code(code=data.code, redirect_uri=redirect_uri)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Token exchange failed: {e}")
 
     # Discover accounts
-    discovered = await adapter.discover_accounts(token_info["access_token"])
+    try:
+        discovered = await adapter.discover_accounts(token_info["access_token"])
+    except (GoogleAdsApiError, MicrosoftAdsApiError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     primary = discovered[0] if discovered else {
         "account_id": f"acc_{uuid.uuid4().hex[:8]}",
         "account_name": f"{adapter.name} Account",
@@ -298,7 +312,7 @@ async def handle_oauth_callback(
         token_type=token_info.get("token_type", "Bearer"),
         expires_at=token_info.get("expires_at"),
         scopes=token_info.get("scopes", adapter.default_scopes),
-        connection_metadata={"discovered_accounts": discovered},
+        connection_metadata={"discovered_accounts": discovered, **adapter.connection_metadata()},
     )
 
     conn = await oauth_svc.store_connection(create_payload, user_id=user_id)
@@ -324,6 +338,10 @@ async def connect_provider_instant(
             adapter = get_oauth_adapter(provider)
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        try:
+            adapter.ensure_ready(instant=True)
+        except OAuthProviderNotReady as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
         token_info = await adapter.exchange_code(code="simulated_auth_grant", redirect_uri="http://localhost:5180/oauth/callback")
         discovered = await adapter.discover_accounts(token_info["access_token"])
@@ -346,7 +364,7 @@ async def connect_provider_instant(
             token_type=token_info.get("token_type", "Bearer"),
             expires_at=token_info.get("expires_at"),
             scopes=token_info.get("scopes", adapter.default_scopes),
-            connection_metadata={"discovered_accounts": discovered},
+            connection_metadata={"discovered_accounts": discovered, **adapter.connection_metadata()},
         )
 
         conn = await oauth_svc.store_connection(create_payload, user_id=user_id)

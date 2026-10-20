@@ -2,8 +2,9 @@ from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 
+from models.event_budget_import_model import EventBudgetApply, EventBudgetApplyResult, EventBudgetPreview
 from models.initiative_model import (
     ActivityItem,
     InitiativeCreate,
@@ -14,7 +15,10 @@ from models.initiative_model import (
     InitiativeUpdate,
     OwnerOption,
 )
+from services import event_budget_import_service
 from services.auth_service import require_permission
+from services.event_budget_import_service import EventBudgetImportError
+from services.import_parsing import ImportFileError
 from services.initiative_activity_service import list_activity as fetch_activity
 from services.initiative_service import (
     InitiativeNotFoundError,
@@ -84,6 +88,33 @@ async def list_initiatives(
 async def initiative_summary(filters: Annotated[InitiativeFilters, Depends()]):
     """Totals for the list's filters (needs attention aside), and for the period just before from/to."""
     return await fetch_summary(**filters.values)
+
+
+@router.post("/initiatives/event-budgets/preview", response_model=EventBudgetPreview)
+async def preview_event_budgets(
+    _user_id: Annotated[UUID, Depends(require_permission("INITIATIVES_UPDATE"))],
+    file: UploadFile = File(...),
+):
+    """Check a sheet of event budgets (.xlsx or .csv): which events it matches and what would change. Saves nothing."""
+    data = await file.read(event_budget_import_service.MAX_FILE_BYTES + 1)
+    if len(data) > event_budget_import_service.MAX_FILE_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="The file is larger than 5 MB.")
+    try:
+        return await event_budget_import_service.preview(file.filename or "upload", data)
+    except ImportFileError as exc:
+        raise HTTPException(status_code=HTTP_422, detail=str(exc)) from exc
+
+
+@router.post("/initiatives/event-budgets/apply", response_model=EventBudgetApplyResult)
+async def apply_event_budgets(
+    payload: EventBudgetApply,
+    user_id: Annotated[UUID, Depends(require_permission("INITIATIVES_UPDATE"))],
+):
+    """Save the previewed budgets in one go (all or nothing), each event checked again first."""
+    try:
+        return await event_budget_import_service.apply([c.model_dump() for c in payload.changes], user_id)
+    except EventBudgetImportError as exc:
+        raise HTTPException(status_code=HTTP_422, detail=str(exc)) from exc
 
 
 @router.post("/initiatives", response_model=InitiativeListItem, status_code=status.HTTP_201_CREATED)
