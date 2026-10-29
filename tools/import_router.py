@@ -4,21 +4,21 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 
 from models.import_model import CostSheetPreview, ImportBatchSummary, ImportConfirmResult, ImportUndoResult
-from services.auth_service import require_permission
-from services.cost_sheet_import_service import (
+from services.shared.auth_service import require_permission
+from services.shared.cost_sheet_import_service import (
     MAX_FILE_BYTES,
     ImportConflictError,
     ImportExpiredError,
     ImportForbiddenError,
     ImportNotFoundError,
 )
-from services.cost_sheet_import_service import build_template as build_cost_sheet_template
-from services.cost_sheet_import_service import confirm_import as confirm_upload
-from services.cost_sheet_import_service import list_imports as fetch_imports
-from services.cost_sheet_import_service import preview_cost_sheet as check_cost_sheet
-from services.cost_sheet_import_service import undo_import as undo_upload
-from services.import_parsing import ImportFileError
-from services.spend_service import InitiativeNotFoundError
+from services.shared.cost_sheet_import_service import build_template as build_cost_sheet_template
+from services.shared.cost_sheet_import_service import confirm_import as confirm_upload
+from services.shared.cost_sheet_import_service import list_imports as fetch_imports
+from services.shared.cost_sheet_import_service import preview_cost_sheet as check_cost_sheet
+from services.shared.cost_sheet_import_service import undo_import as undo_upload
+from services.shared.import_parsing import ImportFileError
+from services.shared.spend_service import InitiativeNotFoundError
 
 router = APIRouter()
 

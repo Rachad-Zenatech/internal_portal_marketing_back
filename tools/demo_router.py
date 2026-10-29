@@ -4,13 +4,13 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from models.demo_model import DemoCreate, DemoItem, DemoSummary, DemoUpdate
-from services.auth_service import require_permission
-from services.demo_service import DemoNotFoundError, DemoValidationError, InitiativeNotFoundError
-from services.demo_service import create_demo as insert_demo
-from services.demo_service import delete_demo as remove_demo
-from services.demo_service import get_demo_summary as fetch_demo_summary
-from services.demo_service import list_demos as fetch_demos
-from services.demo_service import update_demo as save_demo_changes
+from services.shared.auth_service import require_permission
+from services.shared.demo_service import DemoNotFoundError, DemoValidationError, InitiativeNotFoundError
+from services.shared.demo_service import create_demo as insert_demo
+from services.shared.demo_service import delete_demo as remove_demo
+from services.shared.demo_service import get_demo_summary as fetch_demo_summary
+from services.shared.demo_service import list_demos as fetch_demos
+from services.shared.demo_service import update_demo as save_demo_changes
 
 router = APIRouter()
 

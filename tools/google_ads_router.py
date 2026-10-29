@@ -2,9 +2,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from models.google_ads_model import GoogleAdsSyncStatus, GoogleAdsSyncSummary
-from services.auth_service import require_permission
-from services.google_ads_client import google_ads_configured, google_ads_mode
-from services.google_ads_sync_job import (
+from services.shared.auth_service import require_permission
+from services.ads.google_ads_client import google_ads_configured, google_ads_mode
+from services.ads.google_ads_sync_job import (
     GoogleAdsSyncAlreadyRunning,
     GoogleAdsSyncFailed,
     connected_accounts,

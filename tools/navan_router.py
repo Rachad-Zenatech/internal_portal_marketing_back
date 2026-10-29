@@ -2,14 +2,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from models.navan_model import NavanSyncStatus, NavanSyncSummary
-from services.auth_service import require_permission
-from services.navan_cost_sync_job import (
+from services.shared.auth_service import require_permission
+from services.navan.navan_cost_sync_job import (
     NavanSyncAlreadyRunning,
     get_navan_sync_state,
     navan_cost_sync_enabled,
     sync_navan_costs,
 )
-from services.navan_service import DEMO_MODE, NavanUnavailable, navan_configured, navan_mode
+from services.navan.navan_service import DEMO_MODE, NavanUnavailable, navan_configured, navan_mode
 
 router = APIRouter()
 

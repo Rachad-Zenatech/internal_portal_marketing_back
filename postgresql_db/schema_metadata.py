@@ -538,7 +538,7 @@ event_staff = sa.Table(
     sa.Index("idx_event_staff_initiative", "initiative_id"),
 )
 
-# People travelling to an event, from its active Navan bookings (services/navan_cost_sync_job.py replaces them).
+# People travelling to an event, from its active Navan bookings (services/navan/navan_cost_sync_job.py replaces them).
 # Only the name, email and department come from Navan: never passports, managers, cost centres or HR details.
 event_travellers = sa.Table(
     "event_travellers", metadata,
@@ -689,7 +689,7 @@ spend_lines = sa.Table(
 # --- Paid ads results (Google Ads and Bing Ads campaigns) ---
 # One row per campaign (or one of its ad groups) per period, replacing Marketing's "SaaS PPC Campaigns" sheet.
 # CTR, CPC, CPL and the other ratios are calculated when read, never stored. Each row's spend becomes a spend line
-# and its results become monthly outcomes (services/ads_service.py keeps both in step).
+# and its results become monthly outcomes (services/shared/ads_service.py keeps both in step).
 ad_results = sa.Table(
     "ad_results", metadata,
     sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
@@ -740,7 +740,7 @@ ad_results = sa.Table(
 
 # --- Monthly budgets ---
 # One approved amount per month for a brand (empty = TBD/All), a market and a channel (empty = all channels).
-# Which budget a cost counts against is worked out when read (services/budget_service.py), never stored.
+# Which budget a cost counts against is worked out when read (services/budgets/budget_service.py), never stored.
 monthly_budgets = sa.Table(
     "monthly_budgets", metadata,
     sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),

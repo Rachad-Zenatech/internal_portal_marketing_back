@@ -36,9 +36,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from models.initiative_model import InitiativeCreate, InitiativeLinkInput  # noqa: E402
 from postgresql_db.database import close_pool, create_pool, get_pool  # noqa: E402
-from services import ads_service  # noqa: E402
-from services.initiative_service import create_initiative, delete_initiative  # noqa: E402
-from services.performance_service import save_outcomes  # noqa: E402
+from services.shared import ads_service
+from services.shared.initiative_service import create_initiative, delete_initiative  # noqa: E402
+from services.performance.performance_service import save_outcomes  # noqa: E402
 
 LOCAL_HOSTS = {"localhost", "127.0.0.1"}
 PREFIX = "[Demo] "

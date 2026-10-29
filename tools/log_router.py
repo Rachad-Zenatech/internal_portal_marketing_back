@@ -3,8 +3,8 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from services.audit_service import get_audit_logs
-from services.auth_service import get_current_user_id_dependency, require_permission
+from services.shared.audit_service import get_audit_logs
+from services.shared.auth_service import get_current_user_id_dependency, require_permission
 
 router = APIRouter()
 

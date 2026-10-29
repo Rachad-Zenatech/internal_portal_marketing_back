@@ -26,22 +26,22 @@ from mcp_tools import sync_mcp_tools_to_vector_db
 # MCP tools & AI functions
 from mcp_tools import register_all as register_mcp_tools
 from postgresql_db.database import close_pool, create_pool, fetch_one
-from services import ai_observability, assistant_chat_service
-from services.auth_service import (
+from services.ai import ai_observability, assistant_chat_service
+from services.shared.auth_service import (
     current_user_id_ctx,
     get_current_user_id_dependency,
 )
-from services.cache_service import start_cache_invalidation_listener
-from services.google_ads_sync_job import google_ads_sync_enabled, google_ads_sync_loop
-from services.graph_sync_job import graph_sync_loop
-from services.logging_service import (
+from services.shared.cache_service import start_cache_invalidation_listener
+from services.ads.google_ads_sync_job import google_ads_sync_enabled, google_ads_sync_loop
+from services.microsoft_graph.graph_sync_job import graph_sync_loop
+from services.shared.logging_service import (
     asyncio_exception_handler,
     configure_logging,
     log_background_task_result,
     request_id_ctx,
 )
-from services.microsoft_ads_sync_job import microsoft_ads_sync_enabled, microsoft_ads_sync_loop
-from services.navan_cost_sync_job import navan_cost_sync_enabled, navan_cost_sync_loop
+from services.ads.microsoft_ads_sync_job import microsoft_ads_sync_enabled, microsoft_ads_sync_loop
+from services.navan.navan_cost_sync_job import navan_cost_sync_enabled, navan_cost_sync_loop
 from tools.ads_router import router as ads_router
 from tools.auth_router import router as auth_router
 from tools.budget_router import router as budget_router
@@ -179,7 +179,7 @@ async def lifespan(app: FastAPI):
         # 4. Announce this service online/offline over MQTT, as admin does. Each worker process gets its own
         # instance id (e.g. marketing-01-4242), so one worker restarting never marks the whole service offline
         if _env_flag("MQTT_PRESENCE_ENABLED", _messaging_default()):
-            from services.mqtt_presence import MqttServicePresence
+            from services.notifications.mqtt_presence import MqttServicePresence
 
             presence = MqttServicePresence(
                 service_name=os.getenv("SERVICE_NAME", "marketing"),
@@ -192,7 +192,7 @@ async def lifespan(app: FastAPI):
         # 5. Connect to RabbitMQ and declare the shared topology, as admin does (nothing is published yet).
         # In the background, so a broker that's down never delays startup (its retries can take ~30s)
         if _env_flag("RABBITMQ_ENABLED", _messaging_default()):
-            from services.rabbitmq_service import rabbitmq_manager
+            from services.notifications.rabbitmq_service import rabbitmq_manager
 
             rabbitmq = rabbitmq_manager
             rabbitmq_task = asyncio.create_task(rabbitmq.connect(), name="rabbitmq-connect")
@@ -281,7 +281,7 @@ async def ai_chat(req: ChatRequest, user_id: UUID = Depends(get_current_user_id)
         )
     if not prepared.blocked and prepared.cached_answer is None:
         # Counts toward the daily AI limits (429 with when it frees up).
-        from services import ai_usage_service
+        from services.ai import ai_usage_service
         await ai_usage_service.reserve("CHAT", user_id)
     try:
         async def stream_generator():
@@ -436,7 +436,7 @@ def _session_identity(request: Request) -> Optional[str]:
     if auth_header[:7].lower() == "bearer ":
         token = auth_header[7:].strip()
     if not token:
-        from services.auth_service import AUTH_COOKIE_NAME
+        from services.shared.auth_service import AUTH_COOKIE_NAME
         token = request.cookies.get(AUTH_COOKIE_NAME, "") or request.cookies.get("zenatech_access_token", "")
     if not token:
         return None

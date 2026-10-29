@@ -13,15 +13,15 @@ from models.performance_model import (
     OutcomePeriodInput,
     Performance,
 )
-from services.auth_service import require_permission
-from services.performance_service import InitiativeNotFoundError, PerformanceValidationError
-from services.performance_service import get_evaluation as fetch_evaluation
-from services.performance_service import get_performance as fetch_performance
-from services.performance_service import list_decisions as fetch_decisions
-from services.performance_service import list_outcomes as fetch_outcomes
-from services.performance_service import record_decision as insert_decision
-from services.performance_service import save_evaluation as store_evaluation
-from services.performance_service import save_outcomes as store_outcomes
+from services.shared.auth_service import require_permission
+from services.performance.performance_service import InitiativeNotFoundError, PerformanceValidationError
+from services.performance.performance_service import get_evaluation as fetch_evaluation
+from services.performance.performance_service import get_performance as fetch_performance
+from services.performance.performance_service import list_decisions as fetch_decisions
+from services.performance.performance_service import list_outcomes as fetch_outcomes
+from services.performance.performance_service import record_decision as insert_decision
+from services.performance.performance_service import save_evaluation as store_evaluation
+from services.performance.performance_service import save_outcomes as store_outcomes
 
 router = APIRouter()
 

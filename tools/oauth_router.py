@@ -26,14 +26,14 @@ from models.oauth_connection_model import (
     OrganizationCreate,
     ResolvedConnection,
 )
-from services import oauth_connection_service as oauth_svc
-from services.audit_service import log_audit_event
-from services.auth_service import get_current_user_id_dependency, require_permission
-from services.cache_service import emit_cache_invalidation
-from services.google_ads_client import GoogleAdsApiError
-from services.microsoft_ads_client import MicrosoftAdsApiError
-from services.oauth_adapters import get_oauth_adapter
-from services.oauth_adapters.base import OAuthProviderNotReady
+from services.ads import oauth_connection_service as oauth_svc
+from services.shared.audit_service import log_audit_event
+from services.shared.auth_service import get_current_user_id_dependency, require_permission
+from services.shared.cache_service import emit_cache_invalidation
+from services.ads.google_ads_client import GoogleAdsApiError
+from services.ads.microsoft_ads_client import MicrosoftAdsApiError
+from services.ads.oauth_adapters import get_oauth_adapter
+from services.ads.oauth_adapters.base import OAuthProviderNotReady
 
 router = APIRouter(prefix="/oauth", tags=["OAuth & Multi-Entity Integrations"])
 

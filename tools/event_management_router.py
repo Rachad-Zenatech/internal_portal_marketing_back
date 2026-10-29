@@ -13,19 +13,19 @@ from models.event_management_model import (
 )
 from models.event_performance_model import EventPerformanceResponse
 from models.initiative_model import InitiativeStatus
-from services.auth_service import require_permission
-from services.event_management_service import (
+from services.shared.auth_service import require_permission
+from services.events.event_management_service import (
     EventManagementValidationError,
     InitiativeNotFoundError,
     StaffAssignmentNotFoundError,
 )
-from services.event_management_service import add_staff as insert_staff
-from services.event_management_service import list_event_overview as fetch_overview
-from services.event_management_service import list_staff as fetch_staff
-from services.event_management_service import list_travellers as fetch_travellers
-from services.event_management_service import remove_staff as delete_staff
-from services.event_management_service import update_staff as save_staff_changes
-from services.event_performance_service import list_event_performance as fetch_performance
+from services.events.event_management_service import add_staff as insert_staff
+from services.events.event_management_service import list_event_overview as fetch_overview
+from services.events.event_management_service import list_staff as fetch_staff
+from services.events.event_management_service import list_travellers as fetch_travellers
+from services.events.event_management_service import remove_staff as delete_staff
+from services.events.event_management_service import update_staff as save_staff_changes
+from services.events.event_performance_service import list_event_performance as fetch_performance
 
 router = APIRouter()
 

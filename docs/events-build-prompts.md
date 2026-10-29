@@ -12,7 +12,7 @@ One prompt = one small task, built and checked before the next. Paste them in or
 | ⏳ Uncommitted | Goal section restyle in `InitiativeFormDialog.tsx`; new "Current focus" section in `docs/PLAN.md` | — |
 | ⏳ In progress | **1.7** Virtual event platform and link — back end written, not committed (migration `bdb72500c5be`) | — |
 | ✅ Built, not committed (14 Oct) | **Event management page (for Gigi and Priya):** `/events` with event cards grouped On now / Upcoming / Past and a "Next:" step on each; `/events/:id` workspace with a checklist and tabs Team & travel · Costs · Demos · Results. New `event_staff` table (migration `c03b94e17306`): who's going, role, travelling from, dates, flight / hotel / ground transport / stipend, cargo, notes, readiness. Travel system integration (service token `travel-management`): `GET /api/integrations/travel/events` and `POST /api/integrations/travel/staff-status`; contract in `docs/travel-integration.md`. | — |
-| ✅ Built, not committed (14 Oct) | **Performance — Results and "Was it worth it?" (8.1–8.5, 8.7 demo count, 8.9, 9.1–9.4):** outcome metrics, `outcomes` (synced values win over typed ones), evaluation defaults per sub-channel, `initiative_evaluations`, `initiative_decisions`, new KPIs CP-Visitor / CP-Follow-up / CP-Demo (migration `fbe76c69be9a`); `services/initiative_metrics.py` (ladder, ROI, rating — break-even is Low once revenue is in); results, evaluation, decisions and performance APIs; Performance page with verdict, cost ladder, monthly results and decisions; rating on the overview card. Then: three stages (Upcoming → Early read on the KPI → Final verdict led by ROI), primary KPIs limited by channel (no CPM on events; `kpi_choices_by_channel` in reference data, enforced on create/edit), decision panel tucked away until the final verdict. **Not done:** 9.5 (defaults pre-filled in the create form, rating column and filter in the list) | — |
+| ✅ Built, not committed (14 Oct) | **Performance — Results and "Was it worth it?" (8.1–8.5, 8.7 demo count, 8.9, 9.1–9.4):** outcome metrics, `outcomes` (synced values win over typed ones), evaluation defaults per sub-channel, `initiative_evaluations`, `initiative_decisions`, new KPIs CP-Visitor / CP-Follow-up / CP-Demo (migration `fbe76c69be9a`); `services/shared/initiative_metrics.py` (ladder, ROI, rating — break-even is Low once revenue is in); results, evaluation, decisions and performance APIs; Performance page with verdict, cost ladder, monthly results and decisions; rating on the overview card. Then: three stages (Upcoming → Early read on the KPI → Final verdict led by ROI), primary KPIs limited by channel (no CPM on events; `kpi_choices_by_channel` in reference data, enforced on create/edit), decision panel tucked away until the final verdict. **Not done:** 9.5 (defaults pre-filled in the create form, rating column and filter in the list) | — |
 | ✅ Built, not committed (14 Oct) | **Demo log (8.6–8.8, ahead of Results):** demo types and outcomes, `event_demos` table, Demo equipment category (migration `9f00a19323a4`); demo API with summary, cost per demo and per customer; CEO-example tests; seeded 20 demos on Facility Expo; Demos page, card on the event overview, cost-per-demo card on Performance. **Still to do when Results (8.1–8.3) exists:** the Demos result counted from the log, leads/revenue in the ladder (8.9), and mobile "Log a demo" (11.3) | — |
 
 **What changed in the plan:** `PLAN.md`'s new *Current focus* is **search ads, events and a monthly budget tracker**. Spend lines (I5) now also count against **monthly budgets** (month + brand + market). So this list adds **markets (B1)**, **monthly budgets (B2)** and **linking spend to budgets (B3)** before the uploads, and the old "events summary" becomes a prior-year view inside the tracker. Search-ads prompts (A1, A2, B4, X2a) will be a separate list.
@@ -47,7 +47,7 @@ Open questions are in the roadmap's question log and `PLAN.md`. Until Marketing 
 
 Both repos' `CLAUDE.md` already cover most of this; the prompts repeat what matters most:
 
-- **Back end:** raw asyncpg (`pool = get_pool()` then `async with pool.acquire() as conn`), no SQL in loops (use `UNNEST`), new tables go in `postgresql_db/schema_metadata.py` **and** an Alembic autogenerate migration (CI fails on drift), audit with `services/rbac_service.log_audit(conn, ...)` inside the same transaction, permissions with `require_permission("INITIATIVES_VIEW" | "INITIATIVES_UPDATE" ...)`. Map database constraint names to readable messages like `_CONSTRAINT_MESSAGES` in `initiative_service.py`. Reference lists are served by `services/reference_data_service.py` (cached) via `GET /api/reference-data`.
+- **Back end:** raw asyncpg (`pool = get_pool()` then `async with pool.acquire() as conn`), no SQL in loops (use `UNNEST`), new tables go in `postgresql_db/schema_metadata.py` **and** an Alembic autogenerate migration (CI fails on drift), audit with `services/rbac_service.log_audit(conn, ...)` inside the same transaction, permissions with `require_permission("INITIATIVES_VIEW" | "INITIATIVES_UPDATE" ...)`. Map database constraint names to readable messages like `_CONSTRAINT_MESSAGES` in `initiative_service.py`. Reference lists are served by `services/reference_data/reference_data_service.py` (cached) via `GET /api/reference-data`.
 - **Tests:** follow `tests/conftest.py` (`client`, `admin`, `viewer`, `ref` fixtures). Any new table that references `initiatives` uses `ON DELETE CASCADE` so the fixtures' cleanup still works; anything else a test user creates must be removed in `_delete_user`. Tests skip when the local database is down — make sure they actually ran.
 - **Front end:** API calls only through `src/services/*` + `apiClient`; types in `src/types/*`; React Query hooks in `src/hooks/*` with keys from `src/services/queryKeys.ts`; shadcn components; toasts with `sonner`; gate buttons with `hasPermission("INITIATIVES_UPDATE")`. Follow the existing `useState` + `validate()` form pattern and the `Section` / `Detail` / `Stat` components and colour style already in `InitiativeDetail.tsx`. Event rules live in `src/pages/Initiatives/eventRules.ts`.
 - **Checks before finishing:** back end `wsl python3 -m py_compile <touched files>`, `pytest tests/ -q`, `git diff --check`. Front end `npm run build` and `npm run lint`. Don't commit; I review and commit each task.
@@ -176,7 +176,7 @@ Repo: internal_portal_marketing_back
 
 Task: list, add, edit and delete costs for one initiative, with the stage rules.
 
-Build (new files tools/spend_router.py, services/spend_service.py, models/spend_model.py; register the router in server.py like initiative_router):
+Build (new files tools/spend_router.py, services/shared/spend_service.py, models/spend_model.py; register the router in server.py like initiative_router):
 1. GET  /api/initiatives/{id}/spend-lines — INITIATIVES_VIEW. Ordered by category sort order, then incurred_on. Include category name, status, vendor, estimate, amount, variance (amount − estimated_amount when INVOICED/PAID and an estimate exists), invoice_ref, paid_on, cost_type, source, reconciled flag, created_by name. 404 if the initiative doesn't exist.
 2. POST /api/initiatives/{id}/spend-lines — INITIATIVES_UPDATE. Body: category_id, status (default COMMITTED), amount, estimated_amount (defaults to amount when status is ESTIMATED), currency (default the initiative's), incurred_on, vendor, description, invoice_ref, paid_on, payment_method, cost_type (default the category's default_cost_type), note, source (only MANUAL or STAFF_CALCULATOR here).
 3. PATCH /api/spend-lines/{line_id} — INITIATIVES_UPDATE. Partial update. Moving to INVOICED or PAID keeps estimated_amount as it was, so variance appears.
@@ -269,7 +269,7 @@ Repo: internal_portal_marketing_back
 
 Task: monthly budgets — the rows of Marketing's budget-tracking sheet — as a table with an API. Example row: Sep 2026 · DeskFlex · North America · $12,000.
 
-Build (tools/budget_router.py, services/budget_service.py, models/budget_model.py):
+Build (tools/budget_router.py, services/budgets/budget_service.py, models/budget_model.py):
 1. Table monthly_budgets: id UUID pk, month DATE NOT NULL (always the 1st — check constraint), brand_id INT NOT NULL FK → brands (TBD/All is a brand already), market_id INT NULL FK → markets (null = all markets), channel_id INT NULL FK → channels (null = any channel), amount NUMERIC(14,2) NOT NULL check >= 0, currency CHAR(3) NOT NULL, notes TEXT NULL, created/updated at/by. Unique (month, brand_id, market_id, channel_id) treating NULLs as equal (NULLS NOT DISTINCT on Postgres 16, or a unique index on coalesced values) → message "There's already a budget for that month, brand and market."
 2. Add the FK spend_lines.monthly_budget_id → monthly_budgets.id ON DELETE SET NULL.
 3. Permissions: add a BUDGETS navigation item and permission group following how INITIATIVES was added in ed7fce2 (setup_pbac seed — make sure it's an upsert, not the old TRUNCATE). VIEW to read, UPDATE/CREATE/DELETE to change. Until Marketing roles are set up, Super Admin has it.
@@ -357,7 +357,7 @@ Repo: internal_portal_marketing_back
 
 Task: replace the monthly reconciliation Jim does in Excel — checking each month's event and marketing costs against the annual budget, and marking them as reconciled.
 
-Build (extend tools/budget_router.py / services/budget_service.py, or a new reconciliation_service.py):
+Build (extend tools/budget_router.py / services/budgets/budget_service.py, or a new reconciliation_service.py):
 1. GET /api/reconciliation?month=2026-10-01&brand_id= (BUDGETS_VIEW): every spend line whose incurred_on is in that month, plus unreconciled lines from earlier months (carried forward, flagged "from September"). Grouped by brand → initiative (with event code). Each line: category, vendor, item, status, amount, currency, invoice_ref, paid_on, monthly budget label, reconciled flag. Per group and overall: totals by status, the month's budget total, and year-to-date budget vs actual for the brand (the "annual marketing budget" view: sum of the year's monthly budgets vs actual to date).
 2. Problems listed so Jim can chase them, computed in SQL: line still ESTIMATED or COMMITTED after the event ended; INVOICED/PAID without an invoice #; PAID without a payment method; not linked to a monthly budget; currency differs from the budget's.
 3. POST /api/reconciliation/reconcile (BUDGETS_UPDATE) {line_ids, month} — sets reconciled_month/at/by in ONE statement; only lines that are INVOICED or PAID can be reconciled (others listed back as skipped with the reason). POST /api/reconciliation/reopen (BUDGETS_UPDATE) {line_ids, reason} clears them; reason is required and audited.
@@ -399,7 +399,7 @@ Task: the shared pieces every upload will use (event cost sheets now; last year'
 
 Build:
 1. Table import_batches: id UUID pk, kind VARCHAR(30) check in ('COST_SHEET','EVENTS','GOOGLE_ADS','MICROSOFT_ADS'), filename VARCHAR(255), status VARCHAR(20) check in ('PREVIEW','CONFIRMED','UNDONE','EXPIRED'), total_rows/valid_rows/error_rows/imported_rows INT, staged_rows JSONB (parsed, validated rows kept between preview and confirm), created_by UUID FK users, created_at, confirmed_at/by, undone_at/by. Add FK spend_lines.import_batch_id → import_batches.id ON DELETE SET NULL. Update tests/conftest.py _delete_user to remove the temporary user's import batches.
-2. services/import_parsing.py — pure functions, no database:
+2. services/shared/import_parsing.py — pure functions, no database:
    - read_table(filename, bytes) → list[dict[str, str]] for .csv (utf-8 with or without BOM) and .xlsx (first sheet, values not formulas); header names normalised (trim, case-insensitive, spaces/underscores equivalent); blank rows skipped; ImportFileError with a readable message for other types, empty files, or > 5,000 rows.
    - parse_amount(text) → Decimal | None: "$1,200.50", "£300", "(150.00)" as negative, "1 200", "." / "-" / "" as blank, Excel errors (#N/A, #DIV/0!, #VALUE!) invalid.
    - parse_date(text): ISO, DD/MM/YYYY, Excel serials/datetimes. Ambiguous formats are read as DD/MM (UK/AU usage) — document it.
@@ -419,7 +419,7 @@ Task: let the marketing owner upload an event's existing Excel cost sheet instea
 
 Columns (case-insensitive, with aliases for what their sheet calls them): Item / Description*, Category* (name or code; manual-entry categories only — Travel rows are rejected with "Travel comes from the travel management system"), Vendor, Estimate, Actual, Status (defaults: PAID when Paid On is set, INVOICED when Actual is set, otherwise ESTIMATED), Invoice #, Invoice Date / Date, Paid On, Payment Method, Currency (default the event's), OPEX/CAPEX, Notes.
 
-Build (services/cost_sheet_import_service.py; routes in tools/import_router.py):
+Build (services/shared/cost_sheet_import_service.py; routes in tools/import_router.py):
 1. POST /api/initiatives/{id}/imports/cost-sheet (multipart, INITIATIVES_UPDATE) → preview with READY / DUPLICATE (same vendor + invoice # already recorded anywhere, or twice in the file) / INVALID rows, using import_parsing.py and import_batches (kind COST_SHEET). Amount = Actual if present, else Estimate; estimated_amount = Estimate. Rows with neither → INVALID.
 2. Confirm through POST /api/imports/{batch_id}/confirm (dispatch on kind): one set-based insert with source COST_SHEET_UPLOAD and import_batch_id, then link to monthly budgets with the 4.2 rule in one statement; one audit row. Undo deletes the batch's lines unless any are reconciled ("3 of these costs are already reconciled — reopen them first.").
 3. GET /api/imports/cost-sheet/template — .xlsx with the columns, an example booth (space, build, carpet, lighting, badges) and dropdowns for Category, Status, Payment Method, OPEX/CAPEX.
@@ -458,7 +458,7 @@ Repo: internal_portal_marketing_back
 Task: write docs/travel-cost-contract.md — the agreement we hand to the travel management system's developer. Documentation only, no code.
 
 Cover, in plain language with JSON examples:
-1. Identity: the travel system calls us with a service token (our services/service_security_policy.py: add a "travel-management" trusted application with scope "marketing.travel_costs:write" — note it, implement in 6.2). We call them with a token for scope "travel.costs:read".
+1. Identity: the travel system calls us with a service token (our services/shared/service_security_policy.py: add a "travel-management" trusted application with scope "marketing.travel_costs:write" — note it, implement in 6.2). We call them with a token for scope "travel.costs:read".
 2. Events: every travel request is tagged with our event code (EVT-2026-0007). Until they read our event list, staff type or pick the code; a request without a code isn't sent. (Optional later: GET /api/integrations/travel/events — our active events for their picker.)
 3. One cost record = one approved request or expense line: transaction_id (their stable id, never reused), event_code, category (FLIGHT, HOTEL, GROUND_TRANSPORT, PER_DIEM, MEALS, OTHER_TRAVEL), description, amount, currency, incurred_on (travel date / expense date), status (APPROVED, PAID, CANCELLED), approved_at, paid_on, traveller count (no names — we don't need personal data), updated_at.
 4. Push: POST /api/integrations/travel/costs with a batch of records whenever a request is approved, paid, changed or cancelled. Idempotent: sending the same transaction_id again updates it. Response lists accepted, updated, unmatched (unknown event code) and rejected records with reasons.
@@ -478,7 +478,7 @@ Repo: internal_portal_marketing_back
 Task: the endpoint the travel system calls when travel requests are approved, paid, changed or cancelled (contract: docs/travel-cost-contract.md).
 
 Build (tools/travel_sync_router.py, services/travel_sync_service.py, models/travel_sync_model.py):
-1. Service auth: add a "travel-management" trusted application and scope "marketing.travel_costs:write" in services/service_security_policy.py, and protect the route with require_application_scope (follow how the ceo-dashboard scopes are defined; user tokens must be rejected).
+1. Service auth: add a "travel-management" trusted application and scope "marketing.travel_costs:write" in services/shared/service_security_policy.py, and protect the route with require_application_scope (follow how the ceo-dashboard scopes are defined; user tokens must be rejected).
 2. POST /api/integrations/travel/costs, body {records: [...]} (max 1,000). In a fixed number of queries:
    - look up event codes → initiative ids
    - upsert into spend_lines on (source = 'TRAVEL_FEED', external_ref = transaction_id): category TRAVEL, status COMMITTED/PAID from the mapping, amount, currency, incurred_on, paid_on, description ("Flight — 2 travellers"); INSERT … SELECT FROM unnest(...) ON CONFLICT DO UPDATE, only when updated_at is newer than what we hold (out-of-order pushes can't overwrite newer data)
@@ -534,7 +534,7 @@ Repo: internal_portal_marketing_back
 
 Task: import Marketing's existing events spreadsheet — creates initiatives with event details and, optionally, one total cost line per category. Loads last year's events for prior-year comparisons and gives a real pilot event.
 
-Reuse services/import_parsing.py and import_batches (kind EVENTS) and the src/components/imports pieces from 5.3. Columns: Name*, Brand*, Market, Sub-channel* (In-Person Events / Virtual Events / Webinars / Sponsorships), Start Date, End Date, Budget, Currency, Status, Owner Email, Event Type, Venue, City, Country, Region, Platform, Event Link, and optional cost columns Booth/Space, Materials, Travel, Staff Time, Other (each becomes one spend line dated the event's end date, source MANUAL, description "Imported total", linked to a monthly budget by the Part 4.2 rule).
+Reuse services/shared/import_parsing.py and import_batches (kind EVENTS) and the src/components/imports pieces from 5.3. Columns: Name*, Brand*, Market, Sub-channel* (In-Person Events / Virtual Events / Webinars / Sponsorships), Start Date, End Date, Budget, Currency, Status, Owner Email, Event Type, Venue, City, Country, Region, Platform, Event Link, and optional cost columns Booth/Space, Materials, Travel, Staff Time, Other (each becomes one spend line dated the event's end date, source MANUAL, description "Imported total", linked to a monthly budget by the Part 4.2 rule).
 
 Build:
 1. POST /api/imports/events (preview), READY / INVALID / DUPLICATE: duplicate = same name + brand + start date as an existing initiative or another row. Validate reference values by name or code (case-insensitive), the sub-channel required-field rule, dates, URL; unknown owner email → the uploader, as a warning.
@@ -600,7 +600,7 @@ Repo: internal_portal_marketing_back
 Task: costs + results → the cost-per-outcome ladder and ROI. Calculated on request, never stored.
 
 Build:
-1. services/initiative_metrics.py — pure functions, no database:
+1. services/shared/initiative_metrics.py — pure functions, no database:
    - Inputs: total cost (initiative's currency), counts per metric (all months; where MANUAL and a synced source both exist for the same month, prefer the synced one and report that), revenue, pipeline.
    - Outputs: cost per visitor, click, lead, follow-up, MQL, SQL, trial, demo, conversion, customer; CTR; CPC; CPM; conversion rates between consecutive ladder steps present; ROI = (revenue − cost) / cost. Division by zero or missing input → None, never an error.
 2. GET /api/initiatives/{id}/performance (VIEW), fixed number of queries; costs in other currencies excluded and reported.
@@ -683,7 +683,7 @@ Repo: internal_portal_marketing_back
 
 Task: add, edit and list demos for an initiative; make the Demos result count itself from the log; reproduce the CEO example end to end.
 
-Build (tools/demo_router.py, services/demo_service.py, models/demo_model.py; register the router):
+Build (tools/demo_router.py, services/shared/demo_service.py, models/demo_model.py; register the router):
 1. GET /api/initiatives/{id}/demos (INITIATIVES_VIEW) — newest first; each with type, company, hubspot_url, brand, product_note, given_by name, outcome, note, source.
 2. POST /api/initiatives/{id}/demos (INITIATIVES_UPDATE) — demo_at defaults to now; brand defaults to the initiative's; outcome defaults to PENDING. Only for initiatives in the EVENTS channel for now ("Demos can only be logged on events.").
 3. PATCH /api/demos/{demo_id} and DELETE /api/demos/{demo_id} (INITIATIVES_UPDATE). Changing the outcome sets outcome_updated_at.
@@ -770,7 +770,7 @@ Repo: internal_portal_marketing_back
 Task: suggest High / Medium / Low / Test by comparing the primary KPI with its target.
 
 Build:
-1. In services/initiative_metrics.py:
+1. In services/shared/initiative_metrics.py:
    - KPI_DEFINITIONS: how to read each primary KPI's actual value from the performance result and whether lower or higher is better (CPL, CP-*, CAC, CPC, CPM lower; CTR, ROI, Revenue, Pipeline Generated, Impressions higher). CONVERSION_RATE and LTV_CAC unsupported → Test, "Not calculated yet".
    - suggest_rating(kpi_code, actual, target, end_date, maturity_days, today) → {rating, reason}: Test inside the window ("23 days left in the 180-day window"), or with no target or no actual; else High if met/beaten, Medium within 20%, Low beyond 20% (named constant).
 2. Add {primary_kpi, actual, target, rating, reason, matures_on} to GET /performance.

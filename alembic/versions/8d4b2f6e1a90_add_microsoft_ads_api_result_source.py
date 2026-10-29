@@ -1,6 +1,6 @@
 """add microsoft ads api result source
 
-Ad results synced from the Microsoft Advertising API (services/microsoft_ads_sync_job.py) get their own source,
+Ad results synced from the Microsoft Advertising API (services/ads/microsoft_ads_sync_job.py) get their own source,
 MICROSOFT_ADS_API.
 
 Revision ID: 8d4b2f6e1a90

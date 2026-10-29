@@ -4,17 +4,17 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from models.spend_model import SpendLineCreate, SpendLineItem, SpendLineUpdate, SpendSummary
-from services.auth_service import require_permission
-from services.spend_service import (
+from services.shared.auth_service import require_permission
+from services.shared.spend_service import (
     InitiativeNotFoundError,
     SpendLineNotFoundError,
     SpendValidationError,
 )
-from services.spend_service import create_spend_line as insert_spend_line
-from services.spend_service import delete_spend_line as remove_spend_line
-from services.spend_service import get_spend_summary as fetch_spend_summary
-from services.spend_service import list_spend_lines as fetch_spend_lines
-from services.spend_service import update_spend_line as save_spend_line_changes
+from services.shared.spend_service import create_spend_line as insert_spend_line
+from services.shared.spend_service import delete_spend_line as remove_spend_line
+from services.shared.spend_service import get_spend_summary as fetch_spend_summary
+from services.shared.spend_service import list_spend_lines as fetch_spend_lines
+from services.shared.spend_service import update_spend_line as save_spend_line_changes
 
 router = APIRouter()
 

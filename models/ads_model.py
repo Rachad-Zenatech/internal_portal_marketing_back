@@ -220,7 +220,7 @@ class AdImportUndoResult(BaseModel):
     campaigns_removed: int
 
 
-# --- The Paid Advertising page (services/ads_overview_service.py) ---
+# --- The Paid Advertising page (services/ads/ads_overview_service.py) ---
 
 CampaignObjectiveCode = Literal["AWARENESS", "TRAFFIC", "LEADS", "CONVERSIONS", "ENGAGEMENT", "VIDEO_VIEWS"]
 InitiativeStatusCode = Literal["DRAFT", "PLANNED", "ACTIVE", "COMPLETED", "PAUSED", "CANCELLED"]

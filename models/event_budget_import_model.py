@@ -1,4 +1,4 @@
-"""Uploading many events' budgets from one spreadsheet (services/event_budget_import_service.py)."""
+"""Uploading many events' budgets from one spreadsheet (services/initiatives/event_budget_import_service.py)."""
 from typing import Literal
 from uuid import UUID
 

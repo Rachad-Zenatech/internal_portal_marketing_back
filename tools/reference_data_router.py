@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from models.reference_data_model import ReferenceDataResponse
-from services.reference_data_service import get_reference_data as fetch_reference_data
+from services.reference_data.reference_data_service import get_reference_data as fetch_reference_data
 
 router = APIRouter()
 

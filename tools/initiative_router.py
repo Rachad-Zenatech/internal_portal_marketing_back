@@ -15,22 +15,22 @@ from models.initiative_model import (
     InitiativeUpdate,
     OwnerOption,
 )
-from services import event_budget_import_service
-from services.auth_service import require_permission
-from services.event_budget_import_service import EventBudgetImportError
-from services.import_parsing import ImportFileError
-from services.initiative_activity_service import list_activity as fetch_activity
-from services.initiative_service import (
+from services.initiatives import event_budget_import_service
+from services.shared.auth_service import require_permission
+from services.initiatives.event_budget_import_service import EventBudgetImportError
+from services.shared.import_parsing import ImportFileError
+from services.initiatives.initiative_activity_service import list_activity as fetch_activity
+from services.shared.initiative_service import (
     InitiativeNotFoundError,
     InitiativeValidationError,
 )
-from services.initiative_service import create_initiative as insert_initiative
-from services.initiative_service import delete_initiative as remove_initiative
-from services.initiative_service import get_initiative as fetch_initiative
-from services.initiative_service import initiative_summary as fetch_summary
-from services.initiative_service import list_initiatives as fetch_initiatives
-from services.initiative_service import list_owner_options as fetch_owner_options
-from services.initiative_service import update_initiative as save_initiative_changes
+from services.shared.initiative_service import create_initiative as insert_initiative
+from services.shared.initiative_service import delete_initiative as remove_initiative
+from services.shared.initiative_service import get_initiative as fetch_initiative
+from services.shared.initiative_service import initiative_summary as fetch_summary
+from services.shared.initiative_service import list_initiatives as fetch_initiatives
+from services.shared.initiative_service import list_owner_options as fetch_owner_options
+from services.shared.initiative_service import update_initiative as save_initiative_changes
 
 router = APIRouter()
 

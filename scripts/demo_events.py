@@ -13,7 +13,7 @@ results are only added to demo events that have none yet.
 
 remove: deletes the demo events (their costs, results and Navan lines go with them) and nothing else.
 
-How demo events are recognised: every name starts with "[Demo] " (services.navan_demo_service.DEMO_EVENT_PREFIX),
+How demo events are recognised: every name starts with "[Demo] " (services.navan.navan_demo_service.DEMO_EVENT_PREFIX),
 e.g. "[Demo] SaaS North Expo 2026". The same name a year apart ("... 2025") is how the Events Overview finds last
 year's event. remove only deletes Events-channel events whose name is one of the names this script adds, and the
 Navan demo mode (NAVAN_MODE=demo) only generates bookings for events whose name has the prefix.
@@ -35,10 +35,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from models.initiative_model import EventDetailsInput, InitiativeCreate  # noqa: E402
 from models.spend_model import SpendLineCreate  # noqa: E402
 from postgresql_db.database import close_pool, create_pool, get_pool  # noqa: E402
-from services.initiative_service import create_initiative, delete_initiative  # noqa: E402
-from services.navan_demo_service import DEMO_EVENT_PREFIX  # noqa: E402
-from services.performance_service import save_outcomes  # noqa: E402
-from services.spend_service import create_spend_line  # noqa: E402
+from services.shared.initiative_service import create_initiative, delete_initiative  # noqa: E402
+from services.navan.navan_demo_service import DEMO_EVENT_PREFIX  # noqa: E402
+from services.performance.performance_service import save_outcomes  # noqa: E402
+from services.shared.spend_service import create_spend_line  # noqa: E402
 
 LOCAL_HOSTS = {"localhost", "127.0.0.1"}
 THIS_YEAR = 2026

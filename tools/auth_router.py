@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from starlette.config import Config
 
 from postgresql_db.database import get_pool
-from services.auth_service import (
+from services.shared.auth_service import (
     AUTH_COOKIE_NAME,
     clear_access_token_cookie,
     create_access_token,
@@ -21,8 +21,8 @@ from services.auth_service import (
     set_access_token_cookie,
     upsertMicrosoftUser,
 )
-from services.graph_service import fetch_me_profile
-from services.rbac_service import log_login_activity
+from services.microsoft_graph.graph_service import fetch_me_profile
+from services.shared.rbac_service import log_login_activity
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -243,8 +243,8 @@ async def logout(request: Request):
     if token:
         import jwt
 
-        from services.auth_service import ALLOWED_JWT_ISSUERS, JWT_ALGORITHM, JWT_SECRET
-        from services.cache_service import emit_cache_invalidation
+        from services.shared.auth_service import ALLOWED_JWT_ISSUERS, JWT_ALGORITHM, JWT_SECRET
+        from services.shared.cache_service import emit_cache_invalidation
         try:
             # Expired tokens may still log out, but only tokens this app issued
             payload = jwt.decode(
