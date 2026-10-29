@@ -249,7 +249,7 @@ docker compose down
 ### 4. Copying Production into the Local Database (one way)
 The app, tests and seed scripts always run on the local database (`DATABASE_URL`). To make local match production:
 ```powershell
-.\scripts\pull_prod_to_local.ps1      # or: bash scripts/pull_prod_to_local.sh
+.\scripts\pull_prod_to_local.ps1
 ```
 * **One way:** production (`PROD_DATABASE_URL`) is only read with `pg_dump`; nothing local is ever written back.
 * Copies the app's tables (the `public` schema), replaces the local database with them, then runs `alembic upgrade head` so migrations on your branch that production doesn't have yet are applied on top.
