@@ -14,18 +14,19 @@ from uuid import UUID, uuid4
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastmcp import FastMCP
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
-from mcp_tools import ask_gemini_stream, sync_mcp_tools_to_vector_db
+from mcp_tools import sync_mcp_tools_to_vector_db
 
 # MCP tools & AI functions
 from mcp_tools import register_all as register_mcp_tools
 from postgresql_db.database import close_pool, create_pool, fetch_one
+from services import ai_observability, assistant_chat_service
 from services.auth_service import (
     current_user_id_ctx,
     get_current_user_id_dependency,
@@ -99,6 +100,11 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.exception("Application startup failed", extra={"event": "application_startup_failed"})
         raise
+    try:
+        from postgresql_db.setup_ai_observability_schema import setup as setup_ai_observability_schema
+        await setup_ai_observability_schema()
+    except Exception as ai_err:
+        logger.warning(f"AI observability schema setup note: {ai_err}")
 
     background_tasks = []
 
@@ -128,6 +134,11 @@ async def lifespan(app: FastAPI):
             "Graph background sync disabled (set GRAPH_BACKGROUND_SYNC_ENABLED=true to enable)",
             extra={"event": "graph_sync_disabled"},
         )
+
+    # 3b. AI traces and prompt logs: written in batches as they arrive (waits on a queue, no polling)
+    trace_task = asyncio.create_task(ai_observability.writer_loop(), name="ai-trace-writer")
+    trace_task.add_done_callback(partial(log_background_task_result, task_name="ai-trace-writer"))
+    background_tasks.append(trace_task)
 
     # Keep each event's Navan travel total (its active bookings) up to date, if enabled
     if navan_cost_sync_enabled():
@@ -207,6 +218,7 @@ async def lifespan(app: FastAPI):
                 await rabbitmq.close()
             except Exception:
                 logger.exception("RabbitMQ did not close cleanly", extra={"event": "rabbitmq_close_failed"})
+        await ai_observability.flush()
         await close_pool()
         loop.set_exception_handler(previous_exception_handler)
         logger.info("Application shutdown complete", extra={"event": "application_stopped"})
@@ -250,13 +262,31 @@ class ChatRequest(BaseModel):
     file_data: Optional[str] = Field(default=None, max_length=20_000_000)
     mime_type: Optional[str] = Field(default=None, max_length=255)
 
+# The whole conversation sent to Gemini in one request, so one request can't use a huge share of the quota.
+CHAT_MAX_TOTAL_CHARS = 60_000
+
 @app.post("/ai/chat")
 async def ai_chat(req: ChatRequest, user_id: UUID = Depends(get_current_user_id)):
+    if len(req.message) + sum(len(h.content) for h in req.history) > CHAT_MAX_TOTAL_CHARS:
+        raise HTTPException(status_code=413, detail="The conversation is too long. Start a new one.")
     try:
         current_user_id_ctx.set(user_id)
+        # Input screening and the semantic cache first: a blocked message or a cached answer uses no AI quota.
+        prepared = await assistant_chat_service.prepare(req.message, req.history, user_id)
+    except Exception:
+        logger.exception("AI chat request failed", extra={"event": "ai_chat_failed"})
+        return JSONResponse(
+            content={"reply": "The AI service is temporarily unavailable. Please try again."},
+            status_code=500
+        )
+    if not prepared.blocked and prepared.cached_answer is None:
+        # Counts toward the daily AI limits (429 with when it frees up).
+        from services import ai_usage_service
+        await ai_usage_service.reserve("CHAT", user_id)
+    try:
         async def stream_generator():
             try:
-                async for chunk in ask_gemini_stream(req.message, req.history, req.file_data, req.mime_type):
+                async for chunk in assistant_chat_service.stream(prepared):
                     yield chunk
             except Exception:
                 import json
