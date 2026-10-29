@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 
-from models.ads_model import (
+from models.ads.ads_model import (
     AdCampaign,
     AdImportConfirmResult,
     AdImportPreview,

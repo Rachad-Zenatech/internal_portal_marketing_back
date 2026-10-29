@@ -2,7 +2,7 @@ import asyncio
 import json
 from typing import List
 
-from models.notification_model import NotificationCreate, NotificationResponse
+from models.notifications.notification_model import NotificationCreate, NotificationResponse
 from postgresql_db.database import execute, fetch_all, fetch_one
 
 

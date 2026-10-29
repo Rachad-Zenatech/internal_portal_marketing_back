@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from models.notification_model import NotificationResponse
+from models.notifications.notification_model import NotificationResponse
 from services.shared.auth_service import get_current_user_id_dependency
 from services.notifications.notification_service import (
     broadcaster,

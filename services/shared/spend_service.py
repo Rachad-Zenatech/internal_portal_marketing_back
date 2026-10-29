@@ -7,7 +7,7 @@ from uuid import UUID
 
 import asyncpg
 
-from models.spend_model import SpendLineCreate
+from models.shared.spend_model import SpendLineCreate
 from postgresql_db.database import get_pool
 from services.shared.rbac_service import log_audit
 

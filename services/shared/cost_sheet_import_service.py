@@ -13,7 +13,7 @@ from uuid import UUID
 
 import asyncpg
 
-from models.spend_model import _MAX_AMOUNT
+from models.shared.spend_model import _MAX_AMOUNT
 from postgresql_db.database import get_pool
 from services.shared.ads_service import audit_many
 from services.shared.import_parsing import (

@@ -8,7 +8,7 @@ from uuid import UUID
 
 import asyncpg
 
-from models.demo_model import DemoCreate
+from models.shared.demo_model import DemoCreate
 from postgresql_db.database import get_pool
 from services.shared.rbac_service import log_audit
 

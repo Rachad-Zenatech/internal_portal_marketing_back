@@ -7,7 +7,7 @@ from uuid import UUID
 
 import asyncpg
 
-from models.event_management_model import StaffAssignmentCreate
+from models.events.event_management_model import StaffAssignmentCreate
 from postgresql_db.database import get_pool
 from services.shared.demo_service import HELD_DEMO_SQL
 from services.shared.rbac_service import log_audit

@@ -5,8 +5,8 @@ from uuid import UUID
 
 import asyncpg
 
-from models.channel_details_model import details_fields, validate_channel_details
-from models.initiative_model import KPI_TARGET_NEEDS_KPI, LINKED_NEEDS_LINK, InitiativeCreate
+from models.shared.channel_details_model import details_fields, validate_channel_details
+from models.shared.initiative_model import KPI_TARGET_NEEDS_KPI, LINKED_NEEDS_LINK, InitiativeCreate
 from postgresql_db.database import get_pool
 from services.shared.initiative_metrics import result_fits_channel
 from services.shared.rbac_service import log_audit

@@ -1,7 +1,7 @@
 """Navan travel costs: run the sync now, see how it last went, and list the Navan events it found."""
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from models.navan_model import NavanSyncStatus, NavanSyncSummary
+from models.navan.navan_model import NavanSyncStatus, NavanSyncSummary
 from services.shared.auth_service import require_permission
 from services.navan.navan_cost_sync_job import (
     NavanSyncAlreadyRunning,

@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
-from models.spend_model import SpendLineCreate, SpendLineItem, SpendLineUpdate, SpendSummary
+from models.shared.spend_model import SpendLineCreate, SpendLineItem, SpendLineUpdate, SpendSummary
 from services.shared.auth_service import require_permission
 from services.shared.spend_service import (
     InitiativeNotFoundError,

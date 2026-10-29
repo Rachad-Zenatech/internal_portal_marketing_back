@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 
-from models.budget_model import (
+from models.budgets.budget_model import (
     BudgetCopy,
     BudgetCreate,
     BudgetDetail,

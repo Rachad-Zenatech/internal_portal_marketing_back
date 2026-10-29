@@ -20,7 +20,7 @@ from fastmcp.prompts import Prompt
 from google import genai
 from google.genai import errors, types
 
-from mcp_tools.permissions import list_my_accessible_tools_tool
+from mcp_tools.shared.permissions import list_my_accessible_tools_tool
 from mcp_tools.prompts import ALL_PROMPTS
 from services.shared.auth_service import current_user_id_ctx, user_can_use_mcp_tool, get_my_permissions
 from services.ai.ai_guardrails import redact_pii

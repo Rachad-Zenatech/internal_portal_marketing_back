@@ -1,5 +1,5 @@
 """Microsoft Ads sync: run summaries and status (the same shape as the Google Ads sync's)."""
-from models.google_ads_model import (
+from models.ads.google_ads_model import (
     GoogleAdsAccountRun,
     GoogleAdsConnectedAccount,
     GoogleAdsSyncStatus,

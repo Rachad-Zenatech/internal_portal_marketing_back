@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 
-from models.import_model import CostSheetPreview, ImportBatchSummary, ImportConfirmResult, ImportUndoResult
+from models.shared.import_model import CostSheetPreview, ImportBatchSummary, ImportConfirmResult, ImportUndoResult
 from services.shared.auth_service import require_permission
 from services.shared.cost_sheet_import_service import (
     MAX_FILE_BYTES,

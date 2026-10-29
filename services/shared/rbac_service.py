@@ -2,7 +2,7 @@ import json
 from typing import List, Optional
 from uuid import UUID
 
-from models.rbac_model import (
+from models.shared.rbac_model import (
     RoleCreate,
     RoleMcpToolPermissionCreate,
     RoleNavigationPermissionCreate,

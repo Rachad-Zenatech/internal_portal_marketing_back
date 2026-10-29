@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from models.rbac_model import (
+from models.shared.rbac_model import (
     PermissionModule,
     RoleCreate,
     RoleMcpToolPermissionCreate,

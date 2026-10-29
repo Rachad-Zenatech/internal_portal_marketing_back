@@ -101,7 +101,7 @@ async def lifespan(app: FastAPI):
         logger.exception("Application startup failed", extra={"event": "application_startup_failed"})
         raise
     try:
-        from postgresql_db.setup_ai_observability_schema import setup as setup_ai_observability_schema
+        from postgresql_db.schemas.setup_ai_observability_schema import setup as setup_ai_observability_schema
         await setup_ai_observability_schema()
     except Exception as ai_err:
         logger.warning(f"AI observability schema setup note: {ai_err}")

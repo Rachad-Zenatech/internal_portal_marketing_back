@@ -13,7 +13,7 @@ from uuid import UUID
 
 import requests
 
-from models.oauth_connection_model import (
+from models.ads.oauth_connection_model import (
     Company,
     CompanyCreate,
     CompanyUpdate,

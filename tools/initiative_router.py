@@ -4,8 +4,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 
-from models.event_budget_import_model import EventBudgetApply, EventBudgetApplyResult, EventBudgetPreview
-from models.initiative_model import (
+from models.initiatives.event_budget_import_model import EventBudgetApply, EventBudgetApplyResult, EventBudgetPreview
+from models.shared.initiative_model import (
     ActivityItem,
     InitiativeCreate,
     InitiativeListItem,

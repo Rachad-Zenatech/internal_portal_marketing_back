@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from models.channel_details_model import DataSource, LinkSystem
+from models.shared.channel_details_model import DataSource, LinkSystem
 
 # DRAFT: saved part-way to finish later; the event rules (e.g. city and country) apply once it leaves Draft
 InitiativeStatus = Literal["DRAFT", "PLANNED", "ACTIVE", "COMPLETED", "PAUSED", "CANCELLED"]
@@ -127,7 +127,7 @@ class InitiativeListItem(BaseModel):
     primary_kpi: PrimaryKpi | None = None
     kpi_target: float | None = None
     data_source: DataSource = "MANUAL"
-    # Channel-specific fields (see models/channel_details_model.py); empty values are left out
+    # Channel-specific fields (see models/shared/channel_details_model.py); empty values are left out
     channel_details: dict[str, Any] = Field(default_factory=dict)
     links: list[InitiativeLink] = Field(default_factory=list)
     # Invoiced + paid costs in the initiative's currency (the same figure as actual_amount)

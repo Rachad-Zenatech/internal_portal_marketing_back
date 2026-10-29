@@ -4,15 +4,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from models.event_management_model import (
+from models.events.event_management_model import (
     EventOverviewItem,
     EventTraveller,
     StaffAssignment,
     StaffAssignmentCreate,
     StaffAssignmentUpdate,
 )
-from models.event_performance_model import EventPerformanceResponse
-from models.initiative_model import InitiativeStatus
+from models.events.event_performance_model import EventPerformanceResponse
+from models.shared.initiative_model import InitiativeStatus
 from services.shared.auth_service import require_permission
 from services.events.event_management_service import (
     EventManagementValidationError,

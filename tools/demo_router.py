@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
-from models.demo_model import DemoCreate, DemoItem, DemoSummary, DemoUpdate
+from models.shared.demo_model import DemoCreate, DemoItem, DemoSummary, DemoUpdate
 from services.shared.auth_service import require_permission
 from services.shared.demo_service import DemoNotFoundError, DemoValidationError, InitiativeNotFoundError
 from services.shared.demo_service import create_demo as insert_demo

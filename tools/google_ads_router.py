@@ -1,7 +1,7 @@
 """Google Ads: run the campaign and results sync now, and see how it last went."""
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from models.google_ads_model import GoogleAdsSyncStatus, GoogleAdsSyncSummary
+from models.ads.google_ads_model import GoogleAdsSyncStatus, GoogleAdsSyncSummary
 from services.shared.auth_service import require_permission
 from services.ads.google_ads_client import google_ads_configured, google_ads_mode
 from services.ads.google_ads_sync_job import (

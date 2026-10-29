@@ -3,7 +3,7 @@
 Read-mostly lookup lists, served from master_data_cache. Any future write to these
 tables must call emit_cache_invalidation(scope="master_data", key=REFERENCE_DATA_CACHE_KEY).
 """
-from models.channel_details_model import CHOICES
+from models.shared.channel_details_model import CHOICES
 from postgresql_db.database import get_pool
 from services.shared.cache_service import master_data_cache
 from services.shared.initiative_metrics import RESULT_METRICS_BY_CHANNEL

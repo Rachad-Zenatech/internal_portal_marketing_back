@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from models.performance_model import (
+from models.performance.performance_model import (
     Decision,
     DecisionInput,
     Evaluation,
