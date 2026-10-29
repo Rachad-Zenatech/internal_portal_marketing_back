@@ -176,7 +176,7 @@ Repo: internal_portal_marketing_back
 
 Task: list, add, edit and delete costs for one initiative, with the stage rules.
 
-Build (new files tools/spend_router.py, services/shared/spend_service.py, models/shared/spend_model.py; register the router in server.py like initiative_router):
+Build (new files tools/shared/spend_router.py, services/shared/spend_service.py, models/shared/spend_model.py; register the router in server.py like initiative_router):
 1. GET  /api/initiatives/{id}/spend-lines — INITIATIVES_VIEW. Ordered by category sort order, then incurred_on. Include category name, status, vendor, estimate, amount, variance (amount − estimated_amount when INVOICED/PAID and an estimate exists), invoice_ref, paid_on, cost_type, source, reconciled flag, created_by name. 404 if the initiative doesn't exist.
 2. POST /api/initiatives/{id}/spend-lines — INITIATIVES_UPDATE. Body: category_id, status (default COMMITTED), amount, estimated_amount (defaults to amount when status is ESTIMATED), currency (default the initiative's), incurred_on, vendor, description, invoice_ref, paid_on, payment_method, cost_type (default the category's default_cost_type), note, source (only MANUAL or STAFF_CALCULATOR here).
 3. PATCH /api/spend-lines/{line_id} — INITIATIVES_UPDATE. Partial update. Moving to INVOICED or PAID keeps estimated_amount as it was, so variance appears.
@@ -269,7 +269,7 @@ Repo: internal_portal_marketing_back
 
 Task: monthly budgets — the rows of Marketing's budget-tracking sheet — as a table with an API. Example row: Sep 2026 · DeskFlex · North America · $12,000.
 
-Build (tools/budget_router.py, services/budgets/budget_service.py, models/budgets/budget_model.py):
+Build (tools/budgets/budget_router.py, services/budgets/budget_service.py, models/budgets/budget_model.py):
 1. Table monthly_budgets: id UUID pk, month DATE NOT NULL (always the 1st — check constraint), brand_id INT NOT NULL FK → brands (TBD/All is a brand already), market_id INT NULL FK → markets (null = all markets), channel_id INT NULL FK → channels (null = any channel), amount NUMERIC(14,2) NOT NULL check >= 0, currency CHAR(3) NOT NULL, notes TEXT NULL, created/updated at/by. Unique (month, brand_id, market_id, channel_id) treating NULLs as equal (NULLS NOT DISTINCT on Postgres 16, or a unique index on coalesced values) → message "There's already a budget for that month, brand and market."
 2. Add the FK spend_lines.monthly_budget_id → monthly_budgets.id ON DELETE SET NULL.
 3. Permissions: add a BUDGETS navigation item and permission group following how INITIATIVES was added in ed7fce2 (setup_pbac seed — make sure it's an upsert, not the old TRUNCATE). VIEW to read, UPDATE/CREATE/DELETE to change. Until Marketing roles are set up, Super Admin has it.
@@ -357,7 +357,7 @@ Repo: internal_portal_marketing_back
 
 Task: replace the monthly reconciliation Jim does in Excel — checking each month's event and marketing costs against the annual budget, and marking them as reconciled.
 
-Build (extend tools/budget_router.py / services/budgets/budget_service.py, or a new reconciliation_service.py):
+Build (extend tools/budgets/budget_router.py / services/budgets/budget_service.py, or a new reconciliation_service.py):
 1. GET /api/reconciliation?month=2026-10-01&brand_id= (BUDGETS_VIEW): every spend line whose incurred_on is in that month, plus unreconciled lines from earlier months (carried forward, flagged "from September"). Grouped by brand → initiative (with event code). Each line: category, vendor, item, status, amount, currency, invoice_ref, paid_on, monthly budget label, reconciled flag. Per group and overall: totals by status, the month's budget total, and year-to-date budget vs actual for the brand (the "annual marketing budget" view: sum of the year's monthly budgets vs actual to date).
 2. Problems listed so Jim can chase them, computed in SQL: line still ESTIMATED or COMMITTED after the event ended; INVOICED/PAID without an invoice #; PAID without a payment method; not linked to a monthly budget; currency differs from the budget's.
 3. POST /api/reconciliation/reconcile (BUDGETS_UPDATE) {line_ids, month} — sets reconciled_month/at/by in ONE statement; only lines that are INVOICED or PAID can be reconciled (others listed back as skipped with the reason). POST /api/reconciliation/reopen (BUDGETS_UPDATE) {line_ids, reason} clears them; reason is required and audited.
@@ -419,7 +419,7 @@ Task: let the marketing owner upload an event's existing Excel cost sheet instea
 
 Columns (case-insensitive, with aliases for what their sheet calls them): Item / Description*, Category* (name or code; manual-entry categories only — Travel rows are rejected with "Travel comes from the travel management system"), Vendor, Estimate, Actual, Status (defaults: PAID when Paid On is set, INVOICED when Actual is set, otherwise ESTIMATED), Invoice #, Invoice Date / Date, Paid On, Payment Method, Currency (default the event's), OPEX/CAPEX, Notes.
 
-Build (services/shared/cost_sheet_import_service.py; routes in tools/import_router.py):
+Build (services/shared/cost_sheet_import_service.py; routes in tools/shared/import_router.py):
 1. POST /api/initiatives/{id}/imports/cost-sheet (multipart, INITIATIVES_UPDATE) → preview with READY / DUPLICATE (same vendor + invoice # already recorded anywhere, or twice in the file) / INVALID rows, using import_parsing.py and import_batches (kind COST_SHEET). Amount = Actual if present, else Estimate; estimated_amount = Estimate. Rows with neither → INVALID.
 2. Confirm through POST /api/imports/{batch_id}/confirm (dispatch on kind): one set-based insert with source COST_SHEET_UPLOAD and import_batch_id, then link to monthly budgets with the 4.2 rule in one statement; one audit row. Undo deletes the batch's lines unless any are reconciled ("3 of these costs are already reconciled — reopen them first.").
 3. GET /api/imports/cost-sheet/template — .xlsx with the columns, an example booth (space, build, carpet, lighting, badges) and dropdowns for Category, Status, Payment Method, OPEX/CAPEX.
@@ -683,7 +683,7 @@ Repo: internal_portal_marketing_back
 
 Task: add, edit and list demos for an initiative; make the Demos result count itself from the log; reproduce the CEO example end to end.
 
-Build (tools/demo_router.py, services/shared/demo_service.py, models/shared/demo_model.py; register the router):
+Build (tools/shared/demo_router.py, services/shared/demo_service.py, models/shared/demo_model.py; register the router):
 1. GET /api/initiatives/{id}/demos (INITIATIVES_VIEW) — newest first; each with type, company, hubspot_url, brand, product_note, given_by name, outcome, note, source.
 2. POST /api/initiatives/{id}/demos (INITIATIVES_UPDATE) — demo_at defaults to now; brand defaults to the initiative's; outcome defaults to PENDING. Only for initiatives in the EVENTS channel for now ("Demos can only be logged on events.").
 3. PATCH /api/demos/{demo_id} and DELETE /api/demos/{demo_id} (INITIATIVES_UPDATE). Changing the outcome sets outcome_updated_at.

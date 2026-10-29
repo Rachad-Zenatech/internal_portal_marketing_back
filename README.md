@@ -75,7 +75,30 @@ flowchart TD
 
 ```text
 server.py             # FastAPI app: startup/shutdown, middleware, router registration
-tools/                # HTTP routers (FastAPI APIRouter), one file per feature
+tools/                # HTTP routers (FastAPI APIRouter), grouped by feature
+  shared/             # Auth, roles and permissions, logs, health/observability and search, plus shared marketing domain routes: demos, spend lines, cost sheet imports
+    auth_router.py, demo_router.py, import_router.py
+    log_router.py, observability.py, rbac_router.py
+    search.py, spend_router.py
+  notifications/      # Notifications and messaging (SSE, RabbitMQ, MQTT, cross-portal events)
+    notification_router.py
+  ads/                # Paid ads overview and uploads, Google/Microsoft Ads clients and sync, ad platform OAuth
+    ads_router.py, google_ads_router.py, microsoft_ads_router.py
+    oauth_router.py
+  budgets/            # Marketing budgets and budget spreadsheet uploads
+    budget_router.py
+  events/             # Event management (team, travel) and the Events Overview (spend, results, ROI)
+    event_management_router.py
+  initiatives/        # Initiatives (CRUD, summary, owners), activity feed and bulk event budget uploads
+    initiative_router.py
+  microsoft_graph/    # Microsoft Graph (Entra users/org) client and background sync
+    graph_router.py
+  navan/              # Navan booking API client, demo bookings and the Navan cost sync into event spend
+    navan_router.py
+  performance/        # Results per month, success settings, scale-or-cut decisions and the performance view
+    performance_router.py
+  reference_data/     # Marketing reference lists (brands, channels, funnel stages, KPIs), cached
+    reference_data_router.py
 services/             # Business logic, grouped by feature
   shared/             # Used by several features: auth, RBAC, caching, logging, audit, security
                       # plus core marketing domain used across features: initiatives, spend lines,
@@ -138,7 +161,7 @@ mcp_tools/            # MCP server: registry, middleware, prompts; tools grouped
     __init__.py (registry), middleware.py, prompts.py
   shared/             # Tools for several features: permissions and account lookups
     permissions.py
-postgresql_db/        # database.py (asyncpg pool), schema_metadata.py; table scripts in schemas/
+postgresql_db/        # database.py (asyncpg pool), schema_metadata.py, table scripts in schemas/
   schemas/            # setup_<feature>_schema.py: CREATE TABLE / migrations per feature
     notifications_schema.py, setup_ai_observability_schema.py, setup_graph_sync_schema.py
     setup_pbac_schema.py
@@ -149,9 +172,9 @@ docs/                 # Longer design and integration docs
 
 ### Where new code goes
 
-* **New feature `<x>`:** logic in `services/<x>/`, endpoints in `tools/<x>_router.py`, models in `models/<x>/`, MCP tools in `mcp_tools/<x>/` (register them in `mcp_tools/__init__.py`), tables in `postgresql_db/schemas/setup_<x>_schema.py` (run with `python -m postgresql_db.schemas.setup_<x>_schema`).
+* **New feature `<x>`:** logic in `services/<x>/`, endpoints in `tools/<x>/<x>_router.py`, models in `models/<x>/`, MCP tools in `mcp_tools/<x>/` (register them in `mcp_tools/__init__.py`), tables in `postgresql_db/schemas/setup_<x>_schema.py` (run with `python -m postgresql_db.schemas.setup_<x>_schema`).
 * **Code two or more features use** goes in the `shared/` folder of that layer (or `ai/`, `notifications/` when it fits there). A feature folder must not import another feature's folder; move the common piece to `shared/` instead.
-* **No loose files** at the root of `services/` or `models/`. In `mcp_tools/` only the registry (`__init__.py`), `middleware.py` and `prompts.py` sit at the root.
+* **No loose files** at the root of `tools/`, `services/` or `models/`. In `mcp_tools/` only the registry (`__init__.py`), `middleware.py` and `prompts.py` sit at the root.
 * **Imports are absolute** (`from services.shared.auth_service import ...`). Feature folders are namespace packages with no `__init__.py`, like the rest of the repo (the one exception is the existing `services/ads/oauth_adapters/` package).
 * **When you move a module,** update every import, `mock.patch("...")` string, `python -m` command (CI, scripts) and doc path, and fix any `__file__`-relative path in it (one more folder deep means one more `dirname`).
 <!-- project-structure:end -->

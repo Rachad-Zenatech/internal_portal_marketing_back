@@ -42,29 +42,29 @@ from services.shared.logging_service import (
 )
 from services.ads.microsoft_ads_sync_job import microsoft_ads_sync_enabled, microsoft_ads_sync_loop
 from services.navan.navan_cost_sync_job import navan_cost_sync_enabled, navan_cost_sync_loop
-from tools.ads_router import router as ads_router
-from tools.auth_router import router as auth_router
-from tools.budget_router import router as budget_router
-from tools.demo_router import router as demo_router
-from tools.event_management_router import router as event_management_router
-from tools.google_ads_router import router as google_ads_router
-from tools.graph_router import router as graph_router
-from tools.import_router import router as import_router
-from tools.initiative_router import router as initiative_router
-from tools.log_router import router as log_router
-from tools.microsoft_ads_router import router as microsoft_ads_router
-from tools.navan_router import router as navan_router
-from tools.notification_router import notification_router
-from tools.oauth_router import router as oauth_router
-from tools.observability import router as observability_router
-from tools.performance_router import router as performance_router
-from tools.rbac_router import get_current_user_id
-from tools.rbac_router import router as rbac_router
-from tools.reference_data_router import router as reference_data_router
+from tools.ads.ads_router import router as ads_router
+from tools.shared.auth_router import router as auth_router
+from tools.budgets.budget_router import router as budget_router
+from tools.shared.demo_router import router as demo_router
+from tools.events.event_management_router import router as event_management_router
+from tools.ads.google_ads_router import router as google_ads_router
+from tools.microsoft_graph.graph_router import router as graph_router
+from tools.shared.import_router import router as import_router
+from tools.initiatives.initiative_router import router as initiative_router
+from tools.shared.log_router import router as log_router
+from tools.ads.microsoft_ads_router import router as microsoft_ads_router
+from tools.navan.navan_router import router as navan_router
+from tools.notifications.notification_router import notification_router
+from tools.ads.oauth_router import router as oauth_router
+from tools.shared.observability import router as observability_router
+from tools.performance.performance_router import router as performance_router
+from tools.shared.rbac_router import get_current_user_id
+from tools.shared.rbac_router import router as rbac_router
+from tools.reference_data.reference_data_router import router as reference_data_router
 
 # FastAPI routers
-from tools.search import router as search_router
-from tools.spend_router import router as spend_router
+from tools.shared.search import router as search_router
+from tools.shared.spend_router import router as spend_router
 
 configure_logging()
 logger = logging.getLogger(__name__)
