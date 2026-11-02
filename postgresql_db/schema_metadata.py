@@ -859,6 +859,39 @@ hubspot_campaigns = sa.Table(
     sa.Index("idx_hubspot_campaigns_name", "name"),
 )
 
+# Social posts as the last HubSpot sync read them (HubSpot's broadcasts API): organic posts on the connected accounts,
+# with their counters to date. HubSpot owns this data: the sync replaces each row and drops posts HubSpot no longer
+# has. campaign_id is the HubSpot campaign GUID the post belongs to, when it has one (no foreign key: the campaigns
+# sync may be a little behind).
+hubspot_social_posts = sa.Table(
+    "hubspot_social_posts", metadata,
+    # HubSpot's broadcast GUID
+    sa.Column("id", sa.VARCHAR(length=64), primary_key=True),
+    # The connected account: "FacebookPage:123", its platform (facebook, linkedin, instagram, x, youtube, tiktok) and name
+    sa.Column("channel_key", sa.VARCHAR(length=120), nullable=False),
+    sa.Column("platform", sa.VARCHAR(length=30), nullable=False),
+    sa.Column("channel_name", sa.VARCHAR(length=255)),
+    # HubSpot's own status: SUCCESS (published), DRAFT, CANCELED, SUCCESS_ARCHIVE, ERROR_ARCHIVE...
+    sa.Column("status", sa.VARCHAR(length=30)),
+    sa.Column("message", sa.TEXT()),
+    sa.Column("media_type", sa.VARCHAR(length=30)),
+    sa.Column("campaign_id", sa.VARCHAR(length=64)),
+    sa.Column("campaign_name", sa.VARCHAR(length=500)),
+    # Counters to date
+    sa.Column("clicks", sa.INTEGER()),
+    sa.Column("likes", sa.INTEGER()),
+    sa.Column("replies", sa.INTEGER()),
+    sa.Column("shares", sa.INTEGER()),
+    sa.Column("interactions", sa.INTEGER()),
+    # When it's set to go out, and when it did
+    sa.Column("scheduled_at", postgresql.TIMESTAMP(timezone=True)),
+    sa.Column("finished_at", postgresql.TIMESTAMP(timezone=True)),
+    sa.Column("hubspot_created_at", postgresql.TIMESTAMP(timezone=True)),
+    sa.Column("synced_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Index("idx_hubspot_social_posts_campaign", "campaign_id"),
+    sa.Index("idx_hubspot_social_posts_platform", "platform"),
+)
+
 # --- Multi-Entity & OAuth Connections ---
 organizations = sa.Table(
     "organizations", metadata,

@@ -10,13 +10,17 @@ the people on its contact lists (for events, the lead lists). Only the counts ar
 contact counts at the furthest stage it has reached (its current stage, or any stage HubSpot has a "date entered"
 for) and at every stage before it, so the funnel only narrows.
 
-What HubSpot doesn't give this token: social posts need the "social" scope, revenue attribution is blocked by
-field-level permissions, and ads can only be seen when they're attached to a campaign as assets. Deals aren't
-counted: none has its campaign set in HubSpot.
+And every social post (HubSpot's broadcasts API): its account, status, text and its clicks, likes, replies, shares
+and interactions to date. These are organic posts, not paid social ads.
+
+What HubSpot doesn't give this token: revenue attribution is blocked by field-level permissions, and paid ads can
+only be seen when they're attached to a campaign as assets (none are). Deals aren't counted: none has its campaign
+set in HubSpot.
 
 Settings (in .env):
 - HUBSPOT_API_KEY: a private app access token ("pat-..."), with marketing.campaigns.read, crm.objects.owners.read,
-  and for the funnel crm.objects.contacts.read and crm.lists.read. Leave empty to turn HubSpot off.
+  for the funnel crm.objects.contacts.read and crm.lists.read, and for social posts the social scope. Leave empty to
+  turn HubSpot off.
 """
 
 import asyncio
@@ -310,6 +314,71 @@ async def _funnels(client: httpx.AsyncClient, limit: _Limit, assets_by_campaign:
     return result
 
 
+def _epoch_ms(value: Any) -> Optional[datetime.datetime]:
+    try:
+        return datetime.datetime.fromtimestamp(int(value) / 1000, tz=datetime.timezone.utc) if value else None
+    except (TypeError, ValueError, OverflowError, OSError):
+        return None
+
+
+# What a channel key starts with ("FacebookPage:1168...") and the platform it stands for
+_PLATFORMS = {
+    "FacebookPage": "facebook", "LinkedInCompanyPage": "linkedin", "LinkedIn": "linkedin", "Instagram": "instagram",
+    "Twitter": "x", "YouTube": "youtube", "TikTok": "tiktok",
+}
+
+
+def _platform(channel_key: str) -> str:
+    return _PLATFORMS.get(channel_key.split(":", 1)[0], channel_key.split(":", 1)[0].lower() or "other")
+
+
+async def _channel_names(client: httpx.AsyncClient, limit: _Limit) -> Dict[str, str]:
+    """Names of the connected social accounts by channel key ("FacebookPage:123"). Empty if they can't be read."""
+    response = await _get(client, limit, "/broadcast/v1/channels/setting/publish/current")
+    if response.status_code != 200:
+        return {}
+    return {
+        f"{c.get('channelType')}:{c.get('channelId')}": str(c["name"])
+        for c in response.json() if isinstance(c, dict) and c.get("name") and c.get("channelId")
+    }
+
+
+async def _social_post_rows(client: httpx.AsyncClient, limit: _Limit) -> List[Dict[str, Any]]:
+    """Every social post HubSpot has (published, scheduled, drafts, cancelled) with its counters to date."""
+    raw: List[Dict[str, Any]] = []
+    for page in range(MAX_PAGES):
+        response = await _get(client, limit, "/broadcast/v1/broadcasts", {"limit": PAGE_SIZE, "offset": page * PAGE_SIZE})
+        _raise_for(response, "social posts")
+        batch = [b for b in response.json() if isinstance(b, dict) and b.get("broadcastGuid")]
+        raw.extend(batch)
+        if len(batch) < PAGE_SIZE:
+            break
+    names = await _channel_names(client, limit)
+    rows = []
+    for b in raw:
+        key = str(b.get("channelKey") or "")
+        rows.append({
+            "id": str(b["broadcastGuid"]),
+            "channel_key": key[:120],
+            "platform": _platform(key),
+            "channel_name": _text(names.get(key), 255),
+            "status": _text(b.get("status"), 30),
+            "message": _text(b.get("messageText") or b.get("content"), 5000),
+            "media_type": _text(b.get("broadcastMediaType"), 30),
+            "campaign_id": _text(b.get("campaignGuid"), 64),
+            "campaign_name": _text(b.get("campaignName"), 500),
+            "clicks": _count(b.get("clicks")),
+            "likes": _count(b.get("likes")),
+            "replies": _count(b.get("replies")),
+            "shares": _count(b.get("retweets")),
+            "interactions": _count(b.get("interactionsCount")),
+            "scheduled_at": _epoch_ms(b.get("triggerAt")),
+            "finished_at": _epoch_ms(b.get("finishedAt")),
+            "hubspot_created_at": _epoch_ms(b.get("createdAt")),
+        })
+    return rows
+
+
 def _amount(value: Any) -> Optional[Decimal]:
     try:
         return Decimal(str(value)).quantize(Decimal("0.01")) if value not in (None, "") else None
@@ -382,6 +451,8 @@ async def fetch_hubspot_campaigns() -> Dict[str, Any]:
     limit = _Limit()
     headers = {"Authorization": f"Bearer {_token()}", "Accept": "application/json"}
     funnel_error: Optional[str] = None
+    social_posts: Optional[List[Dict[str, Any]]] = None
+    social_error: Optional[str] = None
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS, headers=headers) as client:
             campaigns = [c for c in await _all_pages(client, limit, "/marketing/v3/campaigns", {"properties": ",".join(CAMPAIGN_PROPERTIES)}, "campaigns") if c.get("id")]
@@ -392,6 +463,11 @@ async def fetch_hubspot_campaigns() -> Dict[str, Any]:
             except HubSpotUnavailable as exc:
                 logger.warning(f"HubSpot funnel couldn't be read; campaigns are synced without it: {exc}")
                 funnels, funnel_error = {}, str(exc)
+            try:
+                social_posts = await _social_post_rows(client, limit)
+            except HubSpotUnavailable as exc:
+                logger.warning(f"HubSpot social posts couldn't be read; they're left as they were: {exc}")
+                social_error = str(exc)
     except HubSpotUnavailable:
         raise
     except (httpx.HTTPError, ValueError) as exc:
@@ -402,4 +478,7 @@ async def fetch_hubspot_campaigns() -> Dict[str, Any]:
         row = _campaign_row(raw, report, assets, owners)
         row.update(funnels.get(row["id"]) or {"list_contacts": None, "funnel": {}})
         rows.append(row)
-    return {"campaigns": rows, "unreadable_asset_types": sum(d[2] for d in details), "funnel_error": funnel_error}
+    return {
+        "campaigns": rows, "unreadable_asset_types": sum(d[2] for d in details), "funnel_error": funnel_error,
+        "social_posts": social_posts, "social_error": social_error,
+    }

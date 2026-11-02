@@ -1,7 +1,7 @@
-"""HubSpot campaigns: list the synced campaigns, start the sync, and see how it last went."""
+"""HubSpot campaigns and social posts: list what the sync read, start the sync, and see how it last went."""
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from models.hubspot.hubspot_model import HubSpotCampaign, HubSpotSyncStarted, HubSpotSyncStatus
+from models.hubspot.hubspot_model import HubSpotCampaign, HubSpotSocialPost, HubSpotSyncStarted, HubSpotSyncStatus
 from services.shared.auth_service import require_permission
 from services.hubspot.hubspot_campaign_sync_job import (
     HubSpotSyncAlreadyRunning,
@@ -9,6 +9,7 @@ from services.hubspot.hubspot_campaign_sync_job import (
     hubspot_sync_enabled,
     hubspot_sync_running,
     list_hubspot_campaigns,
+    list_hubspot_social_posts,
     start_hubspot_sync,
     sync_interval_minutes,
 )
@@ -25,6 +26,16 @@ router = APIRouter()
 async def get_hubspot_campaigns():
     """Every HubSpot campaign from the last sync, with its report figures, assets and linked initiative."""
     return await list_hubspot_campaigns()
+
+
+@router.get(
+    "/hubspot/social-posts",
+    response_model=list[HubSpotSocialPost],
+    dependencies=[Depends(require_permission("INITIATIVES_VIEW"))],
+)
+async def get_hubspot_social_posts():
+    """Every social post from the last sync, newest first, with its counters and the campaign it belongs to."""
+    return await list_hubspot_social_posts()
 
 
 @router.post(

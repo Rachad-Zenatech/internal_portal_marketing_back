@@ -9,6 +9,8 @@ How a run works:
 - Reads everything from HubSpot with no database connection held (services/hubspot/hubspot_client.py).
 - In one transaction: replaces every campaign's row, and deletes the rows of campaigns HubSpot no longer has.
   HubSpot owns this data, so nothing here is edited by hand and nothing is kept.
+- In the same transaction, the same for every social post (hubspot_social_posts). When HubSpot won't give the posts
+  (the token lacks the social scope), the stored ones are left as they were and the summary says why.
 - In the same transaction, each campaign is an initiative too, linked to it (initiative_links, system HUBSPOT,
   external_id = the campaign GUID):
   - A campaign with no initiative gets one when HUBSPOT_CREATE_INITIATIVES is on (default): named as in HubSpot,
@@ -81,6 +83,32 @@ _COLUMNS = (
     "id", "name", "status", "start_date", "end_date", "currency", "budget_total", "spend_total", "owner_name", "utm",
     "notes", "audience", "sessions", "new_contacts_first_touch", "new_contacts_last_touch", "influenced_contacts",
     "list_contacts",
+)
+
+_SOCIAL_UPSERT_SQL = """
+    INSERT INTO hubspot_social_posts (
+        id, channel_key, platform, channel_name, status, message, media_type, campaign_id, campaign_name, clicks, likes,
+        replies, shares, interactions, scheduled_at, finished_at, hubspot_created_at, synced_at
+    )
+    SELECT u.*, now()
+    FROM unnest(
+        $1::varchar[], $2::varchar[], $3::varchar[], $4::varchar[], $5::varchar[], $6::text[], $7::varchar[],
+        $8::varchar[], $9::varchar[], $10::int[], $11::int[], $12::int[], $13::int[], $14::int[], $15::timestamptz[],
+        $16::timestamptz[], $17::timestamptz[]
+    ) AS u(id, channel_key, platform, channel_name, status, message, media_type, campaign_id, campaign_name, clicks,
+           likes, replies, shares, interactions, scheduled_at, finished_at, hubspot_created_at)
+    ON CONFLICT (id) DO UPDATE SET
+        channel_key = EXCLUDED.channel_key, platform = EXCLUDED.platform, channel_name = EXCLUDED.channel_name,
+        status = EXCLUDED.status, message = EXCLUDED.message, media_type = EXCLUDED.media_type,
+        campaign_id = EXCLUDED.campaign_id, campaign_name = EXCLUDED.campaign_name, clicks = EXCLUDED.clicks,
+        likes = EXCLUDED.likes, replies = EXCLUDED.replies, shares = EXCLUDED.shares,
+        interactions = EXCLUDED.interactions, scheduled_at = EXCLUDED.scheduled_at, finished_at = EXCLUDED.finished_at,
+        hubspot_created_at = EXCLUDED.hubspot_created_at, synced_at = now()
+"""
+
+_SOCIAL_COLUMNS = (
+    "id", "channel_key", "platform", "channel_name", "status", "message", "media_type", "campaign_id", "campaign_name",
+    "clicks", "likes", "replies", "shares", "interactions", "scheduled_at", "finished_at", "hubspot_created_at",
 )
 
 LINK_SYSTEM = "HUBSPOT"
@@ -317,6 +345,13 @@ async def _store(conn, rows: List[Dict[str, Any]], summary: Dict[str, Any]) -> N
     summary["removed"] = int(removed.split()[-1])
 
 
+async def _store_social_posts(conn, posts: List[Dict[str, Any]]) -> None:
+    """Replace the stored social posts with HubSpot's (one batch statement, then drop the ones HubSpot no longer has)."""
+    if posts:
+        await conn.execute(_SOCIAL_UPSERT_SQL, *[[post[column] for post in posts] for column in _SOCIAL_COLUMNS])
+    await conn.execute("DELETE FROM hubspot_social_posts WHERE NOT (id = ANY($1::varchar[]))", [post["id"] for post in posts])
+
+
 async def _record_failure(message: str) -> None:
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -339,6 +374,8 @@ async def _run_sync() -> Dict[str, Any]:
         "unreadable_asset_types": source["unreadable_asset_types"], "initiatives_created": 0, "initiatives_updated": 0,
         "without_budget": sum(1 for r in rows if r["budget_total"] is None),
         "funnel_error": source.get("funnel_error"),
+        "social_posts": len(source["social_posts"]) if source.get("social_posts") is not None else 0,
+        "social_error": source.get("social_error"),
     }
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -346,6 +383,9 @@ async def _run_sync() -> Dict[str, Any]:
             if not await conn.fetchval("SELECT pg_try_advisory_xact_lock(hashtext($1))", _SYNC_LOCK_KEY):
                 raise HubSpotSyncAlreadyRunning()
             await _store(conn, rows, summary)
+            # Posts HubSpot couldn't give this time (social_error) are left as they were, not dropped
+            if source.get("social_posts") is not None:
+                await _store_social_posts(conn, source["social_posts"])
             await _sync_initiatives(conn, rows, summary)
             await conn.execute(
                 """
@@ -437,6 +477,21 @@ async def list_hubspot_campaigns() -> List[Dict[str, Any]]:
                 campaign[key] = json.loads(campaign[key])
         campaigns.append(campaign)
     return campaigns
+
+
+async def list_hubspot_social_posts() -> List[Dict[str, Any]]:
+    """Every synced social post, newest first (by when it went out, else when it's scheduled)."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT sp.*, COALESCE(hc.name, sp.campaign_name) AS campaign_name
+            FROM hubspot_social_posts sp
+            LEFT JOIN hubspot_campaigns hc ON hc.id = sp.campaign_id
+            ORDER BY COALESCE(sp.finished_at, sp.scheduled_at, sp.hubspot_created_at) DESC NULLS LAST, sp.id
+            """
+        )
+    return [dict(row) for row in rows]
 
 
 async def hubspot_sync_loop(interval_seconds: Optional[int] = None) -> None:
