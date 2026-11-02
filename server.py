@@ -33,6 +33,7 @@ from services.auth_service import (
 from services.cache_service import start_cache_invalidation_listener
 from services.google_ads_sync_job import google_ads_sync_enabled, google_ads_sync_loop
 from services.graph_sync_job import graph_sync_loop
+from services.hubspot_campaign_sync_job import hubspot_sync_enabled, hubspot_sync_loop
 from services.logging_service import (
     asyncio_exception_handler,
     configure_logging,
@@ -48,6 +49,7 @@ from tools.demo_router import router as demo_router
 from tools.event_management_router import router as event_management_router
 from tools.google_ads_router import router as google_ads_router
 from tools.graph_router import router as graph_router
+from tools.hubspot_router import router as hubspot_router
 from tools.import_router import router as import_router
 from tools.initiative_router import router as initiative_router
 from tools.log_router import router as log_router
@@ -160,6 +162,17 @@ async def lifespan(app: FastAPI):
         logger.info(
             "Microsoft Ads sync disabled (set MICROSOFT_ADS_SYNC_ENABLED=true to enable)",
             extra={"event": "microsoft_ads_sync_disabled"},
+        )
+
+    # Keep the HubSpot campaigns (properties, report figures, assets) up to date, if enabled
+    if hubspot_sync_enabled():
+        hubspot_task = asyncio.create_task(hubspot_sync_loop(), name="hubspot-campaign-sync")
+        hubspot_task.add_done_callback(partial(log_background_task_result, task_name="hubspot-campaign-sync"))
+        background_tasks.append(hubspot_task)
+    else:
+        logger.info(
+            "HubSpot campaign sync disabled (set HUBSPOT_SYNC_ENABLED=true to enable)",
+            extra={"event": "hubspot_sync_disabled"},
         )
 
     presence = None
@@ -354,6 +367,7 @@ app.include_router(ads_router, prefix="/api", tags=["Paid ads"], dependencies=au
 app.include_router(navan_router, prefix="/api", tags=["Navan travel costs"], dependencies=authenticated)
 app.include_router(google_ads_router, prefix="/api", tags=["Google Ads"], dependencies=authenticated)
 app.include_router(microsoft_ads_router, prefix="/api", tags=["Microsoft Ads"], dependencies=authenticated)
+app.include_router(hubspot_router, prefix="/api", tags=["HubSpot campaigns"], dependencies=authenticated)
 app.include_router(oauth_router, prefix="/api", tags=["OAuth & Integrations"], dependencies=authenticated)
 
 

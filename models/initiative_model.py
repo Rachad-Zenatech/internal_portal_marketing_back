@@ -74,6 +74,44 @@ class EvaluationInput(BaseModel):
     maturity_days: int | None = Field(default=None, ge=0, le=730)
 
 
+class HubSpotFunnel(BaseModel):
+    """Contacts who reached each lifecycle stage (a customer counts at every stage before too)."""
+
+    lead: int = 0
+    mql: int = 0
+    sql: int = 0
+    opportunity: int = 0
+    customer: int = 0
+
+
+class HubSpotFigures(BaseModel):
+    """The linked HubSpot campaigns' report figures (to date, added up), from the last HubSpot sync."""
+
+    campaigns: int
+    sessions: int | None = None
+    new_contacts_first_touch: int | None = None
+    new_contacts_last_touch: int | None = None
+    influenced_contacts: int | None = None
+    # Which new contacts count as leads (HUBSPOT_ATTRIBUTION): FIRST_TOUCH by default
+    attribution: Literal["FIRST_TOUCH", "LAST_TOUCH"]
+    new_contacts: int | None = None
+    # The campaigns' spend items in HubSpot, in the initiative's currency
+    spend_in_hubspot: float | None = None
+    # Spend / new contacts, in the initiative's currency; null without both. The spend is the portal's actual spend,
+    # or HubSpot's while the portal has none (cost_source)
+    cost_per_new_contact: float | None = None
+    cost_source: Literal["PORTAL", "HUBSPOT"] | None = None
+    # People on the campaigns' contact lists (for events, the lead lists); null without contact lists
+    list_contacts: int | None = None
+    # Contacts who reached each stage, by the attribution above; and among the list members
+    funnel: HubSpotFunnel | None = None
+    list_funnel: HubSpotFunnel | None = None
+    # Spend (as for cost_per_new_contact) / MQLs and SQLs in the funnel
+    cost_per_mql: float | None = None
+    cost_per_sql: float | None = None
+    synced_at: datetime | None = None
+
+
 class InitiativeListItem(BaseModel):
     id: UUID
     name: str
@@ -136,6 +174,8 @@ class InitiativeListItem(BaseModel):
     progress_percent: float | None = None
     needs_attention: bool = False
     attention_reasons: list[AttentionReason] = Field(default_factory=list)
+    # From the linked HubSpot campaigns; null when none is linked
+    hubspot: HubSpotFigures | None = None
 
 
 class InitiativeListResponse(BaseModel):

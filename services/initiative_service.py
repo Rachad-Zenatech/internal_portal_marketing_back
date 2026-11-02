@@ -8,6 +8,7 @@ import asyncpg
 from models.channel_details_model import details_fields, validate_channel_details
 from models.initiative_model import KPI_TARGET_NEEDS_KPI, LINKED_NEEDS_LINK, InitiativeCreate
 from postgresql_db.database import get_pool
+from services.hubspot_client import LAST_TOUCH, hubspot_attribution
 from services.initiative_metrics import result_fits_channel
 from services.rbac_service import log_audit
 
@@ -45,7 +46,11 @@ _SELECT = f"""
            CASE WHEN i.budget_amount > 0
                 THEN round(COALESCE(sp.actual_amount, 0) / i.budget_amount * 100, 1)::float8 END AS progress_percent,
            att.reasons AS attention_reasons,
-           cardinality(att.reasons) > 0 AS needs_attention
+           cardinality(att.reasons) > 0 AS needs_attention,
+           hs.campaigns AS hubspot_campaigns, hs.sessions AS hubspot_sessions,
+           hs.new_first AS hubspot_new_first, hs.new_last AS hubspot_new_last,
+           hs.influenced AS hubspot_influenced, hs.synced_at AS hubspot_synced_at, hs.spend AS hubspot_spend,
+           hs.list_contacts AS hubspot_list_contacts, hs.funnels AS hubspot_funnels
     FROM initiatives i
     JOIN brands b ON b.id = i.brand_id
     JOIN channels c ON c.id = i.channel_id
@@ -75,6 +80,18 @@ _SELECT = f"""
         FROM initiative_links l
         WHERE l.initiative_id = i.id
     ) lk ON true
+    -- The linked HubSpot campaigns' report figures, added up (services/hubspot_campaign_sync_job.py)
+    LEFT JOIN LATERAL (
+        SELECT count(*) AS campaigns, SUM(hc.sessions)::int AS sessions,
+               SUM(hc.new_contacts_first_touch)::int AS new_first, SUM(hc.new_contacts_last_touch)::int AS new_last,
+               SUM(hc.influenced_contacts)::int AS influenced, max(hc.synced_at) AS synced_at,
+               SUM(hc.list_contacts)::int AS list_contacts, jsonb_agg(hc.funnel) AS funnels,
+               -- HubSpot's spend items in the initiative's currency (none recorded there is no currency, taken as it)
+               SUM(hc.spend_total) FILTER (WHERE COALESCE(hc.currency, i.currency) = i.currency)::float8 AS spend
+        FROM initiative_links l
+        JOIN hubspot_campaigns hc ON hc.id = l.external_id
+        WHERE l.initiative_id = i.id AND l.system = 'HUBSPOT'
+    ) hs ON true
     -- Results recorded in any form: typed-in or synced results, ad results, or the event's demo log
     CROSS JOIN LATERAL (
         SELECT EXISTS (SELECT 1 FROM outcomes o WHERE o.initiative_id = i.id)
@@ -268,7 +285,61 @@ def _to_item(row) -> dict:
     item["links"] = _json(item["links"]) or []
     item["attention_reasons"] = list(item["attention_reasons"] or [])
     item.pop("total_count", None)
+    item["hubspot"] = _hubspot_figures(item)
     return item
+
+
+def _hubspot_figures(item: dict) -> dict | None:
+    """The linked HubSpot campaigns' figures, with the new contacts that count as leads (HUBSPOT_ATTRIBUTION) and
+    the cost of each; None when no synced HubSpot campaign is linked. Pops the flat hubspot_* columns.
+
+    The cost is the portal's actual spend; while the portal has none, HubSpot's own spend items (in the same
+    currency) stand in, and cost_source says which one it was."""
+    figures = {
+        k: item.pop(f"hubspot_{k}")
+        for k in ("campaigns", "sessions", "new_first", "new_last", "influenced", "synced_at", "spend", "list_contacts", "funnels")
+    }
+    if not figures["campaigns"]:
+        return None
+    attribution = hubspot_attribution()
+    new_contacts = figures["new_last"] if attribution == LAST_TOUCH else figures["new_first"]
+    portal_spend = item.get("actual_spend") or 0
+    hubspot_spend = figures["spend"] or 0
+    spend, cost_source = (portal_spend, "PORTAL") if portal_spend > 0 else (hubspot_spend, "HUBSPOT") if hubspot_spend > 0 else (0, None)
+    funnels = [f for f in _json(figures["funnels"]) or [] if f]
+    funnel = _add_funnels(funnels, "last_touch" if attribution == LAST_TOUCH else "first_touch")
+    list_funnel = _add_funnels(funnels, "lists")
+
+    def cost_per(count: int | None) -> float | None:
+        return round(spend / count, 2) if count and spend > 0 else None
+
+    return {
+        "campaigns": figures["campaigns"],
+        "sessions": figures["sessions"],
+        "new_contacts_first_touch": figures["new_first"],
+        "new_contacts_last_touch": figures["new_last"],
+        "influenced_contacts": figures["influenced"],
+        "attribution": attribution,
+        "new_contacts": new_contacts,
+        "spend_in_hubspot": figures["spend"],
+        "cost_per_new_contact": cost_per(new_contacts),
+        "cost_source": cost_source if spend > 0 else None,
+        "list_contacts": figures["list_contacts"],
+        "funnel": funnel,
+        "list_funnel": list_funnel,
+        "cost_per_mql": cost_per(funnel["mql"]) if funnel else None,
+        "cost_per_sql": cost_per(funnel["sql"]) if funnel else None,
+        "synced_at": figures["synced_at"],
+    }
+
+
+def _add_funnels(funnels: list[dict], key: str) -> dict | None:
+    """The stage counts of one kind ("first_touch", "last_touch" or "lists") added up over the linked campaigns;
+    None when none of them has it."""
+    found = [f[key] for f in funnels if isinstance(f.get(key), dict)]
+    if not found:
+        return None
+    return {stage: sum(int(f.get(stage) or 0) for f in found) for stage in ("lead", "mql", "sql", "opportunity", "customer")}
 
 
 def _filters(

@@ -816,6 +816,49 @@ integration_sync_state = sa.Table(
     sa.Column("last_run_summary", postgresql.JSONB(astext_type=sa.Text())),
 )
 
+# HubSpot campaigns as the last HubSpot sync read them (services/hubspot_campaign_sync_job.py). HubSpot owns this
+# data: the sync replaces each row, and drops campaigns HubSpot no longer has. Initiatives link to a campaign through
+# initiative_links (system HUBSPOT, external_id = id).
+hubspot_campaigns = sa.Table(
+    "hubspot_campaigns", metadata,
+    # HubSpot's campaign GUID
+    sa.Column("id", sa.VARCHAR(length=64), primary_key=True),
+    sa.Column("name", sa.VARCHAR(length=500), nullable=False),
+    # HubSpot's own status (planned, in_progress, active, paused, completed); null when not set there
+    sa.Column("status", sa.VARCHAR(length=30)),
+    sa.Column("start_date", sa.DATE()),
+    sa.Column("end_date", sa.DATE()),
+    sa.Column("currency", sa.VARCHAR(length=3)),
+    # Totals of the campaign's budget and spend items in HubSpot
+    sa.Column("budget_total", sa.NUMERIC(precision=14, scale=2)),
+    sa.Column("spend_total", sa.NUMERIC(precision=14, scale=2)),
+    sa.Column("owner_name", sa.VARCHAR(length=255)),
+    sa.Column("utm", sa.VARCHAR(length=500)),
+    sa.Column("notes", sa.TEXT()),
+    sa.Column("audience", sa.TEXT()),
+    # HubSpot's campaign report, to date
+    sa.Column("sessions", sa.INTEGER()),
+    sa.Column("new_contacts_first_touch", sa.INTEGER()),
+    sa.Column("new_contacts_last_touch", sa.INTEGER()),
+    sa.Column("influenced_contacts", sa.INTEGER()),
+    # The campaign's assets by type, e.g. {"OBJECT_LIST": [{"id": "1463", "name": "..."}]}. Meetings are counted only
+    # ({"MEETING_EVENT": {"count": 4}}): their names are people's names, which stay in HubSpot.
+    sa.Column("assets", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'::jsonb")),
+    # People on the campaign's contact lists, each counted once (lead lists for events, but also audiences)
+    sa.Column("list_contacts", sa.INTEGER()),
+    # Contacts who reached each lifecycle stage, counted three ways: {"first_touch": {"lead": 52, "mql": 28, "sql": 1,
+    # "opportunity": 0, "customer": 0}, "last_touch": {...}, "lists": {...}}. Counts only: people stay in HubSpot.
+    sa.Column("funnel", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'::jsonb")),
+    sa.Column("hubspot_created_at", postgresql.TIMESTAMP(timezone=True)),
+    sa.Column("hubspot_updated_at", postgresql.TIMESTAMP(timezone=True)),
+    sa.Column("synced_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.CheckConstraint("end_date IS NULL OR start_date IS NULL OR end_date >= start_date", name="hubspot_campaigns_dates_check"),
+    sa.CheckConstraint("jsonb_typeof(assets) = 'object'", name="hubspot_campaigns_assets_check"),
+    sa.CheckConstraint("jsonb_typeof(funnel) = 'object'", name="hubspot_campaigns_funnel_check"),
+    sa.CheckConstraint("list_contacts >= 0", name="hubspot_campaigns_list_contacts_check"),
+    sa.Index("idx_hubspot_campaigns_name", "name"),
+)
+
 # --- Multi-Entity & OAuth Connections ---
 organizations = sa.Table(
     "organizations", metadata,
