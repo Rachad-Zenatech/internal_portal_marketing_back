@@ -491,7 +491,7 @@ async def _seed_travel(conn) -> tuple[int, int]:
 async def _seed_ad_results(conn, owner_id) -> int:
     """Ad results through the ads service, so their spend lines and monthly results are made the way an upload makes
     them. Results already there (same campaign, ad group and period) are left alone. Returns how many were added."""
-    from services import ads_service
+    from services.shared import ads_service
 
     names = sorted({r[0] for r in AD_RESULTS})
     ids = {r["name"]: r["id"] for r in await conn.fetch("SELECT id, name FROM initiatives WHERE name = ANY($1::text[])", names)}

@@ -20,7 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema."""
     # No-op: this revision marks the schema already created by the
-    # postgresql_db/setup_*_schema.py scripts. A fresh database runs those
+    # postgresql_db/schemas/setup_*_schema.py scripts. A fresh database runs those
     # scripts, then `alembic upgrade head`. A database that predates Alembic
     # is brought to this point once with `alembic stamp 0b1582eb4b5c`.
     pass

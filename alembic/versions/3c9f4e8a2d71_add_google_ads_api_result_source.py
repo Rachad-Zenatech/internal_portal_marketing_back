@@ -1,6 +1,6 @@
 """add google ads api result source
 
-Ad results synced from the Google Ads API (services/google_ads_sync_job.py) get their own source, GOOGLE_ADS_API.
+Ad results synced from the Google Ads API (services/ads/google_ads_sync_job.py) get their own source, GOOGLE_ADS_API.
 
 Revision ID: 3c9f4e8a2d71
 Revises: b7e2d4c9a1f3

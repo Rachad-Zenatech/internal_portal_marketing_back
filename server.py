@@ -14,58 +14,59 @@ from uuid import UUID, uuid4
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastmcp import FastMCP
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
-from mcp_tools import ask_gemini_stream, sync_mcp_tools_to_vector_db
+from mcp_tools import sync_mcp_tools_to_vector_db
 
 # MCP tools & AI functions
 from mcp_tools import register_all as register_mcp_tools
 from postgresql_db.database import close_pool, create_pool, fetch_one
-from services.auth_service import (
+from services.ai import ai_observability, assistant_chat_service
+from services.shared.auth_service import (
     current_user_id_ctx,
     get_current_user_id_dependency,
 )
-from services.cache_service import start_cache_invalidation_listener
-from services.google_ads_sync_job import google_ads_sync_enabled, google_ads_sync_loop
-from services.graph_sync_job import graph_sync_loop
-from services.hubspot_campaign_sync_job import hubspot_sync_enabled, hubspot_sync_loop
-from services.logging_service import (
+from services.shared.cache_service import start_cache_invalidation_listener
+from services.ads.google_ads_sync_job import google_ads_sync_enabled, google_ads_sync_loop
+from services.microsoft_graph.graph_sync_job import graph_sync_loop
+from services.hubspot.hubspot_campaign_sync_job import hubspot_sync_enabled, hubspot_sync_loop
+from services.shared.logging_service import (
     asyncio_exception_handler,
     configure_logging,
     log_background_task_result,
     request_id_ctx,
 )
-from services.microsoft_ads_sync_job import microsoft_ads_sync_enabled, microsoft_ads_sync_loop
-from services.navan_cost_sync_job import navan_cost_sync_enabled, navan_cost_sync_loop
-from tools.ads_router import router as ads_router
-from tools.auth_router import router as auth_router
-from tools.budget_router import router as budget_router
-from tools.demo_router import router as demo_router
-from tools.event_management_router import router as event_management_router
-from tools.google_ads_router import router as google_ads_router
-from tools.graph_router import router as graph_router
-from tools.hubspot_router import router as hubspot_router
-from tools.import_router import router as import_router
-from tools.initiative_router import router as initiative_router
-from tools.log_router import router as log_router
-from tools.microsoft_ads_router import router as microsoft_ads_router
-from tools.navan_router import router as navan_router
-from tools.notification_router import notification_router
-from tools.oauth_router import router as oauth_router
-from tools.observability import router as observability_router
-from tools.performance_router import router as performance_router
-from tools.rbac_router import get_current_user_id
-from tools.rbac_router import router as rbac_router
-from tools.reference_data_router import router as reference_data_router
+from services.ads.microsoft_ads_sync_job import microsoft_ads_sync_enabled, microsoft_ads_sync_loop
+from services.navan.navan_cost_sync_job import navan_cost_sync_enabled, navan_cost_sync_loop
+from tools.ads.ads_router import router as ads_router
+from tools.shared.auth_router import router as auth_router
+from tools.budgets.budget_router import router as budget_router
+from tools.shared.demo_router import router as demo_router
+from tools.events.event_management_router import router as event_management_router
+from tools.ads.google_ads_router import router as google_ads_router
+from tools.microsoft_graph.graph_router import router as graph_router
+from tools.hubspot.hubspot_router import router as hubspot_router
+from tools.shared.import_router import router as import_router
+from tools.initiatives.initiative_router import router as initiative_router
+from tools.shared.log_router import router as log_router
+from tools.ads.microsoft_ads_router import router as microsoft_ads_router
+from tools.navan.navan_router import router as navan_router
+from tools.notifications.notification_router import notification_router
+from tools.ads.oauth_router import router as oauth_router
+from tools.shared.observability import router as observability_router
+from tools.performance.performance_router import router as performance_router
+from tools.shared.rbac_router import get_current_user_id
+from tools.shared.rbac_router import router as rbac_router
+from tools.reference_data.reference_data_router import router as reference_data_router
 
 # FastAPI routers
-from tools.search import router as search_router
-from tools.spend_router import router as spend_router
+from tools.shared.search import router as search_router
+from tools.shared.spend_router import router as spend_router
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -101,6 +102,11 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.exception("Application startup failed", extra={"event": "application_startup_failed"})
         raise
+    try:
+        from postgresql_db.schemas.setup_ai_observability_schema import setup as setup_ai_observability_schema
+        await setup_ai_observability_schema()
+    except Exception as ai_err:
+        logger.warning(f"AI observability schema setup note: {ai_err}")
 
     background_tasks = []
 
@@ -130,6 +136,11 @@ async def lifespan(app: FastAPI):
             "Graph background sync disabled (set GRAPH_BACKGROUND_SYNC_ENABLED=true to enable)",
             extra={"event": "graph_sync_disabled"},
         )
+
+    # 3b. AI traces and prompt logs: written in batches as they arrive (waits on a queue, no polling)
+    trace_task = asyncio.create_task(ai_observability.writer_loop(), name="ai-trace-writer")
+    trace_task.add_done_callback(partial(log_background_task_result, task_name="ai-trace-writer"))
+    background_tasks.append(trace_task)
 
     # Keep each event's Navan travel total (its active bookings) up to date, if enabled
     if navan_cost_sync_enabled():
@@ -181,7 +192,7 @@ async def lifespan(app: FastAPI):
         # 4. Announce this service online/offline over MQTT, as admin does. Each worker process gets its own
         # instance id (e.g. marketing-01-4242), so one worker restarting never marks the whole service offline
         if _env_flag("MQTT_PRESENCE_ENABLED", _messaging_default()):
-            from services.mqtt_presence import MqttServicePresence
+            from services.notifications.mqtt_presence import MqttServicePresence
 
             presence = MqttServicePresence(
                 service_name=os.getenv("SERVICE_NAME", "marketing"),
@@ -194,7 +205,7 @@ async def lifespan(app: FastAPI):
         # 5. Connect to RabbitMQ and declare the shared topology, as admin does (nothing is published yet).
         # In the background, so a broker that's down never delays startup (its retries can take ~30s)
         if _env_flag("RABBITMQ_ENABLED", _messaging_default()):
-            from services.rabbitmq_service import rabbitmq_manager
+            from services.notifications.rabbitmq_service import rabbitmq_manager
 
             rabbitmq = rabbitmq_manager
             rabbitmq_task = asyncio.create_task(rabbitmq.connect(), name="rabbitmq-connect")
@@ -220,6 +231,7 @@ async def lifespan(app: FastAPI):
                 await rabbitmq.close()
             except Exception:
                 logger.exception("RabbitMQ did not close cleanly", extra={"event": "rabbitmq_close_failed"})
+        await ai_observability.flush()
         await close_pool()
         loop.set_exception_handler(previous_exception_handler)
         logger.info("Application shutdown complete", extra={"event": "application_stopped"})
@@ -263,13 +275,31 @@ class ChatRequest(BaseModel):
     file_data: Optional[str] = Field(default=None, max_length=20_000_000)
     mime_type: Optional[str] = Field(default=None, max_length=255)
 
+# The whole conversation sent to Gemini in one request, so one request can't use a huge share of the quota.
+CHAT_MAX_TOTAL_CHARS = 60_000
+
 @app.post("/ai/chat")
 async def ai_chat(req: ChatRequest, user_id: UUID = Depends(get_current_user_id)):
+    if len(req.message) + sum(len(h.content) for h in req.history) > CHAT_MAX_TOTAL_CHARS:
+        raise HTTPException(status_code=413, detail="The conversation is too long. Start a new one.")
     try:
         current_user_id_ctx.set(user_id)
+        # Input screening and the semantic cache first: a blocked message or a cached answer uses no AI quota.
+        prepared = await assistant_chat_service.prepare(req.message, req.history, user_id)
+    except Exception:
+        logger.exception("AI chat request failed", extra={"event": "ai_chat_failed"})
+        return JSONResponse(
+            content={"reply": "The AI service is temporarily unavailable. Please try again."},
+            status_code=500
+        )
+    if not prepared.blocked and prepared.cached_answer is None:
+        # Counts toward the daily AI limits (429 with when it frees up).
+        from services.ai import ai_usage_service
+        await ai_usage_service.reserve("CHAT", user_id)
+    try:
         async def stream_generator():
             try:
-                async for chunk in ask_gemini_stream(req.message, req.history, req.file_data, req.mime_type):
+                async for chunk in assistant_chat_service.stream(prepared):
                     yield chunk
             except Exception:
                 import json
@@ -420,7 +450,7 @@ def _session_identity(request: Request) -> Optional[str]:
     if auth_header[:7].lower() == "bearer ":
         token = auth_header[7:].strip()
     if not token:
-        from services.auth_service import AUTH_COOKIE_NAME
+        from services.shared.auth_service import AUTH_COOKIE_NAME
         token = request.cookies.get(AUTH_COOKIE_NAME, "") or request.cookies.get("zenatech_access_token", "")
     if not token:
         return None

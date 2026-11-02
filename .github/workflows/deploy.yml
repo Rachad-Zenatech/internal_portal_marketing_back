@@ -73,9 +73,9 @@ jobs:
 
       - name: Create Test Database Schema
         run: |
-          python -m postgresql_db.setup_pbac_schema
-          python -m postgresql_db.setup_graph_sync_schema
-          python -m postgresql_db.notifications_schema
+          python -m postgresql_db.schemas.setup_pbac_schema
+          python -m postgresql_db.schemas.setup_graph_sync_schema
+          python -m postgresql_db.schemas.notifications_schema
           alembic upgrade head
           alembic check
 

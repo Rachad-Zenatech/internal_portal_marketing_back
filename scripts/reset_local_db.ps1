@@ -75,15 +75,15 @@ if ($retries -eq 0) {
 
 Write-Host "?? [Disposable DB] Applying database schemas & master data..." -ForegroundColor Cyan
 if (Test-Path "venv\Scripts\python.exe") {
-    & "venv\Scripts\python.exe" -m postgresql_db.setup_pbac_schema
-    & "venv\Scripts\python.exe" -m postgresql_db.setup_graph_sync_schema
-    & "venv\Scripts\python.exe" -m postgresql_db.notifications_schema
+    & "venv\Scripts\python.exe" -m postgresql_db.schemas.setup_pbac_schema
+    & "venv\Scripts\python.exe" -m postgresql_db.schemas.setup_graph_sync_schema
+    & "venv\Scripts\python.exe" -m postgresql_db.schemas.notifications_schema
     Write-Host "?? [Disposable DB] Running Alembic migrations to branch HEAD..." -ForegroundColor Cyan
     & "venv\Scripts\python.exe" -m alembic upgrade head
 } elseif (Get-Command python -ErrorAction SilentlyContinue) {
-    python -m postgresql_db.setup_pbac_schema
-    python -m postgresql_db.setup_graph_sync_schema
-    python -m postgresql_db.notifications_schema
+    python -m postgresql_db.schemas.setup_pbac_schema
+    python -m postgresql_db.schemas.setup_graph_sync_schema
+    python -m postgresql_db.schemas.notifications_schema
     Write-Host "?? [Disposable DB] Running Alembic migrations to branch HEAD..." -ForegroundColor Cyan
     python -m alembic upgrade head
 }

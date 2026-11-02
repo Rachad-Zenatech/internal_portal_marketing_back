@@ -49,9 +49,9 @@ jobs:
           DATABASE_SSL: false
         run: |
           echo "[*] Initializing database schemas on fresh test database..."
-          python -m postgresql_db.setup_pbac_schema
-          python -m postgresql_db.setup_graph_sync_schema
-          python -m postgresql_db.notifications_schema
+          python -m postgresql_db.schemas.setup_pbac_schema
+          python -m postgresql_db.schemas.setup_graph_sync_schema
+          python -m postgresql_db.schemas.notifications_schema
           echo "[*] Applying Alembic migrations..."
           alembic upgrade head
           echo "[*] Checking schema_metadata.py matches the database (fails on drift)..."

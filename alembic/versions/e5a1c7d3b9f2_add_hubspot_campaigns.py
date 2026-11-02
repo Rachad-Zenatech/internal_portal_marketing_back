@@ -1,6 +1,6 @@
 """add hubspot campaigns
 
-HubSpot campaigns as the HubSpot sync (services/hubspot_campaign_sync_job.py) last read them: properties, the
+HubSpot campaigns as the HubSpot sync (services/hubspot/hubspot_campaign_sync_job.py) last read them: properties, the
 campaign report's figures and the campaign's assets. A new table only; nothing else changes.
 
 Revision ID: e5a1c7d3b9f2

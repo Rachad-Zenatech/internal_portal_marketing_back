@@ -209,7 +209,7 @@ Columns: Brand, Market/Region, Period Start, Period End, Channel, Sub-Channel, C
 
 ## Known issues (from the template)
 
-- `postgresql_db/setup_pbac_schema.py` runs `TRUNCATE permission_modules CASCADE` on every run, which also deletes role → permission-group assignments for every role except Super Admin. Re-running it on a shared or production database would wipe permissions configured in the UI. Make the seed upsert instead of truncate before the first deployment.
+- `postgresql_db/schemas/setup_pbac_schema.py` runs `TRUNCATE permission_modules CASCADE` on every run, which also deletes role → permission-group assignments for every role except Super Admin. Re-running it on a shared or production database would wipe permissions configured in the UI. Make the seed upsert instead of truncate before the first deployment.
 - `GET /api/observability/usage/tokens` returns 500 (imports a `services.usage_service` module that the template doesn't include). No page uses it.
 
 ## Local development

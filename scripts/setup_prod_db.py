@@ -22,9 +22,9 @@ from dotenv import dotenv_values
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STEPS = [
-    [sys.executable, "-m", "postgresql_db.setup_pbac_schema"],
-    [sys.executable, "-m", "postgresql_db.setup_graph_sync_schema"],
-    [sys.executable, "-m", "postgresql_db.notifications_schema"],
+    [sys.executable, "-m", "postgresql_db.schemas.setup_pbac_schema"],
+    [sys.executable, "-m", "postgresql_db.schemas.setup_graph_sync_schema"],
+    [sys.executable, "-m", "postgresql_db.schemas.notifications_schema"],
     [sys.executable, "-m", "alembic", "upgrade", "head"],
 ]
 # --sample-data: the local mock data. Demo events and campaigns can be taken out again with their "remove" command;
