@@ -34,8 +34,8 @@ import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 from postgresql_db.database import get_pool
-from services.shared import ads_service
 from services.hubspot.hubspot_client import HubSpotUnavailable, fetch_hubspot_campaigns
+from services.shared import ads_service
 from services.shared.initiative_service import AUDIT_ENTITY as INITIATIVE_AUDIT_ENTITY
 
 logger = logging.getLogger(__name__)

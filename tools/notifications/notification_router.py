@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from models.notifications.notification_model import NotificationResponse
-from services.shared.auth_service import get_current_user_id_dependency
 from services.notifications.notification_service import (
     broadcaster,
     clear_all_notifications,
@@ -16,6 +15,7 @@ from services.notifications.notification_service import (
     mark_all_notifications_as_read,
     mark_notification_as_read,
 )
+from services.shared.auth_service import get_current_user_id_dependency
 
 notification_router = APIRouter()
 

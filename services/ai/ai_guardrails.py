@@ -45,7 +45,7 @@ _RULES = r"(?:instructions?|rules|prompts?|messages|directions|guidelines|contex
 _CATEGORIES: List[Tuple[str, float, List["re.Pattern[str]"]]] = [
     ("instruction_override", 0.6, [
         re.compile(rf"\b(?:ignore|disregard|forget|skip|override|bypass)\s+(?:about\s+)?{_PRIOR}\s+{_RULES}", _I),
-        re.compile(rf"\b(?:ignore|disregard|forget)\s+(?:everything|all)\s+(?:you(?:'ve| have)?\s+(?:been\s+)?(?:told|said)|above|before)", _I),
+        re.compile(r"\b(?:ignore|disregard|forget)\s+(?:everything|all)\s+(?:you(?:'ve| have)?\s+(?:been\s+)?(?:told|said)|above|before)", _I),
         re.compile(r"\bnew\s+instructions?\s*:", _I),
         re.compile(r"\bfrom\s+now\s+on,?\s+(?:you\s+)?(?:will|must|are\s+to)\s+(?:only\s+)?(?:obey|follow|answer|respond)", _I),
     ]),
