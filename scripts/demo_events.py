@@ -35,9 +35,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from models.shared.initiative_model import EventDetailsInput, InitiativeCreate  # noqa: E402
 from models.shared.spend_model import SpendLineCreate  # noqa: E402
 from postgresql_db.database import close_pool, create_pool, get_pool  # noqa: E402
-from services.shared.initiative_service import create_initiative, delete_initiative  # noqa: E402
 from services.navan.navan_demo_service import DEMO_EVENT_PREFIX  # noqa: E402
 from services.performance.performance_service import save_outcomes  # noqa: E402
+from services.shared.initiative_service import create_initiative, delete_initiative  # noqa: E402
 from services.shared.spend_service import create_spend_line  # noqa: E402
 
 LOCAL_HOSTS = {"localhost", "127.0.0.1"}

@@ -71,6 +71,15 @@ class HubSpotCampaign(BaseModel):
         return bool(self.spend_total) and self.spend_total > 0 and self.new_contacts_first_touch == 0
 
 
+class HubSpotSocialMedia(BaseModel):
+    url: str
+    # PHOTO, VIDEO...
+    type: str | None = None
+    width: int | None = None
+    height: int | None = None
+    title: str | None = None
+
+
 class HubSpotSocialPost(BaseModel):
     id: str
     # The connected account ("FacebookPage:123"), its platform (facebook, linkedin, instagram, x, youtube, tiktok) and name
@@ -81,6 +90,9 @@ class HubSpotSocialPost(BaseModel):
     status: str | None = None
     message: str | None = None
     media_type: str | None = None
+    # Attached photos/videos (HubSpot-hosted files) and the link to the live post (published posts only)
+    media: list[HubSpotSocialMedia] = []
+    post_url: str | None = None
     # The HubSpot campaign it belongs to, if any
     campaign_id: str | None = None
     campaign_name: str | None = None

@@ -34,8 +34,8 @@ import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 from postgresql_db.database import get_pool
-from services.shared import ads_service
 from services.hubspot.hubspot_client import HubSpotUnavailable, fetch_hubspot_campaigns
+from services.shared import ads_service
 from services.shared.initiative_service import AUDIT_ENTITY as INITIATIVE_AUDIT_ENTITY
 
 logger = logging.getLogger(__name__)
@@ -88,27 +88,29 @@ _COLUMNS = (
 _SOCIAL_UPSERT_SQL = """
     INSERT INTO hubspot_social_posts (
         id, channel_key, platform, channel_name, status, message, media_type, campaign_id, campaign_name, clicks, likes,
-        replies, shares, interactions, scheduled_at, finished_at, hubspot_created_at, synced_at
+        replies, shares, interactions, scheduled_at, finished_at, hubspot_created_at, media, post_url, synced_at
     )
     SELECT u.*, now()
     FROM unnest(
         $1::varchar[], $2::varchar[], $3::varchar[], $4::varchar[], $5::varchar[], $6::text[], $7::varchar[],
         $8::varchar[], $9::varchar[], $10::int[], $11::int[], $12::int[], $13::int[], $14::int[], $15::timestamptz[],
-        $16::timestamptz[], $17::timestamptz[]
+        $16::timestamptz[], $17::timestamptz[], $18::jsonb[], $19::varchar[]
     ) AS u(id, channel_key, platform, channel_name, status, message, media_type, campaign_id, campaign_name, clicks,
-           likes, replies, shares, interactions, scheduled_at, finished_at, hubspot_created_at)
+           likes, replies, shares, interactions, scheduled_at, finished_at, hubspot_created_at, media, post_url)
     ON CONFLICT (id) DO UPDATE SET
         channel_key = EXCLUDED.channel_key, platform = EXCLUDED.platform, channel_name = EXCLUDED.channel_name,
         status = EXCLUDED.status, message = EXCLUDED.message, media_type = EXCLUDED.media_type,
         campaign_id = EXCLUDED.campaign_id, campaign_name = EXCLUDED.campaign_name, clicks = EXCLUDED.clicks,
         likes = EXCLUDED.likes, replies = EXCLUDED.replies, shares = EXCLUDED.shares,
         interactions = EXCLUDED.interactions, scheduled_at = EXCLUDED.scheduled_at, finished_at = EXCLUDED.finished_at,
-        hubspot_created_at = EXCLUDED.hubspot_created_at, synced_at = now()
+        hubspot_created_at = EXCLUDED.hubspot_created_at, media = EXCLUDED.media, post_url = EXCLUDED.post_url,
+        synced_at = now()
 """
 
 _SOCIAL_COLUMNS = (
     "id", "channel_key", "platform", "channel_name", "status", "message", "media_type", "campaign_id", "campaign_name",
     "clicks", "likes", "replies", "shares", "interactions", "scheduled_at", "finished_at", "hubspot_created_at",
+    "media", "post_url",
 )
 
 LINK_SYSTEM = "HUBSPOT"
@@ -348,7 +350,9 @@ async def _store(conn, rows: List[Dict[str, Any]], summary: Dict[str, Any]) -> N
 async def _store_social_posts(conn, posts: List[Dict[str, Any]]) -> None:
     """Replace the stored social posts with HubSpot's (one batch statement, then drop the ones HubSpot no longer has)."""
     if posts:
-        await conn.execute(_SOCIAL_UPSERT_SQL, *[[post[column] for post in posts] for column in _SOCIAL_COLUMNS])
+        columns = [[post[column] for post in posts] for column in _SOCIAL_COLUMNS]
+        columns[_SOCIAL_COLUMNS.index("media")] = [json.dumps(post["media"]) for post in posts]
+        await conn.execute(_SOCIAL_UPSERT_SQL, *columns)
     await conn.execute("DELETE FROM hubspot_social_posts WHERE NOT (id = ANY($1::varchar[]))", [post["id"] for post in posts])
 
 
@@ -491,7 +495,11 @@ async def list_hubspot_social_posts() -> List[Dict[str, Any]]:
             ORDER BY COALESCE(sp.finished_at, sp.scheduled_at, sp.hubspot_created_at) DESC NULLS LAST, sp.id
             """
         )
-    return [dict(row) for row in rows]
+    posts = [dict(row) for row in rows]
+    for post in posts:
+        # jsonb comes back as text
+        post["media"] = json.loads(post["media"]) if post.get("media") else []
+    return posts
 
 
 async def hubspot_sync_loop(interval_seconds: Optional[int] = None) -> None:

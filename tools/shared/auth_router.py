@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from starlette.config import Config
 
 from postgresql_db.database import get_pool
+from services.microsoft_graph.graph_service import fetch_me_profile
 from services.shared.auth_service import (
     AUTH_COOKIE_NAME,
     clear_access_token_cookie,
@@ -21,7 +22,6 @@ from services.shared.auth_service import (
     set_access_token_cookie,
     upsertMicrosoftUser,
 )
-from services.microsoft_graph.graph_service import fetch_me_profile
 from services.shared.rbac_service import log_login_activity
 
 router = APIRouter()

@@ -2,7 +2,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from models.hubspot.hubspot_model import HubSpotCampaign, HubSpotSocialPost, HubSpotSyncStarted, HubSpotSyncStatus
-from services.shared.auth_service import require_permission
 from services.hubspot.hubspot_campaign_sync_job import (
     HubSpotSyncAlreadyRunning,
     get_hubspot_sync_state,
@@ -14,6 +13,7 @@ from services.hubspot.hubspot_campaign_sync_job import (
     sync_interval_minutes,
 )
 from services.hubspot.hubspot_client import hubspot_configured
+from services.shared.auth_service import require_permission
 
 router = APIRouter()
 

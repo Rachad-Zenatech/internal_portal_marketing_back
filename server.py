@@ -21,48 +21,47 @@ from fastmcp import FastMCP
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
-from mcp_tools import sync_mcp_tools_to_vector_db
-
 # MCP tools & AI functions
 from mcp_tools import register_all as register_mcp_tools
+from mcp_tools import sync_mcp_tools_to_vector_db
 from postgresql_db.database import close_pool, create_pool, fetch_one
+from services.ads.google_ads_sync_job import google_ads_sync_enabled, google_ads_sync_loop
+from services.ads.microsoft_ads_sync_job import microsoft_ads_sync_enabled, microsoft_ads_sync_loop
 from services.ai import ai_observability, assistant_chat_service
+from services.hubspot.hubspot_campaign_sync_job import hubspot_sync_enabled, hubspot_sync_loop
+from services.microsoft_graph.graph_sync_job import graph_sync_loop
+from services.navan.navan_cost_sync_job import navan_cost_sync_enabled, navan_cost_sync_loop
 from services.shared.auth_service import (
     current_user_id_ctx,
     get_current_user_id_dependency,
 )
 from services.shared.cache_service import start_cache_invalidation_listener
-from services.ads.google_ads_sync_job import google_ads_sync_enabled, google_ads_sync_loop
-from services.microsoft_graph.graph_sync_job import graph_sync_loop
-from services.hubspot.hubspot_campaign_sync_job import hubspot_sync_enabled, hubspot_sync_loop
 from services.shared.logging_service import (
     asyncio_exception_handler,
     configure_logging,
     log_background_task_result,
     request_id_ctx,
 )
-from services.ads.microsoft_ads_sync_job import microsoft_ads_sync_enabled, microsoft_ads_sync_loop
-from services.navan.navan_cost_sync_job import navan_cost_sync_enabled, navan_cost_sync_loop
 from tools.ads.ads_router import router as ads_router
-from tools.shared.auth_router import router as auth_router
-from tools.budgets.budget_router import router as budget_router
-from tools.shared.demo_router import router as demo_router
-from tools.events.event_management_router import router as event_management_router
 from tools.ads.google_ads_router import router as google_ads_router
-from tools.microsoft_graph.graph_router import router as graph_router
-from tools.hubspot.hubspot_router import router as hubspot_router
-from tools.shared.import_router import router as import_router
-from tools.initiatives.initiative_router import router as initiative_router
-from tools.shared.log_router import router as log_router
 from tools.ads.microsoft_ads_router import router as microsoft_ads_router
+from tools.ads.oauth_router import router as oauth_router
+from tools.budgets.budget_router import router as budget_router
+from tools.events.event_management_router import router as event_management_router
+from tools.hubspot.hubspot_router import router as hubspot_router
+from tools.initiatives.initiative_router import router as initiative_router
+from tools.microsoft_graph.graph_router import router as graph_router
 from tools.navan.navan_router import router as navan_router
 from tools.notifications.notification_router import notification_router
-from tools.ads.oauth_router import router as oauth_router
-from tools.shared.observability import router as observability_router
 from tools.performance.performance_router import router as performance_router
+from tools.reference_data.reference_data_router import router as reference_data_router
+from tools.shared.auth_router import router as auth_router
+from tools.shared.demo_router import router as demo_router
+from tools.shared.import_router import router as import_router
+from tools.shared.log_router import router as log_router
+from tools.shared.observability import router as observability_router
 from tools.shared.rbac_router import get_current_user_id
 from tools.shared.rbac_router import router as rbac_router
-from tools.reference_data.reference_data_router import router as reference_data_router
 
 # FastAPI routers
 from tools.shared.search import router as search_router
