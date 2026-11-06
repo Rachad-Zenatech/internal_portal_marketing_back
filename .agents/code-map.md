@@ -29,7 +29,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## mcp_tools/shared/permissions.py (55 lines) - permissions (shared)
 - `list_my_accessible_tools_tool` (def) - List all MCP tools and capabilities accessible to the currently authenticated user based on active RBAC roles.
 
-## models/ads/ads_model.py (509 lines) - Paid ads (every Paid Search and Paid Social platform): results, the page overview, and the spreadsheet upload.
+## models/ads/ads_model.py (514 lines) - Paid ads (every Paid Search and Paid Social platform): results, the page overview, and the spreadsheet upload.
 - `AdMetrics` (class) - The figures typed in, and the ones calculated from them (null when they can't be).
 - `AdResult` (class)
 - `AdTotals` (class)
@@ -370,7 +370,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `execute` (def)
 - `execute_many` (def)
 
-## postgresql_db/schema_metadata.py (952 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
+## postgresql_db/schema_metadata.py (1000 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
 - `_reference_table` (def)
 
 ## postgresql_db/schemas/notifications_schema.py (46 lines) - notifications schema (schemas)
@@ -432,7 +432,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `line_up` (def) - Brings a database made by another copy of the template in line with this repo, at the matching version.
 - `main` (def)
 
-## server.py (645 lines) - MCP tools & AI functions
+## server.py (647 lines) - MCP tools & AI functions
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `_messaging_default` (def) - MQTT presence and RabbitMQ, set up exactly as in the admin portal: on by default in production, off locally,
@@ -504,7 +504,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `undo_import` (def) - Remove the results an upload created and restore the previous values of the ones it updated.
 - `build_template` (def) - An .xlsx with Marketing's own header, and dropdowns for the brand, market, sub-channel and status.
 
-## services/ads/ads_overview_service.py (816 lines) - The Paid Advertising page: key figures, charts, campaigns needing attention, one campaign's detail, data health.
+## services/ads/ads_overview_service.py (878 lines) - The Paid Advertising page: key figures, charts, campaigns needing attention, one campaign's detail, data health.
 - `ratio` (def) - numerator / denominator (x scale) to 2 dp; None when either is missing or the divisor is 0.
 - `_money` (def)
 - `previous_range` (def) - The same number of days right before.
@@ -521,6 +521,8 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `buckets` (def) - Chart points over the range: days, Monday-to-Sunday weeks, or months, each cut to the range.
 - `months` (def) - Each calendar month the range touches, cut to the range.
 - `shows_in_range` (def)
+- `_verdict` (def) - (CUT, FUND or WATCH, why) for one campaign, or (None, None) when it has no spend or is over.
+- `add_verdicts` (def) - Set verdict and verdict_reason on every row (rows are in one currency).
 - `_fetch_campaigns` (def)
     - `where` (def)
 - `_fetch_daily` (def) - Each campaign's results by period start, for results starting in [from, to].
@@ -911,7 +913,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_timing` (def)
 - `list_event_overview` (def) - Every event with what still needs doing: on now first, then upcoming (soonest first), then past (most recent first).
 
-## services/events/event_performance_service.py (381 lines) - Events Overview: budget, actual spend, prior year spend, results and ROI of events, per event and per currency.
+## services/events/event_performance_service.py (385 lines) - Events Overview: budget, actual spend, prior year spend, results and ROI of events, per event and per currency.
 - `_sql_case` (def)
 - `_category_case` (def)
 - `name_key_sql` (def) - An event's name for matching last year's event: lower case, trimmed, without a year from 2000 to 2099
@@ -929,9 +931,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_monthly` (def) - Per currency and month of the period: approved budget, actual spend and last year's spend in that month,
     - `month_of` (def)
 - `_funnel` (def)
-- `list_event_performance` (def) - Non-draft events in the Events channel whose dates overlap [date_from, date_to], newest first, with totals
+- `list_event_performance` (def) - Non-draft events in the Events channel (and the initiatives in include_ids, whatever their channel) whose dates
 
-## services/hubspot/hubspot_campaign_sync_job.py (517 lines) - Keeps hubspot_campaigns the same as HubSpot: every campaign with its properties, report figures and assets.
+## services/hubspot/hubspot_campaign_sync_job.py (572 lines) - Keeps hubspot_campaigns the same as HubSpot: every campaign with its properties, report figures and assets.
 - `HubSpotSyncAlreadyRunning` (class) - Another HubSpot sync is running (here or on another server).
     - `__init__` (def)
 - `hubspot_sync_enabled` (def)
@@ -945,6 +947,8 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_sync_initiatives` (def) - Create an initiative for each campaign without one (when on), and keep the sync's own in step with HubSpot.
 - `hubspot_sync_running` (def)
 - `_store` (def)
+- `_store_marketing_events` (def) - Replace the stored marketing events with HubSpot's (and drop the ones HubSpot no longer has).
+- `_store_contact_lists` (def) - Replace the stored contact lists with HubSpot's (and drop the ones HubSpot no longer has).
 - `_store_social_posts` (def) - Replace the stored social posts with HubSpot's (one batch statement, then drop the ones HubSpot no longer has).
 - `_record_failure` (def)
 - `_run_sync` (def)
@@ -956,7 +960,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `list_hubspot_social_posts` (def) - Every synced social post, newest first (by when it went out, else when it's scheduled).
 - `hubspot_sync_loop` (def) - Run sync_hubspot_campaigns() forever on a fixed interval; a failed run is logged and retried next interval.
 
-## services/hubspot/hubspot_client.py (496 lines) - Reads campaigns from HubSpot's Campaigns API (marketing/v3/campaigns) with a private app token.
+## services/hubspot/hubspot_client.py (590 lines) - Reads campaigns from HubSpot's Campaigns API (marketing/v3/campaigns) with a private app token.
 - `HubSpotUnavailable` (class) - HubSpot isn't set up or couldn't be read.
 - `_token` (def)
 - `hubspot_configured` (def)
@@ -990,6 +994,10 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_count` (def)
 - `_text` (def)
 - `_campaign_row` (def)
+- `_contact_list_rows` (def) - Every contact list with its size (lists of companies, deals...
+- `_non_negative` (def) - HubSpot sends -1 for a count it doesn't know.
+- `_participants` (def) - Who registered for, attended, cancelled or missed a marketing event; None when HubSpot won't say.
+- `_marketing_event_rows` (def) - Every marketing event with its attendance (HubSpot's counts, else counted from who took part).
 - `fetch_hubspot_campaigns` (def) - Every campaign with its report, assets and funnel:
 
 ## services/initiatives/event_budget_import_service.py (207 lines) - Set many events' budgets from one spreadsheet: preview what would change, then apply it.
@@ -1167,7 +1175,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## services/reference_data/reference_data_service.py (89 lines) - Marketing reference data (brands, channels, funnel stages, goals, KPIs, ratings, cost classification).
 - `get_reference_data` (def)
 
-## services/shared/ads_service.py (674 lines) - Paid ads: results per campaign or ad group per period, for every Paid Search and Paid Social platform.
+## services/shared/ads_service.py (675 lines) - Paid ads: results per campaign or ad group per period, for every Paid Search and Paid Social platform.
 - `AdsValidationError` (class) - A request that breaks an ads rule; the message is safe to show to users.
 - `AdResultNotFoundError` (class) - No ad result with the requested id.
 - `_number` (def)
