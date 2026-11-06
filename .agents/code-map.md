@@ -956,7 +956,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `list_hubspot_social_posts` (def) - Every synced social post, newest first (by when it went out, else when it's scheduled).
 - `hubspot_sync_loop` (def) - Run sync_hubspot_campaigns() forever on a fixed interval; a failed run is logged and retried next interval.
 
-## services/hubspot/hubspot_client.py (496 lines) - Reads campaigns from HubSpot's Campaigns API (marketing/v3/campaigns) with a private app token.
+## services/hubspot/hubspot_client.py (497 lines) - Reads campaigns from HubSpot's Campaigns API (marketing/v3/campaigns) with a private app token.
 - `HubSpotUnavailable` (class) - HubSpot isn't set up or couldn't be read.
 - `_token` (def)
 - `hubspot_configured` (def)

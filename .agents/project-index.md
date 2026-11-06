@@ -69,7 +69,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/events/event_management_service.py (260 lines) - Event management: every event at a glance and the team going to each one (who, their role, notes).
 - services/events/event_performance_service.py (381 lines) - Events Overview: budget, actual spend, prior year spend, results and ROI of events, per event and per currency.
 - services/hubspot/hubspot_campaign_sync_job.py (517 lines) - Keeps hubspot_campaigns the same as HubSpot: every campaign with its properties, report figures and assets.
-- services/hubspot/hubspot_client.py (496 lines) - Reads campaigns from HubSpot's Campaigns API (marketing/v3/campaigns) with a private app token.
+- services/hubspot/hubspot_client.py (497 lines) - Reads campaigns from HubSpot's Campaigns API (marketing/v3/campaigns) with a private app token.
 - services/initiatives/event_budget_import_service.py (207 lines) - Set many events' budgets from one spreadsheet: preview what would change, then apply it.
 - services/initiatives/initiative_activity_service.py (230 lines) - An initiative's recent activity in plain English, read from the audit log.
 - services/microsoft_graph/graph_service.py (420 lines) - Microsoft Graph API client for employee profile sync.
