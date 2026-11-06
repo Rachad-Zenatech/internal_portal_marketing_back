@@ -201,6 +201,24 @@ docs/                 # Longer design and integration docs
 
 ## Local Development & Setup
 
+### Quick start with Docker (recommended)
+Everything runs in Docker: no Python install needed. `docker compose` starts the local database, creates the tables (a new
+database) or applies new migrations, then starts the API with hot reload.
+```powershell
+copy .env.example .env      # first time only (Linux/macOS: cp); add your email to INITIAL_SUPER_ADMIN_EMAILS
+docker compose up -d --build
+docker compose logs -f api  # wait for "Application startup complete", then Ctrl+C
+```
+* API: http://localhost:8010 (health check: http://localhost:8010/health/live). Database: `127.0.0.1:3009` (see DataGrip below).
+* The API always uses the local database: compose overrides `DATABASE_URL` from `.env`, so a local run never touches production.
+* Code changes apply on save (the code is mounted into the container). Rebuild with `docker compose up -d --build` only after `requirements.txt` changes.
+* After editing `.env`, run `docker compose up -d --force-recreate api` (a restart keeps the old values).
+* RabbitMQ and MQTT are expected on this machine. If you don't already run them for another portal: `docker compose --profile messaging up -d`.
+* Real data instead of an empty database: see [Copying Production into the Local Database](#4-copying-production-into-the-local-database-one-way).
+* Stop: `docker compose down`. Start again: `docker compose up -d`. Delete the local database too: `docker compose down -v`.
+
+The steps below are for running the API outside Docker, from a Python virtual environment.
+
 ### 1. Python Environment Setup
 Use **Python 3.12** (production and CI run 3.12). Newer versions such as 3.14 break the compiled dependencies, so name the version explicitly:
 ```bash
