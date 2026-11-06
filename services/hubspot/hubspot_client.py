@@ -343,6 +343,15 @@ async def _channel_names(client: httpx.AsyncClient, limit: _Limit) -> Dict[str, 
     }
 
 
+def _media(broadcast: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """The photos/videos attached to a post: url (a HubSpot-hosted file), type, size and title."""
+    files = (broadcast.get("extraData") or {}).get("files") or []
+    return [
+        {"url": f["url"], "type": f.get("mediaType"), "width": f.get("width"), "height": f.get("height"), "title": f.get("title")}
+        for f in files if isinstance(f, dict) and f.get("url")
+    ]
+
+
 async def _social_post_rows(client: httpx.AsyncClient, limit: _Limit) -> List[Dict[str, Any]]:
     """Every social post HubSpot has (published, scheduled, drafts, cancelled) with its counters to date."""
     raw: List[Dict[str, Any]] = []
@@ -355,7 +364,8 @@ async def _social_post_rows(client: httpx.AsyncClient, limit: _Limit) -> List[Di
             break
     names = await _channel_names(client, limit)
     rows = []
-    for b in raw:
+    # Paging by offset can hand back the same post twice when posts change meanwhile; one row per post
+    for b in {str(b["broadcastGuid"]): b for b in raw}.values():
         key = str(b.get("channelKey") or "")
         rows.append({
             "id": str(b["broadcastGuid"]),
@@ -365,6 +375,8 @@ async def _social_post_rows(client: httpx.AsyncClient, limit: _Limit) -> List[Di
             "status": _text(b.get("status"), 30),
             "message": _text(b.get("messageText") or b.get("content"), 5000),
             "media_type": _text(b.get("broadcastMediaType"), 30),
+            "media": _media(b),
+            "post_url": _text(b.get("messageUrl"), 1000),
             "campaign_id": _text(b.get("campaignGuid"), 64),
             "campaign_name": _text(b.get("campaignName"), 500),
             "clicks": _count(b.get("clicks")),

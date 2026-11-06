@@ -875,6 +875,10 @@ hubspot_social_posts = sa.Table(
     sa.Column("status", sa.VARCHAR(length=30)),
     sa.Column("message", sa.TEXT()),
     sa.Column("media_type", sa.VARCHAR(length=30)),
+    # The attached photos/videos: [{"url", "type", "width", "height", "title"}] (HubSpot-hosted files); and the link to
+    # the live post on the platform (published posts only)
+    sa.Column("media", postgresql.JSONB()),
+    sa.Column("post_url", sa.VARCHAR(length=1000)),
     sa.Column("campaign_id", sa.VARCHAR(length=64)),
     sa.Column("campaign_name", sa.VARCHAR(length=500)),
     # Counters to date

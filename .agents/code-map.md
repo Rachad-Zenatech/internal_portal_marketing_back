@@ -165,12 +165,13 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `EventPerformance` (class)
 - `EventPerformanceResponse` (class)
 
-## models/hubspot/hubspot_model.py (132 lines) - HubSpot campaigns: the synced campaigns, and the sync's status.
+## models/hubspot/hubspot_model.py (144 lines) - HubSpot campaigns: the synced campaigns, and the sync's status.
 - `HubSpotCampaign` (class)
     - `remaining_budget` (def)
     - `budget_used_pct` (def)
     - `cost_per_contact` (def)
     - `spend_without_contacts` (def)
+- `HubSpotSocialMedia` (class)
 - `HubSpotSocialPost` (class)
 - `HubSpotSyncSummary` (class)
 - `HubSpotSyncStarted` (class)
@@ -369,7 +370,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `execute` (def)
 - `execute_many` (def)
 
-## postgresql_db/schema_metadata.py (948 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
+## postgresql_db/schema_metadata.py (952 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
 - `_reference_table` (def)
 
 ## postgresql_db/schemas/notifications_schema.py (46 lines) - notifications schema (schemas)
@@ -930,7 +931,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_funnel` (def)
 - `list_event_performance` (def) - Non-draft events in the Events channel whose dates overlap [date_from, date_to], newest first, with totals
 
-## services/hubspot/hubspot_campaign_sync_job.py (509 lines) - Keeps hubspot_campaigns the same as HubSpot: every campaign with its properties, report figures and assets.
+## services/hubspot/hubspot_campaign_sync_job.py (517 lines) - Keeps hubspot_campaigns the same as HubSpot: every campaign with its properties, report figures and assets.
 - `HubSpotSyncAlreadyRunning` (class) - Another HubSpot sync is running (here or on another server).
     - `__init__` (def)
 - `hubspot_sync_enabled` (def)
@@ -955,7 +956,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `list_hubspot_social_posts` (def) - Every synced social post, newest first (by when it went out, else when it's scheduled).
 - `hubspot_sync_loop` (def) - Run sync_hubspot_campaigns() forever on a fixed interval; a failed run is logged and retried next interval.
 
-## services/hubspot/hubspot_client.py (485 lines) - Reads campaigns from HubSpot's Campaigns API (marketing/v3/campaigns) with a private app token.
+## services/hubspot/hubspot_client.py (496 lines) - Reads campaigns from HubSpot's Campaigns API (marketing/v3/campaigns) with a private app token.
 - `HubSpotUnavailable` (class) - HubSpot isn't set up or couldn't be read.
 - `_token` (def)
 - `hubspot_configured` (def)
@@ -981,6 +982,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_epoch_ms` (def)
 - `_platform` (def)
 - `_channel_names` (def) - Names of the connected social accounts by channel key ("FacebookPage:123").
+- `_media` (def) - The photos/videos attached to a post: url (a HubSpot-hosted file), type, size and title.
 - `_social_post_rows` (def) - Every social post HubSpot has (published, scheduled, drafts, cancelled) with its counters to date.
 - `_amount` (def)
 - `_date` (def)
