@@ -731,7 +731,7 @@ ad_results = sa.Table(
     sa.CheckConstraint("sqls >= 0", name="ad_results_sqls_check"),
     sa.CheckConstraint("status IN ('ACTIVE', 'PAUSED', 'ENDED')", name="ad_results_status_check"),
     sa.CheckConstraint("report_url ~* '^https://'", name="ad_results_report_url_check"),
-    sa.CheckConstraint("source IN ('MANUAL', 'SPREADSHEET', 'DATA_STUDIO', 'GOOGLE_ADS_API', 'MICROSOFT_ADS_API')", name="ad_results_source_check"),
+    sa.CheckConstraint("source IN ('MANUAL', 'SPREADSHEET', 'DATA_STUDIO', 'GOOGLE_ADS_API', 'MICROSOFT_ADS_API', 'HUBSPOT')", name="ad_results_source_check"),
     # One row per campaign, ad group (empty counts as one value) and period start
     sa.Index("ad_results_key", "initiative_id", sa.text("COALESCE(ad_group, '')"), "period_start", unique=True),
     sa.Index("idx_ad_results_period", "period_start"),
@@ -894,6 +894,54 @@ hubspot_social_posts = sa.Table(
     sa.Column("synced_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
     sa.Index("idx_hubspot_social_posts_campaign", "campaign_id"),
     sa.Index("idx_hubspot_social_posts_platform", "platform"),
+)
+
+# HubSpot's marketing events (Marketing > Events) with their attendance, replaced on every HubSpot sync. HubSpot owns
+# this data. participants: [{"name", "email", "state", "at"}] with the state REGISTERED, ATTENDED, CANCELLED or NO_SHOW
+hubspot_marketing_events = sa.Table(
+    "hubspot_marketing_events", metadata,
+    sa.Column("id", sa.VARCHAR(length=64), primary_key=True),
+    sa.Column("name", sa.VARCHAR(length=500), nullable=False),
+    sa.Column("event_type", sa.VARCHAR(length=120)),
+    sa.Column("start_at", postgresql.TIMESTAMP(timezone=True)),
+    sa.Column("end_at", postgresql.TIMESTAMP(timezone=True)),
+    # HubSpot's status: upcoming, ongoing, completed, cancelled...
+    sa.Column("status", sa.VARCHAR(length=30)),
+    sa.Column("event_url", sa.VARCHAR(length=1000)),
+    # Counts: HubSpot's own when it has them, else counted from the participants; null when neither is known
+    sa.Column("registrants", sa.INTEGER()),
+    sa.Column("attendees", sa.INTEGER()),
+    sa.Column("cancellations", sa.INTEGER()),
+    sa.Column("no_shows", sa.INTEGER()),
+    sa.Column("participants", postgresql.JSONB()),
+    sa.Column("hubspot_created_at", postgresql.TIMESTAMP(timezone=True)),
+    sa.Column("hubspot_updated_at", postgresql.TIMESTAMP(timezone=True)),
+    sa.Column("synced_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Index("idx_hubspot_marketing_events_start", "start_at"),
+)
+
+# HubSpot's contact lists (name and size), replaced on every HubSpot sync. Event leads are kept as lists, so an event's
+# leads can be found by the list's name when it isn't attached to the event's campaign. HubSpot owns this data.
+hubspot_contact_lists = sa.Table(
+    "hubspot_contact_lists", metadata,
+    sa.Column("id", sa.VARCHAR(length=64), primary_key=True),
+    sa.Column("name", sa.VARCHAR(length=500), nullable=False),
+    # MANUAL, DYNAMIC or SNAPSHOT
+    sa.Column("processing_type", sa.VARCHAR(length=20)),
+    sa.Column("size", sa.INTEGER()),
+    sa.Column("synced_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+)
+
+# Which HubSpot campaign and marketing event an event (a Navan event) is, when someone picked it. Without a row the
+# match is found from the names each time the page opens. A row with neither id means "no HubSpot match": it stops the
+# name match. No foreign keys to HubSpot's tables: the syncs may be a little behind.
+event_hubspot_links = sa.Table(
+    "event_hubspot_links", metadata,
+    sa.Column("initiative_id", sa.UUID(), sa.ForeignKey("initiatives.id", name="event_hubspot_links_initiative_id_fkey", ondelete="CASCADE"), primary_key=True),
+    sa.Column("hubspot_campaign_id", sa.VARCHAR(length=64)),
+    sa.Column("hubspot_marketing_event_id", sa.VARCHAR(length=64)),
+    sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("updated_by", sa.UUID(), sa.ForeignKey("users.id", name="event_hubspot_links_updated_by_fkey", ondelete="SET NULL")),
 )
 
 # --- Multi-Entity & OAuth Connections ---

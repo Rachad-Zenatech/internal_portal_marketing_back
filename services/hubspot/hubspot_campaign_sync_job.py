@@ -34,6 +34,7 @@ import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 from postgresql_db.database import get_pool
+from services.hubspot.hubspot_ad_results_sync import sync_paid_search_results
 from services.hubspot.hubspot_client import HubSpotUnavailable, fetch_hubspot_campaigns
 from services.shared import ads_service
 from services.shared.initiative_service import AUDIT_ENTITY as INITIATIVE_AUDIT_ENTITY
@@ -133,7 +134,8 @@ _CHANNEL_RULES: List[Tuple[re.Pattern, str, str]] = [
     (re.compile(r"\b(google|ppc|sem|paid search)\b"), "PAID_SEARCH", "GOOGLE_ADS"),
     (re.compile(r"\blinkedin (ads|paid)\b|\bpaid linkedin\b"), "PAID_SOCIAL", "LINKEDIN_ADS"),
     (re.compile(r"\b(meta|facebook ads?|instagram ads?)\b"), "PAID_SOCIAL", "META_ADS"),
-    (re.compile(r"\bpaid\b"), "PAID_SEARCH", "OTHER"),
+    # "Paid" alone means Google Ads ("Paid Bing" is matched above), as in Marketing's PPC sheet
+    (re.compile(r"\bpaid\b"), "PAID_SEARCH", "GOOGLE_ADS"),
     (re.compile(r"\bnewsletters?\b"), "EMAIL_MARKETING", "EMAIL_NEWSLETTER"),
     (re.compile(r"\b(email|e-mail|nurture|sequence)\b"), "EMAIL_MARKETING", "EMAIL_NURTURE"),
     (re.compile(r"\bseo\b"), "SEO", "ORGANIC_SEARCH"),
@@ -287,6 +289,9 @@ async def _sync_initiatives(conn, rows: List[Dict[str, Any]], summary: Dict[str,
                                                            "hubspot_campaign_id": campaign["id"], "source": LINK_SYSTEM}))
         elif have["created_by"] is None:
             changed = {k: v for k, v in want.items() if have[k] != v}
+            # HubSpot has no budget for it: keep the one typed in here
+            if not want["budget_amount"] and have["budget_amount"]:
+                changed.pop("budget_amount", None)
             if changed:
                 updates.append({"id": str(have["id"]), **{k: have[k] for k in _KEPT_FIELDS}, **changed})
                 audits.append(("UPDATE", have["id"], {k: have[k] for k in changed}, {**changed, "source": LINK_SYSTEM}))
@@ -347,6 +352,48 @@ async def _store(conn, rows: List[Dict[str, Any]], summary: Dict[str, Any]) -> N
     summary["removed"] = int(removed.split()[-1])
 
 
+_MARKETING_EVENT_UPSERT_SQL = """
+    INSERT INTO hubspot_marketing_events (
+        id, name, event_type, start_at, end_at, status, event_url, registrants, attendees, cancellations, no_shows,
+        participants, hubspot_created_at, hubspot_updated_at, synced_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CAST($12 AS jsonb), $13, $14, now())
+    ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name, event_type = EXCLUDED.event_type, start_at = EXCLUDED.start_at, end_at = EXCLUDED.end_at,
+        status = EXCLUDED.status, event_url = EXCLUDED.event_url, registrants = EXCLUDED.registrants,
+        attendees = EXCLUDED.attendees, cancellations = EXCLUDED.cancellations, no_shows = EXCLUDED.no_shows,
+        participants = EXCLUDED.participants, hubspot_created_at = EXCLUDED.hubspot_created_at,
+        hubspot_updated_at = EXCLUDED.hubspot_updated_at, synced_at = now()
+"""
+
+
+async def _store_marketing_events(conn, events: List[Dict[str, Any]]) -> None:
+    """Replace the stored marketing events with HubSpot's (and drop the ones HubSpot no longer has)."""
+    if events:
+        await conn.executemany(_MARKETING_EVENT_UPSERT_SQL, [
+            (e["id"], e["name"], e["event_type"], e["start_at"], e["end_at"], e["status"], e["event_url"],
+             e["registrants"], e["attendees"], e["cancellations"], e["no_shows"],
+             json.dumps(e["participants"]) if e["participants"] is not None else None,
+             e["hubspot_created_at"], e["hubspot_updated_at"])
+            for e in events
+        ])
+    await conn.execute("DELETE FROM hubspot_marketing_events WHERE NOT (id = ANY($1::varchar[]))", [e["id"] for e in events])
+
+
+async def _store_contact_lists(conn, lists: List[Dict[str, Any]]) -> None:
+    """Replace the stored contact lists with HubSpot's (and drop the ones HubSpot no longer has)."""
+    if lists:
+        await conn.executemany(
+            """
+            INSERT INTO hubspot_contact_lists (id, name, processing_type, size, synced_at) VALUES ($1, $2, $3, $4, now())
+            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, processing_type = EXCLUDED.processing_type,
+                size = EXCLUDED.size, synced_at = now()
+            """,
+            [(x["id"], x["name"], x["processing_type"], x["size"]) for x in lists],
+        )
+    await conn.execute("DELETE FROM hubspot_contact_lists WHERE NOT (id = ANY($1::varchar[]))", [x["id"] for x in lists])
+
+
 async def _store_social_posts(conn, posts: List[Dict[str, Any]]) -> None:
     """Replace the stored social posts with HubSpot's (one batch statement, then drop the ones HubSpot no longer has)."""
     if posts:
@@ -380,6 +427,9 @@ async def _run_sync() -> Dict[str, Any]:
         "funnel_error": source.get("funnel_error"),
         "social_posts": len(source["social_posts"]) if source.get("social_posts") is not None else 0,
         "social_error": source.get("social_error"),
+        "marketing_events": len(source["marketing_events"]) if source.get("marketing_events") is not None else 0,
+        "marketing_events_error": source.get("marketing_events_error"),
+        "contact_lists": len(source["contact_lists"]) if source.get("contact_lists") is not None else 0,
     }
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -390,7 +440,12 @@ async def _run_sync() -> Dict[str, Any]:
             # Posts HubSpot couldn't give this time (social_error) are left as they were, not dropped
             if source.get("social_posts") is not None:
                 await _store_social_posts(conn, source["social_posts"])
+            if source.get("marketing_events") is not None:
+                await _store_marketing_events(conn, source["marketing_events"])
+            if source.get("contact_lists") is not None:
+                await _store_contact_lists(conn, source["contact_lists"])
             await _sync_initiatives(conn, rows, summary)
+            await sync_paid_search_results(conn, rows, summary)
             await conn.execute(
                 """
                 INSERT INTO integration_sync_state (name, last_attempt_at, last_success_at, last_error, last_run_summary)

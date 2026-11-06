@@ -453,6 +453,85 @@ def _campaign_row(raw: Dict[str, Any], report: Dict[str, Any], assets: Dict[str,
     }
 
 
+async def _contact_list_rows(client: httpx.AsyncClient, limit: _Limit) -> List[Dict[str, Any]]:
+    """Every contact list with its size (lists of companies, deals... are left out)."""
+    rows: List[Dict[str, Any]] = []
+    offset = 0
+    for _ in range(MAX_PAGES):
+        response = await _get(
+            client, limit, "/crm/v3/lists/search", None,
+            {"query": "", "count": PAGE_SIZE, "offset": offset, "processingTypes": ["MANUAL", "DYNAMIC", "SNAPSHOT"]},
+        )
+        _raise_for(response, "contact lists")
+        body = response.json()
+        for raw in body.get("lists") or []:
+            if isinstance(raw, dict) and raw.get("listId") and raw.get("objectTypeId") in (None, "0-1"):
+                rows.append({
+                    "id": str(raw["listId"]), "name": _text(raw.get("name"), 500) or "Unnamed list",
+                    "processing_type": _text(raw.get("processingType"), 20),
+                    "size": _count((raw.get("additionalProperties") or {}).get("hs_list_size")),
+                })
+        if not body.get("hasMore"):
+            break
+        offset = body.get("offset", offset + PAGE_SIZE)
+    return rows
+
+
+_MAX_PARTICIPANTS = 500
+
+
+def _non_negative(value: Any) -> Optional[int]:
+    """HubSpot sends -1 for a count it doesn't know."""
+    count = _count(value)
+    return count if count is not None and count >= 0 else None
+
+
+async def _participants(client: httpx.AsyncClient, limit: _Limit, event_id: str) -> Optional[List[Dict[str, Any]]]:
+    """Who registered for, attended, cancelled or missed a marketing event; None when HubSpot won't say."""
+    try:
+        raw = await _all_pages(client, limit, f"/marketing/v3/marketing-events/participations/{event_id}/breakdown", {}, "event attendance")
+    except HubSpotUnavailable as exc:
+        logger.warning(f"HubSpot attendance of event {event_id} couldn't be read: {exc}")
+        return None
+    people = []
+    for r in raw[:_MAX_PARTICIPANTS]:
+        contact = (r.get("associations") or {}).get("contact") or {}
+        props = r.get("properties") or {}
+        name = " ".join(p for p in (contact.get("firstname"), contact.get("lastname")) if p)
+        people.append({
+            "name": name or None, "email": contact.get("email"), "state": props.get("attendanceState"),
+            "at": _epoch_ms(props.get("occurredAt")).isoformat() if _epoch_ms(props.get("occurredAt")) else None,
+        })
+    return people
+
+
+async def _marketing_event_rows(client: httpx.AsyncClient, limit: _Limit) -> List[Dict[str, Any]]:
+    """Every marketing event with its attendance (HubSpot's counts, else counted from who took part)."""
+    raw = [e for e in await _all_pages(client, limit, "/marketing/v3/marketing-events", {}, "marketing events") if e.get("objectId")]
+    people = await asyncio.gather(*(_participants(client, limit, str(e["objectId"])) for e in raw))
+    rows = []
+    for e, who in zip(raw, people):
+        def counted(state: str) -> Optional[int]:
+            return None if who is None else sum(1 for p in who if p["state"] == state)
+        rows.append({
+            "id": str(e["objectId"]),
+            "name": _text(e.get("eventName"), 500) or "Unnamed event",
+            "event_type": _text(e.get("eventType"), 120),
+            "start_at": _timestamp(e.get("startDateTime")),
+            "end_at": _timestamp(e.get("endDateTime")),
+            "status": _text(e.get("eventStatusV2") or e.get("eventStatus"), 30),
+            "event_url": _text(e.get("eventUrl"), 1000),
+            "registrants": _non_negative(e.get("registrants")) if e.get("registrants") is not None else counted("REGISTERED"),
+            "attendees": _non_negative(e.get("attendees")) if e.get("attendees") is not None else counted("ATTENDED"),
+            "cancellations": _non_negative(e.get("cancellations")) if e.get("cancellations") is not None else counted("CANCELLED"),
+            "no_shows": _non_negative(e.get("noShows")) if _non_negative(e.get("noShows")) is not None else counted("NO_SHOW"),
+            "participants": who,
+            "hubspot_created_at": _timestamp(e.get("createdAt")),
+            "hubspot_updated_at": _timestamp(e.get("updatedAt")),
+        })
+    return rows
+
+
 async def fetch_hubspot_campaigns() -> Dict[str, Any]:
     """Every campaign with its report, assets and funnel:
     {"campaigns": [...rows...], "unreadable_asset_types": n, "funnel_error": message or None}.
@@ -465,6 +544,9 @@ async def fetch_hubspot_campaigns() -> Dict[str, Any]:
     funnel_error: Optional[str] = None
     social_posts: Optional[List[Dict[str, Any]]] = None
     social_error: Optional[str] = None
+    marketing_events: Optional[List[Dict[str, Any]]] = None
+    marketing_events_error: Optional[str] = None
+    contact_lists: Optional[List[Dict[str, Any]]] = None
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS, headers=headers) as client:
             campaigns = [c for c in await _all_pages(client, limit, "/marketing/v3/campaigns", {"properties": ",".join(CAMPAIGN_PROPERTIES)}, "campaigns") if c.get("id")]
@@ -480,6 +562,15 @@ async def fetch_hubspot_campaigns() -> Dict[str, Any]:
             except HubSpotUnavailable as exc:
                 logger.warning(f"HubSpot social posts couldn't be read; they're left as they were: {exc}")
                 social_error = str(exc)
+            try:
+                marketing_events = await _marketing_event_rows(client, limit)
+            except HubSpotUnavailable as exc:
+                logger.warning(f"HubSpot marketing events couldn't be read; they're left as they were: {exc}")
+                marketing_events_error = str(exc)
+            try:
+                contact_lists = await _contact_list_rows(client, limit)
+            except HubSpotUnavailable as exc:
+                logger.warning(f"HubSpot contact lists couldn't be read; they're left as they were: {exc}")
     except HubSpotUnavailable:
         raise
     except (httpx.HTTPError, ValueError) as exc:
@@ -493,4 +584,6 @@ async def fetch_hubspot_campaigns() -> Dict[str, Any]:
     return {
         "campaigns": rows, "unreadable_asset_types": sum(d[2] for d in details), "funnel_error": funnel_error,
         "social_posts": social_posts, "social_error": social_error,
+        "marketing_events": marketing_events, "marketing_events_error": marketing_events_error,
+        "contact_lists": contact_lists,
     }
