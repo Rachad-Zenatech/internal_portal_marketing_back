@@ -370,7 +370,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `execute` (def)
 - `execute_many` (def)
 
-## postgresql_db/schema_metadata.py (952 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
+## postgresql_db/schema_metadata.py (975 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
 - `_reference_table` (def)
 
 ## postgresql_db/schemas/notifications_schema.py (46 lines) - notifications schema (schemas)
@@ -432,7 +432,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `line_up` (def) - Brings a database made by another copy of the template in line with this repo, at the matching version.
 - `main` (def)
 
-## server.py (645 lines) - MCP tools & AI functions
+## server.py (647 lines) - MCP tools & AI functions
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `_messaging_default` (def) - MQTT presence and RabbitMQ, set up exactly as in the admin portal: on by default in production, off locally,

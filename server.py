@@ -52,6 +52,7 @@ from tools.hubspot.hubspot_router import router as hubspot_router
 from tools.initiatives.initiative_router import router as initiative_router
 from tools.microsoft_graph.graph_router import router as graph_router
 from tools.navan.navan_router import router as navan_router
+from tools.paid_search.paid_search_router import router as paid_search_router
 from tools.notifications.notification_router import notification_router
 from tools.performance.performance_router import router as performance_router
 from tools.reference_data.reference_data_router import router as reference_data_router
@@ -397,6 +398,7 @@ app.include_router(navan_router, prefix="/api", tags=["Navan travel costs"], dep
 app.include_router(google_ads_router, prefix="/api", tags=["Google Ads"], dependencies=authenticated)
 app.include_router(microsoft_ads_router, prefix="/api", tags=["Microsoft Ads"], dependencies=authenticated)
 app.include_router(hubspot_router, prefix="/api", tags=["HubSpot campaigns"], dependencies=authenticated)
+app.include_router(paid_search_router, prefix="/api", tags=["Paid Search board"], dependencies=authenticated)
 app.include_router(oauth_router, prefix="/api", tags=["OAuth & Integrations"], dependencies=authenticated)
 
 

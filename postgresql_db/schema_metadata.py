@@ -896,6 +896,29 @@ hubspot_social_posts = sa.Table(
     sa.Index("idx_hubspot_social_posts_platform", "platform"),
 )
 
+# --- Paid Search board ---
+# One row per entry, with the PPC sheet's 24 columns kept as typed (text, so half-filled rows can be saved)
+_PAID_SEARCH_TEXT_COLUMNS = (
+    "brand", "market", "period_start", "period_end", "channel", "sub_channel", "campaign_name", "primary_kpi",
+    "budget_allocated", "actual_spend", "impressions", "clicks", "ctr", "cpc", "ads_conversions", "hs_contacts",
+    "ads_conv_rate", "cpl", "mqls", "sqls", "last_update", "status", "report_link", "tracking_detail",
+)
+paid_search_entries = sa.Table(
+    "paid_search_entries", metadata,
+    sa.Column("id", sa.UUID(), primary_key=True),
+    # Order on the board
+    sa.Column("position", sa.INTEGER(), nullable=False, server_default=sa.text("0")),
+    *(sa.Column(name, sa.TEXT(), nullable=False, server_default=sa.text("''")) for name in _PAID_SEARCH_TEXT_COLUMNS),
+    # The HubSpot campaign it takes its leads, MQLs and SQLs from; how it was linked (AUTO, MANUAL or NONE)
+    sa.Column("hubspot_campaign_id", sa.VARCHAR(length=64)),
+    sa.Column("hubspot_link", sa.VARCHAR(length=10)),
+    sa.Column("leads", sa.VARCHAR(length=20)),
+    sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    sa.Column("updated_by", sa.UUID(), sa.ForeignKey("users.id", name="paid_search_entries_updated_by_fkey", ondelete="SET NULL")),
+    sa.Index("idx_paid_search_entries_position", "position"),
+)
+
 # --- Multi-Entity & OAuth Connections ---
 organizations = sa.Table(
     "organizations", metadata,

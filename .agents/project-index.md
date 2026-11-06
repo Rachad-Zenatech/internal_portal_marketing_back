@@ -29,7 +29,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - models/shared/rbac_model.py (240 lines) - rbac model (shared)
 - models/shared/spend_model.py (200 lines) - Sources a person can enter through the API; the rest arrive from imports and feeds
 - postgresql_db/database.py (139 lines) - Optional dotenv import for loading .env and local overrides during development
-- postgresql_db/schema_metadata.py (952 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
+- postgresql_db/schema_metadata.py (975 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
 - postgresql_db/schemas/notifications_schema.py (46 lines) - notifications schema (schemas)
 - postgresql_db/schemas/setup_ai_observability_schema.py (93 lines) - AI observability, caching and usage limits: trace spans for every AI step (model calls, embeddings, tool calls, guard checks, cache looku...
 - postgresql_db/schemas/setup_graph_sync_schema.py (61 lines) - ALTER TABLE locks users even when the columns exist, and waits behind any open transaction on a live
@@ -38,7 +38,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - scripts/demo_events.py (299 lines) - demo events
 - scripts/seed_sample_initiatives.py (675 lines) - seed sample initiatives
 - scripts/setup_prod_db.py (228 lines) - Set up or update the production database schema, using the PROD_* values in .env.
-- server.py (645 lines) - MCP tools & AI functions
+- server.py (647 lines) - MCP tools & AI functions
 - services/ads/ad_platform_sync.py (542 lines) - The campaign and weekly results sync shared by the ad platforms (Google Ads, Microsoft Ads).
 - services/ads/ads_import_service.py (731 lines) - Uploading Marketing's PPC sheet ("SaaS PPC Campaigns") instead of retyping it.
 - services/ads/ads_overview_service.py (816 lines) - The Paid Advertising page: key figures, charts, campaigns needing attention, one campaign's detail, data health.
