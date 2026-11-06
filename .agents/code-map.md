@@ -991,7 +991,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `build_result` (def) - The one result for an initiative from its linked campaigns, or None when there's nothing to show (no start).
 - `sync_paid_search_results` (def) - Write the HubSpot result of every linked Google Ads or Bing Ads initiative (inside the sync's transaction).
 
-## services/hubspot/hubspot_campaign_sync_job.py (572 lines) - Keeps hubspot_campaigns the same as HubSpot: every campaign with its properties, report figures and assets.
+## services/hubspot/hubspot_campaign_sync_job.py (583 lines) - Keeps hubspot_campaigns the same as HubSpot: every campaign with its properties, report figures and assets.
 - `HubSpotSyncAlreadyRunning` (class) - Another HubSpot sync is running (here or on another server).
     - `__init__` (def)
 - `hubspot_sync_enabled` (def)
@@ -1005,6 +1005,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_sync_initiatives` (def) - Create an initiative for each campaign without one (when on), and keep the sync's own in step with HubSpot.
 - `hubspot_sync_running` (def)
 - `_store` (def)
+- `_table_exists` (def)
 - `_store_marketing_events` (def) - Replace the stored marketing events with HubSpot's (and drop the ones HubSpot no longer has).
 - `_store_contact_lists` (def) - Replace the stored contact lists with HubSpot's (and drop the ones HubSpot no longer has).
 - `_store_social_posts` (def) - Replace the stored social posts with HubSpot's (one batch statement, then drop the ones HubSpot no longer has).

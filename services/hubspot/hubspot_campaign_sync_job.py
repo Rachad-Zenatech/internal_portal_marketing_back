@@ -367,8 +367,16 @@ _MARKETING_EVENT_UPSERT_SQL = """
 """
 
 
+async def _table_exists(conn, table: str) -> bool:
+    return bool(await conn.fetchval("SELECT to_regclass($1) IS NOT NULL", f"public.{table}"))
+
+
 async def _store_marketing_events(conn, events: List[Dict[str, Any]]) -> None:
     """Replace the stored marketing events with HubSpot's (and drop the ones HubSpot no longer has)."""
+    # A missing table (its migration isn't applied yet) must not fail the whole sync, and with it every campaign
+    if not await _table_exists(conn, "hubspot_marketing_events"):
+        logger.warning("HubSpot marketing events not stored: run the database migrations (hubspot_marketing_events is missing)")
+        return
     if events:
         await conn.executemany(_MARKETING_EVENT_UPSERT_SQL, [
             (e["id"], e["name"], e["event_type"], e["start_at"], e["end_at"], e["status"], e["event_url"],
@@ -382,6 +390,9 @@ async def _store_marketing_events(conn, events: List[Dict[str, Any]]) -> None:
 
 async def _store_contact_lists(conn, lists: List[Dict[str, Any]]) -> None:
     """Replace the stored contact lists with HubSpot's (and drop the ones HubSpot no longer has)."""
+    if not await _table_exists(conn, "hubspot_contact_lists"):
+        logger.warning("HubSpot contact lists not stored: run the database migrations (hubspot_contact_lists is missing)")
+        return
     if lists:
         await conn.executemany(
             """

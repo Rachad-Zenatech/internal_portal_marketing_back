@@ -72,7 +72,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/events/event_overview_service.py (488 lines) - Events Overview: the events HubSpot has (its event campaigns), with Navan travel attached where it matches.
 - services/events/event_performance_service.py (385 lines) - Events Overview: budget, actual spend, prior year spend, results and ROI of events, per event and per currency.
 - services/hubspot/hubspot_ad_results_sync.py (120 lines) - Paid Search results from HubSpot, until the Google Ads and Microsoft Ads syncs can be used.
-- services/hubspot/hubspot_campaign_sync_job.py (572 lines) - Keeps hubspot_campaigns the same as HubSpot: every campaign with its properties, report figures and assets.
+- services/hubspot/hubspot_campaign_sync_job.py (583 lines) - Keeps hubspot_campaigns the same as HubSpot: every campaign with its properties, report figures and assets.
 - services/hubspot/hubspot_client.py (590 lines) - Reads campaigns from HubSpot's Campaigns API (marketing/v3/campaigns) with a private app token.
 - services/initiatives/event_budget_import_service.py (207 lines) - Set many events' budgets from one spreadsheet: preview what would change, then apply it.
 - services/initiatives/initiative_activity_service.py (230 lines) - An initiative's recent activity in plain English, read from the audit log.
