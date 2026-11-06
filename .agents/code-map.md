@@ -399,12 +399,6 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## postgresql_db/schema_metadata.py (1023 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
 - `_reference_table` (def)
 
-## postgresql_db/schema_metadata.py (1023 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
-- `_reference_table` (def)
-
-## postgresql_db/schema_metadata.py (1023 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
-- `_reference_table` (def)
-
 ## postgresql_db/schemas/notifications_schema.py (46 lines) - notifications schema (schemas)
 - `ensure_notifications_schema` (def)
     - `main` (def)

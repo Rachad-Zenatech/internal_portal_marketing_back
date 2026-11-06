@@ -53,8 +53,8 @@ from tools.hubspot.hubspot_router import router as hubspot_router
 from tools.initiatives.initiative_router import router as initiative_router
 from tools.microsoft_graph.graph_router import router as graph_router
 from tools.navan.navan_router import router as navan_router
-from tools.paid_search.paid_search_router import router as paid_search_router
 from tools.notifications.notification_router import notification_router
+from tools.paid_search.paid_search_router import router as paid_search_router
 from tools.performance.performance_router import router as performance_router
 from tools.reference_data.reference_data_router import router as reference_data_router
 from tools.shared.auth_router import router as auth_router

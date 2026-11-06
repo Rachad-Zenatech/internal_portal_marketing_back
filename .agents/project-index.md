@@ -32,8 +32,6 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - models/shared/spend_model.py (200 lines) - Sources a person can enter through the API; the rest arrive from imports and feeds
 - postgresql_db/database.py (139 lines) - Optional dotenv import for loading .env and local overrides during development
 - postgresql_db/schema_metadata.py (1023 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
-- postgresql_db/schema_metadata.py (1023 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
-- postgresql_db/schema_metadata.py (1023 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
 - postgresql_db/schemas/notifications_schema.py (46 lines) - notifications schema (schemas)
 - postgresql_db/schemas/setup_ai_observability_schema.py (93 lines) - AI observability, caching and usage limits: trace spans for every AI step (model calls, embeddings, tool calls, guard checks, cache looku...
 - postgresql_db/schemas/setup_graph_sync_schema.py (61 lines) - ALTER TABLE locks users even when the columns exist, and waits behind any open transaction on a live
