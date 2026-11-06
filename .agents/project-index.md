@@ -15,6 +15,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - models/ads/oauth_connection_model.py (160 lines) - Pydantic models for Organization, Company, and OAuth connections.
 - models/budgets/budget_model.py (459 lines) - Monthly budgets, money moves between them, and comments.
 - models/events/event_management_model.py (105 lines) - event management model (events)
+- models/events/event_overview_model.py (219 lines) - Events Overview: the Navan events with their budget, cost, travel and the HubSpot results matched to them.
 - models/events/event_performance_model.py (140 lines) - Events Overview: budgets, actual spend, prior year spend, results and ROI of events (GET /api/events/performance).
 - models/hubspot/hubspot_model.py (144 lines) - HubSpot campaigns: the synced campaigns, and the sync's status.
 - models/initiatives/event_budget_import_model.py (51 lines) - Uploading many events' budgets from one spreadsheet (services/initiatives/event_budget_import_service.py).
@@ -67,7 +68,10 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/budgets/budget_import_service.py (660 lines) - Uploading Marketing's budget tracker sheet ("Budget Tracker") instead of adding each budget by hand.
 - services/budgets/budget_service.py (836 lines) - Monthly budgets: what Marketing approved per month, brand, market and channel, and what's been spent against it.
 - services/events/event_management_service.py (260 lines) - Event management: every event at a glance and the team going to each one (who, their role, notes).
+- services/events/event_matching.py (90 lines) - Matching an event (from Navan) to the HubSpot campaign and marketing event of the same name.
+- services/events/event_overview_service.py (488 lines) - Events Overview: the events HubSpot has (its event campaigns), with Navan travel attached where it matches.
 - services/events/event_performance_service.py (385 lines) - Events Overview: budget, actual spend, prior year spend, results and ROI of events, per event and per currency.
+- services/hubspot/hubspot_ad_results_sync.py (120 lines) - Paid Search results from HubSpot, until the Google Ads and Microsoft Ads syncs can be used.
 - services/hubspot/hubspot_campaign_sync_job.py (572 lines) - Keeps hubspot_campaigns the same as HubSpot: every campaign with its properties, report figures and assets.
 - services/hubspot/hubspot_client.py (590 lines) - Reads campaigns from HubSpot's Campaigns API (marketing/v3/campaigns) with a private app token.
 - services/initiatives/event_budget_import_service.py (207 lines) - Set many events' budgets from one spreadsheet: preview what would change, then apply it.
@@ -102,6 +106,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tools/ads/oauth_router.py (383 lines) - OAuth Integration Router Manages Organization -> Company -> OAuth Connections hierarchy.
 - tools/budgets/budget_router.py (255 lines) - budget router (budgets)
 - tools/events/event_management_router.py (147 lines) - event management router (events)
+- tools/events/event_overview_router.py (126 lines) - Events Overview: the Navan events with the HubSpot results matched to them, one event in full, and the HubSpot link.
 - tools/hubspot/hubspot_router.py (76 lines) - HubSpot campaigns and social posts: list what the sync read, start the sync, and see how it last went.
 - tools/initiatives/initiative_router.py (194 lines) - initiative router (initiatives)
 - tools/microsoft_graph/graph_router.py (47 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...

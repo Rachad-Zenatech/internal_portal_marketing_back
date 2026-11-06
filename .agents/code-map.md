@@ -154,6 +154,27 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `EventTraveller` (class) - Someone on an event's active Navan bookings.
 - `EventOverviewItem` (class) - One event card on the event management page: what it is, and what still needs doing.
 
+## models/events/event_overview_model.py (219 lines) - Events Overview: the Navan events with their budget, cost, travel and the HubSpot results matched to them.
+- `NavanFigures` (class) - Travel booked through Navan (money in the event's currency).
+- `HubSpotCampaignFigures` (class)
+- `HubSpotMarketingEventFigures` (class)
+- `EventHubSpotMatch` (class) - CAMPAIGN: the event is a HubSpot campaign.
+- `EventTurnout` (class) - The results HubSpot has for the event; null where there's no match or HubSpot doesn't know.
+- `NavanTrip` (class) - A Navan trip joined to a HubSpot event (AUTO: by name, MANUAL: joined by hand).
+- `EventOverviewRow` (class)
+- `OverviewTotals` (class) - One row per currency (money is never added across currencies).
+- `OverviewMonth` (class)
+- `OverviewHubSpotSummary` (class)
+- `EventsOverviewResponse` (class)
+- `Traveller` (class)
+- `Participant` (class)
+- `EventOverviewDetail` (class)
+- `HubSpotOption` (class)
+- `HubSpotOptions` (class)
+- `NavanTripOption` (class)
+- `NavanTripLinkUpdate` (class) - Join a Navan trip to the event (link), or take it off again (link false).
+- `HubSpotLinkUpdate` (class) - What to link the event to.
+
 ## models/events/event_performance_model.py (140 lines) - Events Overview: budgets, actual spend, prior year spend, results and ROI of events (GET /api/events/performance).
 - `Period` (class)
 - `PreviousFigures` (class) - The same figures for the previous period; null where they can't be worked out (no events, no budget...).
@@ -913,6 +934,37 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_timing` (def)
 - `list_event_overview` (def) - Every event with what still needs doing: on now first, then upcoming (soonest first), then past (most recent first).
 
+## services/events/event_matching.py (90 lines) - Matching an event (from Navan) to the HubSpot campaign and marketing event of the same name.
+- `words` (def) - The distinctive words of an event name (all its words when it has none, e.g.
+- `score` (def) - 0 when the names don't match, else up to 1 (the same distinctive words).
+- `best_match` (def) - (id, score) of the one clear best candidate (id, name) for the name, or None.
+- `match_list` (def) - (id, score) of the one contact list (id, name) that clearly belongs to the event, or None.
+- `match_event` (def) - {"campaign_id", "marketing_event_id", "score"} found from the names; ids are None where nothing matches.
+
+## services/events/event_overview_service.py (488 lines) - Events Overview: the events HubSpot has (its event campaigns), with Navan travel attached where it matches.
+- `_json` (def)
+- `_campaign` (def)
+- `_with_typed_results` (def) - Fill what HubSpot has nothing for (or counts as zero) with the results someone typed in for the event, as the
+- `_named_list` (def) - A contact list whose name matches the event, when the campaign gives no lists of its own; lists attached to
+- `_leads` (def) - The event's leads and the funnel among them, from the best source there is (see EventTurnout).
+- `_turnout` (def)
+- `_match` (def) - The event's HubSpot campaign and marketing event: the pick when there is one, else found from the names.
+- `_marketing_event_of` (def) - A HubSpot event's marketing event: the one among its campaign's assets, else the one its name clearly matches.
+- `_navan_figures` (def) - The Navan figures of the trips attached to an event, added up (none: zeros).
+    - `total` (def)
+- `_with_hubspot_cost` (def) - The event with its HubSpot campaign's spend as its cost, and the campaign's budget as its budget, where the
+- `_add_trips` (def) - The event with the trips' costs and results added: costs are added up, and a result or budget the event lacks
+- `_aggregate` (def) - Totals per currency, months, the cost split and the HubSpot summary of the events shown.
+    - `total` (def)
+    - `whole` (def)
+- `list_events_overview` (def) - The HubSpot events whose dates overlap [date_from, date_to] (all when open), with the Navan trips joined to
+    - `finish` (def)
+- `get_event_overview` (def) - One event with everything above, its travellers, the marketing event's participants and the campaign's assets.
+- `list_hubspot_options` (def) - Every HubSpot campaign and marketing event, newest first, for picking an event's match.
+- `list_navan_trip_options` (def) - The Navan trips that aren't joined to a HubSpot event, newest first, for joining one to an event.
+- `set_hubspot_link` (def) - Save the pick: both ids, one of them, "no match" (none), or neither to go back to the name match.
+- `set_navan_trip_link` (def) - Join a Navan trip to a HubSpot event (the trip then counts as that event's travel), or take it off again.
+
 ## services/events/event_performance_service.py (385 lines) - Events Overview: budget, actual spend, prior year spend, results and ROI of events, per event and per currency.
 - `_sql_case` (def)
 - `_category_case` (def)
@@ -932,6 +984,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `month_of` (def)
 - `_funnel` (def)
 - `list_event_performance` (def) - Non-draft events in the Events channel (and the initiatives in include_ids, whatever their channel) whose dates
+
+## services/hubspot/hubspot_ad_results_sync.py (120 lines) - Paid Search results from HubSpot, until the Google Ads and Microsoft Ads syncs can be used.
+- `_sum` (def) - The total of the values that exist; None when none does.
+- `_stage` (def)
+- `build_result` (def) - The one result for an initiative from its linked campaigns, or None when there's nothing to show (no start).
+- `sync_paid_search_results` (def) - Write the HubSpot result of every linked Google Ads or Bing Ads initiative (inside the sync's transaction).
 
 ## services/hubspot/hubspot_campaign_sync_job.py (572 lines) - Keeps hubspot_campaigns the same as HubSpot: every campaign with its properties, report figures and assets.
 - `HubSpotSyncAlreadyRunning` (class) - Another HubSpot sync is running (here or on another server).
@@ -1486,6 +1544,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `add_staff` (def) [POST /initiatives/{initiative_id}/staff] - Put someone on an event's team.
 - `update_staff` (def) [PATCH /event-staff/{assignment_id}]
 - `remove_staff` (def) [DELETE /event-staff/{assignment_id}]
+
+## tools/events/event_overview_router.py (126 lines) - Events Overview: the Navan events with the HubSpot results matched to them, one event in full, and the HubSpot link.
+- `navan_events_overview` (def) - The HubSpot events whose dates overlap the period, with the Navan trips joined to them: budget, cost, travel,
+- `hubspot_options` (def) - Every HubSpot campaign and marketing event, for picking an event's match.
+- `navan_trip_options` (def) - The Navan trips that aren't joined to a HubSpot event, for joining one to an event.
+- `navan_event_detail` (def) - One Navan event in full: money, travellers, HubSpot results, who attended and the campaign's assets.
+- `link_event_to_hubspot` (def) - Pick the HubSpot campaign and/or marketing event of an event, mark it as having none, or send neither to go
+- `link_navan_trip` (def) - Join a Navan trip to this HubSpot event (its travel then counts for the event), or take it off again.
 
 ## tools/hubspot/hubspot_router.py (76 lines) - HubSpot campaigns and social posts: list what the sync read, start the sync, and see how it last went.
 - `get_hubspot_campaigns` (def) - Every HubSpot campaign from the last sync, with its report figures, assets and linked initiative.

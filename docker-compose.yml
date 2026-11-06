@@ -1,3 +1,32 @@
+# Local development: the database, its schema set-up and the API (with hot reload), in one command.
+#
+#   copy .env.example .env            # first time only, then fill in what you need (see README)
+#   docker compose up -d --build      # database + schema + API on http://localhost:8010
+#   docker compose logs -f api        # follow the API's log
+#   docker compose up -d db           # only the database (scripts/reset_local_db, DataGrip on 127.0.0.1:3009)
+#   docker compose --profile messaging up -d   # also RabbitMQ and MQTT, when they aren't already running elsewhere
+#   docker compose down               # stop everything (add -v to also delete the local database)
+#
+# The API always uses this local database: the settings below override DATABASE_URL from .env, so a local run never
+# writes to production.
+
+x-local-backend: &local-backend
+  build: .
+  image: marketing-backend-api:dev
+  env_file: .env
+  environment: &local-env
+    APP_ENV: development
+    DATABASE_URL: postgresql://postgres:postgres@db:5432/marketing_portal_dev
+    DATABASE_SSL: "false"
+    # RabbitMQ and MQTT on this machine (the "messaging" profile below, or ones already running).
+    RABBITMQ_HOST: host.docker.internal
+    MQTT_HOST: host.docker.internal
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  # The code is mounted, so changes apply without rebuilding; rebuild only when requirements.txt changes.
+  volumes:
+    - .:/app
+
 services:
   db:
     image: postgres:17  # same major version as production (Supabase), so pull_prod_to_local can copy it
@@ -16,6 +45,54 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Creates the tables on a new database and applies any new migrations, then exits. Safe to run on every start.
+  migrate:
+    <<: *local-backend
+    container_name: marketing_migrate
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "python -m postgresql_db.schemas.setup_pbac_schema
+      && python -m postgresql_db.schemas.setup_graph_sync_schema
+      && python -m postgresql_db.schemas.notifications_schema
+      && alembic upgrade head"
+
+  api:
+    <<: *local-backend
+    container_name: marketing_backend
+    restart: unless-stopped
+    environment:
+      <<: *local-env
+      # Windows and macOS file sharing doesn't pass file-change events into containers, so reload polls instead.
+      WATCHFILES_FORCE_POLLING: "true"
+    ports:
+      - "8010:8010"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: >
+      uvicorn server:app --host 0.0.0.0 --port 8010 --reload
+      --reload-dir services --reload-dir tools --reload-dir mcp_tools --reload-dir models --reload-dir postgresql_db
+
+  # Optional: only with --profile messaging, for anyone not already running these for the other portals.
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    profiles: ["messaging"]
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    profiles: ["messaging"]
+    restart: unless-stopped
+    command: mosquitto -c /mosquitto-no-auth.conf
+    ports:
+      - "1883:1883"
 
 volumes:
   marketing_db_data_17:
