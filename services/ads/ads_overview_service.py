@@ -29,6 +29,9 @@ from postgresql_db.database import get_pool
 from services.ads import google_ads_client, microsoft_ads_client
 from services.shared.ads_service import CAMPAIGN_JOINS, PLATFORMS
 
+# integration_sync_state row of the HubSpot campaign sync (services/hubspot/hubspot_campaign_sync_job.SYNC_NAME)
+HUBSPOT_SYNC_NAME = "hubspot_campaigns"
+
 # --- Rules ---
 BUDGET_ALERT_PERCENT = 90.0
 CPL_ABOVE_PLATFORM = 1.3
@@ -283,6 +286,56 @@ def shows_in_range(campaign: dict, has_results: bool, date_from: date, date_to: 
     return date_to >= today and start > today
 
 
+# --- Cut or fund ---
+
+# A campaign is compared with the median cost per lead (since it started) of the campaigns that have leads
+CUT_CPL_FACTOR = 1.5      # at or above this many times the median: cut
+FUND_CPL_FACTOR = 0.75    # at or below this many times the median, and within budget: fund
+MIN_PEERS_FOR_VERDICT = 3  # campaigns with leads needed for a median to mean anything
+NO_LEADS_BUDGET_PERCENT = 25  # spent this much of its budget (or any, with no budget) and still no leads: cut
+
+
+def _verdict(row: dict, median_cpl: float | None, peers: int) -> tuple[str | None, str | None]:
+    """(CUT, FUND or WATCH, why) for one campaign, or (None, None) when it has no spend or is over."""
+    if row["status"] in ("COMPLETED", "CANCELLED"):
+        return None, None
+    figures = row["_to_date"]
+    spend, leads = figures.get("spend"), figures.get("verified_leads")
+    if not spend:
+        return None, None
+    used, currency = row.get("budget_used_percent"), row["currency"]
+    if not leads:
+        if used is None or used >= NO_LEADS_BUDGET_PERCENT:
+            return "CUT", f"Spent {spend:,.0f} {currency} with no leads"
+        return "WATCH", "No leads yet, but little of the budget is spent"
+    cpl = spend / leads
+    over_budget = used is not None and used > 100
+    if peers < MIN_PEERS_FOR_VERDICT or not median_cpl:
+        return "WATCH", "Too few campaigns with leads to compare"
+    times = cpl / median_cpl
+    if times >= CUT_CPL_FACTOR:
+        return "CUT", f"Cost per lead {cpl:,.0f} {currency} is {times:.1f}x the median ({median_cpl:,.0f})"
+    if over_budget and times > 1:
+        return "CUT", f"Over budget ({used:.0f}% used) and cost per lead above the median"
+    if times <= FUND_CPL_FACTOR and not over_budget:
+        return "FUND", f"Cost per lead {cpl:,.0f} {currency} is {times:.1f}x the median ({median_cpl:,.0f})"
+    if over_budget:
+        return "WATCH", f"Over budget ({used:.0f}% used), though cost per lead is fine"
+    return "WATCH", "Cost per lead close to the median"
+
+
+def add_verdicts(rows: list[dict]) -> None:
+    """Set verdict and verdict_reason on every row (rows are in one currency)."""
+    cpls = sorted(
+        r["_to_date"]["spend"] / r["_to_date"]["verified_leads"]
+        for r in rows if r["_to_date"].get("spend") and r["_to_date"].get("verified_leads")
+    )
+    middle = len(cpls) // 2
+    median = None if not cpls else (cpls[middle] if len(cpls) % 2 else (cpls[middle - 1] + cpls[middle]) / 2)
+    for r in rows:
+        r["verdict"], r["verdict_reason"] = _verdict(r, median, len(cpls))
+
+
 # --- Reading ---
 
 async def _fetch_campaigns(conn, filters: dict, ids: list[UUID] | None = None) -> list[dict]:
@@ -356,14 +409,21 @@ async def _fetch_to_date(conn, ids: list[UUID], today: date) -> dict[UUID, dict]
     and the CRM results recorded for it (demos, customers, revenue in its currency)."""
     rows = await conn.fetch(
         f"""
-        WITH res AS (
+        -- HubSpot results run from the campaign's start, so they are as fresh as the last HubSpot sync
+        WITH hs AS (
+            SELECT last_success_at FROM integration_sync_state WHERE name = $3
+        ),
+        res AS (
             SELECT r.initiative_id, {_RESULT_SUMS}, count(*) AS result_count,
-                   MAX(LEAST(COALESCE(r.period_end, r.period_start), $2)) FILTER (WHERE r.period_start <= $2)
+                   MAX(LEAST(
+                       CASE WHEN r.source = 'HUBSPOT' THEN COALESCE((SELECT last_success_at::date FROM hs), r.period_start)
+                            ELSE COALESCE(r.period_end, r.period_start) END, $2)) FILTER (WHERE r.period_start <= $2)
                        AS last_data_date,
                    (array_agg(r.source ORDER BY r.period_start DESC, r.updated_at DESC))[1] AS latest_source,
                    (array_agg(r.report_url ORDER BY r.period_start DESC) FILTER (WHERE r.report_url IS NOT NULL))[1]
                        AS report_url,
-                   MAX(r.updated_at) AS updated_at
+                   MAX(CASE WHEN r.source = 'HUBSPOT' THEN COALESCE((SELECT last_success_at FROM hs), r.updated_at)
+                            ELSE r.updated_at END) AS updated_at
             FROM ad_results r WHERE r.initiative_id = ANY($1::uuid[])
             GROUP BY r.initiative_id
         ),
@@ -388,7 +448,7 @@ async def _fetch_to_date(conn, ids: list[UUID], today: date) -> dict[UUID, dict]
                crm.revenue
         FROM res FULL JOIN crm ON crm.initiative_id = res.initiative_id
         """,
-        ids, today,
+        ids, today, HUBSPOT_SYNC_NAME,
     )
     return {r["initiative_id"]: dict(r) for r in rows}
 
@@ -595,6 +655,7 @@ async def _compute(filters: dict, date_from: date, date_to: date, today: date, i
             primary_kpi_on_target=kpi_on_target(r["kpi_unit"], kpi_value, r["kpi_target"]),
             success_metric=success_metric(r["objective"], r["kpi_code"], r["kpi_target"], calc),
             report_url=so_far.get("report_url"),
+            last_updated=so_far.get("updated_at"),
             result_count=so_far.get("result_count") or 0,
             data_health=data_health(
                 r, so_far.get("last_data_date"), so_far.get("latest_source"),
@@ -605,6 +666,7 @@ async def _compute(filters: dict, date_from: date, date_to: date, today: date, i
         row["_days"] = r["days"]
         row["_to_date"] = to_date_figures
         rows.append(row)
+    add_verdicts(rows)
 
     return {
         "currency": currency, "currencies": currencies, "rows": rows, "current": current, "previous": previous,

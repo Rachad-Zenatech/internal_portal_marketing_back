@@ -10,7 +10,7 @@ AdPlatform = Literal[
     "DISPLAY_PROGRAMMATIC", "OTHER",
 ]
 AdResultStatus = Literal["ACTIVE", "PAUSED", "ENDED"]
-AdResultSource = Literal["MANUAL", "SPREADSHEET", "DATA_STUDIO", "GOOGLE_ADS_API", "MICROSOFT_ADS_API"]
+AdResultSource = Literal["MANUAL", "SPREADSHEET", "DATA_STUDIO", "GOOGLE_ADS_API", "MICROSOFT_ADS_API", "HUBSPOT"]
 AdImportRowStatus = Literal["NEW", "UPDATE", "UNCHANGED", "INVALID", "NEW_CAMPAIGN"]
 AdImportBatchStatus = Literal["PREVIEW", "CONFIRMED", "UNDONE", "EXPIRED"]
 
@@ -387,6 +387,11 @@ class AdsCampaignRow(BaseModel):
     primary_kpi_on_target: bool | None = None
     success_metric: AdsSuccessMetric
     report_url: str | None = None
+    # When its results were last added or changed
+    last_updated: datetime | None = None
+    # Whether to cut, fund or keep watching it, and why (null without spend or once it is over)
+    verdict: Literal["CUT", "FUND", "WATCH"] | None = None
+    verdict_reason: str | None = None
     result_count: int
     data_health: AdsDataHealth
     attention: list[AdsAttentionReason]

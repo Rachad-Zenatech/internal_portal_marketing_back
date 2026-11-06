@@ -27,12 +27,13 @@ from services.shared.spend_service import AUDIT_ENTITY as SPEND_AUDIT_ENTITY
 from services.shared.spend_service import InitiativeNotFoundError
 
 AUDIT_ENTITY = "AdResult"
-# Every Paid Search and Paid Social sub-channel, in display order (the sub-channel is the platform)
-PAID_CHANNELS = ("PAID_SEARCH", "PAID_SOCIAL")
-PLATFORMS = (
-    "GOOGLE_ADS", "BING_ADS", "LINKEDIN_ADS", "META_ADS", "YOUTUBE_ADS", "TIKTOK_ADS", "X_ADS", "REDDIT_ADS",
-    "DISPLAY_PROGRAMMATIC", "OTHER",
-)
+# The channels and sub-channels (platforms) this page covers, in display order. For now Paid Search only (Google and
+# Bing Ads); Paid Social campaigns are left alone, not deleted. To bring them back, use:
+#   PAID_CHANNELS = ("PAID_SEARCH", "PAID_SOCIAL")
+#   PLATFORMS = ("GOOGLE_ADS", "BING_ADS", "LINKEDIN_ADS", "META_ADS", "YOUTUBE_ADS", "TIKTOK_ADS", "X_ADS",
+#                "REDDIT_ADS", "DISPLAY_PROGRAMMATIC", "OTHER")
+PAID_CHANNELS = ("PAID_SEARCH",)
+PLATFORMS = ("GOOGLE_ADS", "BING_ADS")
 PLATFORM_LABELS = {
     "GOOGLE_ADS": "Google Ads", "BING_ADS": "Bing Ads", "LINKEDIN_ADS": "LinkedIn Ads", "META_ADS": "Meta Ads",
     "YOUTUBE_ADS": "YouTube Ads", "TIKTOK_ADS": "TikTok Ads", "X_ADS": "X Ads", "REDDIT_ADS": "Reddit Ads",
@@ -54,7 +55,7 @@ SPEND_CATEGORY = "MEDIA_ADS"
 OUTCOME_SOURCE = "ADS"
 EXTERNAL_REF_PREFIX = "ad_result:"
 
-NOT_ADS_MESSAGE = "Ad results are for Paid Search and Paid Social campaigns with an ad platform."
+NOT_ADS_MESSAGE = "Ad results are for Paid Search campaigns on Google Ads or Bing Ads."
 DUPLICATE_MESSAGE = "There's already a result for this campaign and period. Edit that one instead."
 DATES_MESSAGE = "The period can't end before it starts."
 
