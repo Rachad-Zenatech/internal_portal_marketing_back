@@ -5,7 +5,7 @@ half-filled row can be saved), the HubSpot campaign it takes its leads, MQLs and
 board. A new table; nothing else changes.
 
 Revision ID: c4e8a2d6f9b1
-Revises: b8d4f0a2c6e1
+Revises: e2a7c3d9b5f1
 Create Date: 2026-11-06 12:00:00.000000
 
 """
@@ -17,7 +17,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'c4e8a2d6f9b1'
-down_revision: Union[str, Sequence[str], None] = 'b8d4f0a2c6e1'
+down_revision: Union[str, Sequence[str], None] = 'e2a7c3d9b5f1'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -70,20 +70,22 @@ def name_key_sql(column: str) -> str:
 # No market counts as Unassigned, as it does for budgets and the initiatives list
 _MARKET_SQL = "COALESCE(i.market_id, (SELECT id FROM markets WHERE code = 'UNASSIGNED'))"
 
-# $1, $2: the window (either may be null for no limit); $3..$7: brand, market, event type, owner, status
+# $1, $2: the window (either may be null for no limit); $3..$7: brand, market, event type, owner, status;
+# $8: other initiatives (outside the Events channel) to count as events, e.g. an event campaign filed under Other
 _EVENTS_SQL = f"""
     WITH ev AS (
         SELECT i.id, i.name, ed.event_code, b.name AS brand_name, mk.name AS market_name,
                ed.city, ed.country_code, evt.name AS event_type_name, u.full_name AS owner_name,
                i.start_date, i.end_date, i.status, i.currency, i.budget_amount::float8 AS budget_amount
         FROM initiatives i
-        JOIN channels c ON c.id = i.channel_id AND c.code = '{EVENTS_CHANNEL}'
+        JOIN channels c ON c.id = i.channel_id
         JOIN brands b ON b.id = i.brand_id
         LEFT JOIN markets mk ON mk.id = {_MARKET_SQL}
         LEFT JOIN event_details ed ON ed.initiative_id = i.id
         LEFT JOIN event_types evt ON evt.id = ed.event_type_id
         LEFT JOIN users u ON u.id = i.owner_user_id
-        WHERE i.status <> 'DRAFT'
+        WHERE (c.code = '{EVENTS_CHANNEL}' OR i.id = ANY($8::uuid[]))
+          AND i.status <> 'DRAFT'
           AND i.start_date IS NOT NULL
           AND ($1::date IS NULL OR COALESCE(i.end_date, i.start_date) >= $1::date)
           AND ($2::date IS NULL OR i.start_date <= $2::date)
@@ -323,10 +325,12 @@ async def list_event_performance(
     event_type_id: int | None = None,
     owner_user_id: UUID | None = None,
     status: str | None = None,
+    include_ids: list[UUID] | None = None,
 ) -> dict:
-    """Non-draft events in the Events channel whose dates overlap [date_from, date_to], newest first, with totals
-    per currency compared with the previous period and a year earlier, monthly rows, the funnel and the cost split."""
-    filters = (brand_id, market_id, event_type_id, owner_user_id, status)
+    """Non-draft events in the Events channel (and the initiatives in include_ids, whatever their channel) whose dates
+    overlap [date_from, date_to], newest first, with totals per currency compared with the previous period and a year
+    earlier, monthly rows, the funnel and the cost split."""
+    filters = (brand_id, market_id, event_type_id, owner_user_id, status, list(include_ids or []))
     previous = _previous_period(date_from, date_to)
     period_known = date_from is not None and date_to is not None
     prior_year = _year_window((date_from, date_to)) if period_known else None

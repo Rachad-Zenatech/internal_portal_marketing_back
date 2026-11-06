@@ -48,6 +48,7 @@ from tools.ads.microsoft_ads_router import router as microsoft_ads_router
 from tools.ads.oauth_router import router as oauth_router
 from tools.budgets.budget_router import router as budget_router
 from tools.events.event_management_router import router as event_management_router
+from tools.events.event_overview_router import router as event_overview_router
 from tools.hubspot.hubspot_router import router as hubspot_router
 from tools.initiatives.initiative_router import router as initiative_router
 from tools.microsoft_graph.graph_router import router as graph_router
@@ -391,6 +392,7 @@ app.include_router(spend_router, prefix="/api", tags=["Initiative costs"], depen
 app.include_router(demo_router, prefix="/api", tags=["Event demos"], dependencies=authenticated)
 app.include_router(performance_router, prefix="/api", tags=["Results and performance"], dependencies=authenticated)
 app.include_router(event_management_router, prefix="/api", tags=["Event management"], dependencies=authenticated)
+app.include_router(event_overview_router, prefix="/api", tags=["Events overview"], dependencies=authenticated)
 app.include_router(budget_router, prefix="/api", tags=["Monthly budgets"], dependencies=authenticated)
 app.include_router(import_router, prefix="/api", tags=["Spreadsheet uploads"], dependencies=authenticated)
 app.include_router(ads_router, prefix="/api", tags=["Paid ads"], dependencies=authenticated)

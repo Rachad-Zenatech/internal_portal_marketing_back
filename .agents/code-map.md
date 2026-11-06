@@ -29,7 +29,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## mcp_tools/shared/permissions.py (55 lines) - permissions (shared)
 - `list_my_accessible_tools_tool` (def) - List all MCP tools and capabilities accessible to the currently authenticated user based on active RBAC roles.
 
-## models/ads/ads_model.py (509 lines) - Paid ads (every Paid Search and Paid Social platform): results, the page overview, and the spreadsheet upload.
+## models/ads/ads_model.py (514 lines) - Paid ads (every Paid Search and Paid Social platform): results, the page overview, and the spreadsheet upload.
 - `AdMetrics` (class) - The figures typed in, and the ones calculated from them (null when they can't be).
 - `AdResult` (class)
 - `AdTotals` (class)
@@ -154,6 +154,27 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `EventTraveller` (class) - Someone on an event's active Navan bookings.
 - `EventOverviewItem` (class) - One event card on the event management page: what it is, and what still needs doing.
 
+## models/events/event_overview_model.py (219 lines) - Events Overview: the Navan events with their budget, cost, travel and the HubSpot results matched to them.
+- `NavanFigures` (class) - Travel booked through Navan (money in the event's currency).
+- `HubSpotCampaignFigures` (class)
+- `HubSpotMarketingEventFigures` (class)
+- `EventHubSpotMatch` (class) - CAMPAIGN: the event is a HubSpot campaign.
+- `EventTurnout` (class) - The results HubSpot has for the event; null where there's no match or HubSpot doesn't know.
+- `NavanTrip` (class) - A Navan trip joined to a HubSpot event (AUTO: by name, MANUAL: joined by hand).
+- `EventOverviewRow` (class)
+- `OverviewTotals` (class) - One row per currency (money is never added across currencies).
+- `OverviewMonth` (class)
+- `OverviewHubSpotSummary` (class)
+- `EventsOverviewResponse` (class)
+- `Traveller` (class)
+- `Participant` (class)
+- `EventOverviewDetail` (class)
+- `HubSpotOption` (class)
+- `HubSpotOptions` (class)
+- `NavanTripOption` (class)
+- `NavanTripLinkUpdate` (class) - Join a Navan trip to the event (link), or take it off again (link false).
+- `HubSpotLinkUpdate` (class) - What to link the event to.
+
 ## models/events/event_performance_model.py (140 lines) - Events Overview: budgets, actual spend, prior year spend, results and ROI of events (GET /api/events/performance).
 - `Period` (class)
 - `PreviousFigures` (class) - The same figures for the previous period; null where they can't be worked out (no events, no budget...).
@@ -195,6 +216,11 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## models/notifications/notification_model.py (36 lines) - notification model (notifications)
 - `NotificationCreate` (class)
 - `NotificationResponse` (class)
+
+## models/paid_search/paid_search_model.py (65 lines) - The Paid Search board: entries typed in or uploaded from Marketing's PPC sheet, saved as the board shows them.
+- `PaidSearchEntry` (class) - One board row.
+- `PaidSearchBoardSave` (class) - The whole board, in order.
+- `PaidSearchBoardSaved` (class)
 
 ## models/performance/performance_model.py (150 lines) - MANUAL when typed in; DEMO_LOG when counted from the event's demo log; other tools' names when synced
 - `OutcomeValue` (class)
@@ -370,7 +396,13 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `execute` (def)
 - `execute_many` (def)
 
-## postgresql_db/schema_metadata.py (975 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
+## postgresql_db/schema_metadata.py (1023 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
+- `_reference_table` (def)
+
+## postgresql_db/schema_metadata.py (1023 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
+- `_reference_table` (def)
+
+## postgresql_db/schema_metadata.py (1023 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
 - `_reference_table` (def)
 
 ## postgresql_db/schemas/notifications_schema.py (46 lines) - notifications schema (schemas)
@@ -432,7 +464,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `line_up` (def) - Brings a database made by another copy of the template in line with this repo, at the matching version.
 - `main` (def)
 
-## server.py (647 lines) - MCP tools & AI functions
+## server.py (649 lines) - MCP tools & AI functions
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `_messaging_default` (def) - MQTT presence and RabbitMQ, set up exactly as in the admin portal: on by default in production, off locally,
@@ -504,7 +536,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `undo_import` (def) - Remove the results an upload created and restore the previous values of the ones it updated.
 - `build_template` (def) - An .xlsx with Marketing's own header, and dropdowns for the brand, market, sub-channel and status.
 
-## services/ads/ads_overview_service.py (816 lines) - The Paid Advertising page: key figures, charts, campaigns needing attention, one campaign's detail, data health.
+## services/ads/ads_overview_service.py (878 lines) - The Paid Advertising page: key figures, charts, campaigns needing attention, one campaign's detail, data health.
 - `ratio` (def) - numerator / denominator (x scale) to 2 dp; None when either is missing or the divisor is 0.
 - `_money` (def)
 - `previous_range` (def) - The same number of days right before.
@@ -521,6 +553,8 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `buckets` (def) - Chart points over the range: days, Monday-to-Sunday weeks, or months, each cut to the range.
 - `months` (def) - Each calendar month the range touches, cut to the range.
 - `shows_in_range` (def)
+- `_verdict` (def) - (CUT, FUND or WATCH, why) for one campaign, or (None, None) when it has no spend or is over.
+- `add_verdicts` (def) - Set verdict and verdict_reason on every row (rows are in one currency).
 - `_fetch_campaigns` (def)
     - `where` (def)
 - `_fetch_daily` (def) - Each campaign's results by period start, for results starting in [from, to].
@@ -911,7 +945,38 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_timing` (def)
 - `list_event_overview` (def) - Every event with what still needs doing: on now first, then upcoming (soonest first), then past (most recent first).
 
-## services/events/event_performance_service.py (381 lines) - Events Overview: budget, actual spend, prior year spend, results and ROI of events, per event and per currency.
+## services/events/event_matching.py (90 lines) - Matching an event (from Navan) to the HubSpot campaign and marketing event of the same name.
+- `words` (def) - The distinctive words of an event name (all its words when it has none, e.g.
+- `score` (def) - 0 when the names don't match, else up to 1 (the same distinctive words).
+- `best_match` (def) - (id, score) of the one clear best candidate (id, name) for the name, or None.
+- `match_list` (def) - (id, score) of the one contact list (id, name) that clearly belongs to the event, or None.
+- `match_event` (def) - {"campaign_id", "marketing_event_id", "score"} found from the names; ids are None where nothing matches.
+
+## services/events/event_overview_service.py (488 lines) - Events Overview: the events HubSpot has (its event campaigns), with Navan travel attached where it matches.
+- `_json` (def)
+- `_campaign` (def)
+- `_with_typed_results` (def) - Fill what HubSpot has nothing for (or counts as zero) with the results someone typed in for the event, as the
+- `_named_list` (def) - A contact list whose name matches the event, when the campaign gives no lists of its own; lists attached to
+- `_leads` (def) - The event's leads and the funnel among them, from the best source there is (see EventTurnout).
+- `_turnout` (def)
+- `_match` (def) - The event's HubSpot campaign and marketing event: the pick when there is one, else found from the names.
+- `_marketing_event_of` (def) - A HubSpot event's marketing event: the one among its campaign's assets, else the one its name clearly matches.
+- `_navan_figures` (def) - The Navan figures of the trips attached to an event, added up (none: zeros).
+    - `total` (def)
+- `_with_hubspot_cost` (def) - The event with its HubSpot campaign's spend as its cost, and the campaign's budget as its budget, where the
+- `_add_trips` (def) - The event with the trips' costs and results added: costs are added up, and a result or budget the event lacks
+- `_aggregate` (def) - Totals per currency, months, the cost split and the HubSpot summary of the events shown.
+    - `total` (def)
+    - `whole` (def)
+- `list_events_overview` (def) - The HubSpot events whose dates overlap [date_from, date_to] (all when open), with the Navan trips joined to
+    - `finish` (def)
+- `get_event_overview` (def) - One event with everything above, its travellers, the marketing event's participants and the campaign's assets.
+- `list_hubspot_options` (def) - Every HubSpot campaign and marketing event, newest first, for picking an event's match.
+- `list_navan_trip_options` (def) - The Navan trips that aren't joined to a HubSpot event, newest first, for joining one to an event.
+- `set_hubspot_link` (def) - Save the pick: both ids, one of them, "no match" (none), or neither to go back to the name match.
+- `set_navan_trip_link` (def) - Join a Navan trip to a HubSpot event (the trip then counts as that event's travel), or take it off again.
+
+## services/events/event_performance_service.py (385 lines) - Events Overview: budget, actual spend, prior year spend, results and ROI of events, per event and per currency.
 - `_sql_case` (def)
 - `_category_case` (def)
 - `name_key_sql` (def) - An event's name for matching last year's event: lower case, trimmed, without a year from 2000 to 2099
@@ -929,9 +994,15 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_monthly` (def) - Per currency and month of the period: approved budget, actual spend and last year's spend in that month,
     - `month_of` (def)
 - `_funnel` (def)
-- `list_event_performance` (def) - Non-draft events in the Events channel whose dates overlap [date_from, date_to], newest first, with totals
+- `list_event_performance` (def) - Non-draft events in the Events channel (and the initiatives in include_ids, whatever their channel) whose dates
 
-## services/hubspot/hubspot_campaign_sync_job.py (517 lines) - Keeps hubspot_campaigns the same as HubSpot: every campaign with its properties, report figures and assets.
+## services/hubspot/hubspot_ad_results_sync.py (120 lines) - Paid Search results from HubSpot, until the Google Ads and Microsoft Ads syncs can be used.
+- `_sum` (def) - The total of the values that exist; None when none does.
+- `_stage` (def)
+- `build_result` (def) - The one result for an initiative from its linked campaigns, or None when there's nothing to show (no start).
+- `sync_paid_search_results` (def) - Write the HubSpot result of every linked Google Ads or Bing Ads initiative (inside the sync's transaction).
+
+## services/hubspot/hubspot_campaign_sync_job.py (583 lines) - Keeps hubspot_campaigns the same as HubSpot: every campaign with its properties, report figures and assets.
 - `HubSpotSyncAlreadyRunning` (class) - Another HubSpot sync is running (here or on another server).
     - `__init__` (def)
 - `hubspot_sync_enabled` (def)
@@ -945,6 +1016,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_sync_initiatives` (def) - Create an initiative for each campaign without one (when on), and keep the sync's own in step with HubSpot.
 - `hubspot_sync_running` (def)
 - `_store` (def)
+- `_table_exists` (def)
+- `_store_marketing_events` (def) - Replace the stored marketing events with HubSpot's (and drop the ones HubSpot no longer has).
+- `_store_contact_lists` (def) - Replace the stored contact lists with HubSpot's (and drop the ones HubSpot no longer has).
 - `_store_social_posts` (def) - Replace the stored social posts with HubSpot's (one batch statement, then drop the ones HubSpot no longer has).
 - `_record_failure` (def)
 - `_run_sync` (def)
@@ -956,7 +1030,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `list_hubspot_social_posts` (def) - Every synced social post, newest first (by when it went out, else when it's scheduled).
 - `hubspot_sync_loop` (def) - Run sync_hubspot_campaigns() forever on a fixed interval; a failed run is logged and retried next interval.
 
-## services/hubspot/hubspot_client.py (497 lines) - Reads campaigns from HubSpot's Campaigns API (marketing/v3/campaigns) with a private app token.
+## services/hubspot/hubspot_client.py (590 lines) - Reads campaigns from HubSpot's Campaigns API (marketing/v3/campaigns) with a private app token.
 - `HubSpotUnavailable` (class) - HubSpot isn't set up or couldn't be read.
 - `_token` (def)
 - `hubspot_configured` (def)
@@ -990,6 +1064,10 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_count` (def)
 - `_text` (def)
 - `_campaign_row` (def)
+- `_contact_list_rows` (def) - Every contact list with its size (lists of companies, deals...
+- `_non_negative` (def) - HubSpot sends -1 for a count it doesn't know.
+- `_participants` (def) - Who registered for, attended, cancelled or missed a marketing event; None when HubSpot won't say.
+- `_marketing_event_rows` (def) - Every marketing event with its attendance (HubSpot's counts, else counted from who took part).
 - `fetch_hubspot_campaigns` (def) - Every campaign with its report, assets and funnel:
 
 ## services/initiatives/event_budget_import_service.py (207 lines) - Set many events' budgets from one spreadsheet: preview what would change, then apply it.
@@ -1150,6 +1228,10 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `_consume_in_memory` (def)
     - `close` (def)
 
+## services/paid_search/paid_search_service.py (65 lines) - The Paid Search board: load it, and save it whole (the board's order, its rows and their HubSpot links).
+- `list_paid_search_entries` (def) - Every saved entry, in board order.
+- `save_paid_search_board` (def) - Replace the saved board with these entries, in this order.
+
 ## services/performance/performance_service.py (360 lines) - Results (outcomes) per month, success settings, scale-or-cut decisions, and the calculated performance view.
 - `PerformanceValidationError` (class) - A request that breaks a results or evaluation rule; the message is safe to show to users.
 - `InitiativeNotFoundError` (class) - No initiative with the requested id.
@@ -1167,7 +1249,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## services/reference_data/reference_data_service.py (89 lines) - Marketing reference data (brands, channels, funnel stages, goals, KPIs, ratings, cost classification).
 - `get_reference_data` (def)
 
-## services/shared/ads_service.py (674 lines) - Paid ads: results per campaign or ad group per period, for every Paid Search and Paid Social platform.
+## services/shared/ads_service.py (675 lines) - Paid ads: results per campaign or ad group per period, for every Paid Search and Paid Social platform.
 - `AdsValidationError` (class) - A request that breaks an ads rule; the message is safe to show to users.
 - `AdResultNotFoundError` (class) - No ad result with the requested id.
 - `_number` (def)
@@ -1479,6 +1561,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `update_staff` (def) [PATCH /event-staff/{assignment_id}]
 - `remove_staff` (def) [DELETE /event-staff/{assignment_id}]
 
+## tools/events/event_overview_router.py (126 lines) - Events Overview: the Navan events with the HubSpot results matched to them, one event in full, and the HubSpot link.
+- `navan_events_overview` (def) - The HubSpot events whose dates overlap the period, with the Navan trips joined to them: budget, cost, travel,
+- `hubspot_options` (def) - Every HubSpot campaign and marketing event, for picking an event's match.
+- `navan_trip_options` (def) - The Navan trips that aren't joined to a HubSpot event, for joining one to an event.
+- `navan_event_detail` (def) - One Navan event in full: money, travellers, HubSpot results, who attended and the campaign's assets.
+- `link_event_to_hubspot` (def) - Pick the HubSpot campaign and/or marketing event of an event, mark it as having none, or send neither to go
+- `link_navan_trip` (def) - Join a Navan trip to this HubSpot event (its travel then counts for the event), or take it off again.
+
 ## tools/hubspot/hubspot_router.py (76 lines) - HubSpot campaigns and social posts: list what the sync read, start the sync, and see how it last went.
 - `get_hubspot_campaigns` (def) - Every HubSpot campaign from the last sync, with its report figures, assets and linked initiative.
 - `get_hubspot_social_posts` (def) - Every social post from the last sync, newest first, with its counters and the campaign it belongs to.
@@ -1517,6 +1607,10 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `api_clear_all` (def) [DELETE /notifications/all]
 - `api_notification_stream` (def) [GET /notifications/stream]
     - `event_generator` (def)
+
+## tools/paid_search/paid_search_router.py (27 lines) - The Paid Search board: load the saved entries, and save the whole board.
+- `get_paid_search_entries` (def) - Every entry on the Paid Search board, in board order.
+- `put_paid_search_entries` (def) [PUT /paid-search/entries] - Save the whole board, in order: rows not in it are removed.
 
 ## tools/performance/performance_router.py (120 lines) - performance router (performance)
 - `_not_found` (def)

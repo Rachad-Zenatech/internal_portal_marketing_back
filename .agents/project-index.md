@@ -9,17 +9,19 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - mcp_tools/middleware.py (84 lines) - Access control, tracing and output redaction for MCP clients calling tools through /mcp.
 - mcp_tools/prompts.py (16 lines) - mcp_tools/prompts.py
 - mcp_tools/shared/permissions.py (55 lines) - permissions (shared)
-- models/ads/ads_model.py (509 lines) - Paid ads (every Paid Search and Paid Social platform): results, the page overview, and the spreadsheet upload.
+- models/ads/ads_model.py (514 lines) - Paid ads (every Paid Search and Paid Social platform): results, the page overview, and the spreadsheet upload.
 - models/ads/google_ads_model.py (72 lines) - Google Ads sync: run summaries and status.
 - models/ads/microsoft_ads_model.py (28 lines) - Microsoft Ads sync: run summaries and status (the same shape as the Google Ads sync's).
 - models/ads/oauth_connection_model.py (160 lines) - Pydantic models for Organization, Company, and OAuth connections.
 - models/budgets/budget_model.py (459 lines) - Monthly budgets, money moves between them, and comments.
 - models/events/event_management_model.py (105 lines) - event management model (events)
+- models/events/event_overview_model.py (219 lines) - Events Overview: the Navan events with their budget, cost, travel and the HubSpot results matched to them.
 - models/events/event_performance_model.py (140 lines) - Events Overview: budgets, actual spend, prior year spend, results and ROI of events (GET /api/events/performance).
 - models/hubspot/hubspot_model.py (144 lines) - HubSpot campaigns: the synced campaigns, and the sync's status.
 - models/initiatives/event_budget_import_model.py (51 lines) - Uploading many events' budgets from one spreadsheet (services/initiatives/event_budget_import_service.py).
 - models/navan/navan_model.py (75 lines) - Navan travel cost sync: run summaries and status.
 - models/notifications/notification_model.py (36 lines) - notification model (notifications)
+- models/paid_search/paid_search_model.py (65 lines) - The Paid Search board: entries typed in or uploaded from Marketing's PPC sheet, saved as the board shows them.
 - models/performance/performance_model.py (150 lines) - MANUAL when typed in; DEMO_LOG when counted from the event's demo log; other tools' names when synced
 - models/reference_data/reference_data_model.py (95 lines) - True when it has sub-channels besides Other: a non-draft initiative must then choose one
 - models/shared/channel_details_model.py (184 lines) - Channel-specific initiative fields (initiatives.channel_details) and the allowed values the wizard offers.
@@ -29,7 +31,9 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - models/shared/rbac_model.py (240 lines) - rbac model (shared)
 - models/shared/spend_model.py (200 lines) - Sources a person can enter through the API; the rest arrive from imports and feeds
 - postgresql_db/database.py (139 lines) - Optional dotenv import for loading .env and local overrides during development
-- postgresql_db/schema_metadata.py (975 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
+- postgresql_db/schema_metadata.py (1023 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
+- postgresql_db/schema_metadata.py (1023 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
+- postgresql_db/schema_metadata.py (1023 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
 - postgresql_db/schemas/notifications_schema.py (46 lines) - notifications schema (schemas)
 - postgresql_db/schemas/setup_ai_observability_schema.py (93 lines) - AI observability, caching and usage limits: trace spans for every AI step (model calls, embeddings, tool calls, guard checks, cache looku...
 - postgresql_db/schemas/setup_graph_sync_schema.py (61 lines) - ALTER TABLE locks users even when the columns exist, and waits behind any open transaction on a live
@@ -38,10 +42,10 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - scripts/demo_events.py (299 lines) - demo events
 - scripts/seed_sample_initiatives.py (675 lines) - seed sample initiatives
 - scripts/setup_prod_db.py (228 lines) - Set up or update the production database schema, using the PROD_* values in .env.
-- server.py (647 lines) - MCP tools & AI functions
+- server.py (649 lines) - MCP tools & AI functions
 - services/ads/ad_platform_sync.py (542 lines) - The campaign and weekly results sync shared by the ad platforms (Google Ads, Microsoft Ads).
 - services/ads/ads_import_service.py (731 lines) - Uploading Marketing's PPC sheet ("SaaS PPC Campaigns") instead of retyping it.
-- services/ads/ads_overview_service.py (816 lines) - The Paid Advertising page: key figures, charts, campaigns needing attention, one campaign's detail, data health.
+- services/ads/ads_overview_service.py (878 lines) - The Paid Advertising page: key figures, charts, campaigns needing attention, one campaign's detail, data health.
 - services/ads/google_ads_client.py (323 lines) - Google Ads: the mode (mock or live), the app credentials, and the few REST calls the portal makes.
 - services/ads/google_ads_mock_data.py (143 lines) - Made-up Google Ads accounts, campaigns and weekly results for GOOGLE_ADS_MODE=mock.
 - services/ads/google_ads_sync_job.py (177 lines) - Keeps Google Ads campaigns and their weekly results up to date from the connected Google Ads accounts.
@@ -67,9 +71,12 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/budgets/budget_import_service.py (660 lines) - Uploading Marketing's budget tracker sheet ("Budget Tracker") instead of adding each budget by hand.
 - services/budgets/budget_service.py (836 lines) - Monthly budgets: what Marketing approved per month, brand, market and channel, and what's been spent against it.
 - services/events/event_management_service.py (260 lines) - Event management: every event at a glance and the team going to each one (who, their role, notes).
-- services/events/event_performance_service.py (381 lines) - Events Overview: budget, actual spend, prior year spend, results and ROI of events, per event and per currency.
-- services/hubspot/hubspot_campaign_sync_job.py (517 lines) - Keeps hubspot_campaigns the same as HubSpot: every campaign with its properties, report figures and assets.
-- services/hubspot/hubspot_client.py (497 lines) - Reads campaigns from HubSpot's Campaigns API (marketing/v3/campaigns) with a private app token.
+- services/events/event_matching.py (90 lines) - Matching an event (from Navan) to the HubSpot campaign and marketing event of the same name.
+- services/events/event_overview_service.py (488 lines) - Events Overview: the events HubSpot has (its event campaigns), with Navan travel attached where it matches.
+- services/events/event_performance_service.py (385 lines) - Events Overview: budget, actual spend, prior year spend, results and ROI of events, per event and per currency.
+- services/hubspot/hubspot_ad_results_sync.py (120 lines) - Paid Search results from HubSpot, until the Google Ads and Microsoft Ads syncs can be used.
+- services/hubspot/hubspot_campaign_sync_job.py (583 lines) - Keeps hubspot_campaigns the same as HubSpot: every campaign with its properties, report figures and assets.
+- services/hubspot/hubspot_client.py (590 lines) - Reads campaigns from HubSpot's Campaigns API (marketing/v3/campaigns) with a private app token.
 - services/initiatives/event_budget_import_service.py (207 lines) - Set many events' budgets from one spreadsheet: preview what would change, then apply it.
 - services/initiatives/initiative_activity_service.py (230 lines) - An initiative's recent activity in plain English, read from the audit log.
 - services/microsoft_graph/graph_service.py (420 lines) - Microsoft Graph API client for employee profile sync.
@@ -80,9 +87,10 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/notifications/mqtt_presence.py (244 lines) - MQTT Service Presence Component Provides automated online/offline state publishing with MQTT Last Will and Testament (LWT), retained mess...
 - services/notifications/notification_service.py (121 lines) - notification service (notifications)
 - services/notifications/rabbitmq_service.py (406 lines) - RabbitMQ Service & Topology Manager Provides resilient connection management, topology declaration, publisher confirmations, and dead-let...
+- services/paid_search/paid_search_service.py (65 lines) - The Paid Search board: load it, and save it whole (the board's order, its rows and their HubSpot links).
 - services/performance/performance_service.py (360 lines) - Results (outcomes) per month, success settings, scale-or-cut decisions, and the calculated performance view.
 - services/reference_data/reference_data_service.py (89 lines) - Marketing reference data (brands, channels, funnel stages, goals, KPIs, ratings, cost classification).
-- services/shared/ads_service.py (674 lines) - Paid ads: results per campaign or ad group per period, for every Paid Search and Paid Social platform.
+- services/shared/ads_service.py (675 lines) - Paid ads: results per campaign or ad group per period, for every Paid Search and Paid Social platform.
 - services/shared/audit_service.py (252 lines) - audit service (shared)
 - services/shared/auth_service.py (625 lines) - No fallback: tokens must be signed with a secret of their own, never the session secret or a default
 - services/shared/cache_service.py (188 lines) - cache service (shared)
@@ -102,11 +110,13 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tools/ads/oauth_router.py (383 lines) - OAuth Integration Router Manages Organization -> Company -> OAuth Connections hierarchy.
 - tools/budgets/budget_router.py (255 lines) - budget router (budgets)
 - tools/events/event_management_router.py (147 lines) - event management router (events)
+- tools/events/event_overview_router.py (126 lines) - Events Overview: the Navan events with the HubSpot results matched to them, one event in full, and the HubSpot link.
 - tools/hubspot/hubspot_router.py (76 lines) - HubSpot campaigns and social posts: list what the sync read, start the sync, and see how it last went.
 - tools/initiatives/initiative_router.py (194 lines) - initiative router (initiatives)
 - tools/microsoft_graph/graph_router.py (47 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
 - tools/navan/navan_router.py (53 lines) - Navan travel costs: run the sync now, see how it last went, and list the Navan events it found.
 - tools/notifications/notification_router.py (90 lines) - notification router (notifications)
+- tools/paid_search/paid_search_router.py (27 lines) - The Paid Search board: load the saved entries, and save the whole board.
 - tools/performance/performance_router.py (120 lines) - performance router (performance)
 - tools/reference_data/reference_data_router.py (13 lines) - reference data router (reference data)
 - tools/shared/auth_router.py (338 lines) - auth router (shared)
