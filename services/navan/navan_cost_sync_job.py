@@ -60,8 +60,8 @@ from services.navan.navan_service import (
     summarize_events,
     summarize_travellers,
 )
-from services.shared.initiative_service import AUDIT_ENTITY as INITIATIVE_AUDIT_ENTITY
-from services.shared.spend_service import AUDIT_ENTITY as SPEND_AUDIT_ENTITY
+from services.shared.initiatives.initiative_service import AUDIT_ENTITY as INITIATIVE_AUDIT_ENTITY
+from services.shared.initiatives.spend_service import AUDIT_ENTITY as SPEND_AUDIT_ENTITY
 
 logger = logging.getLogger(__name__)
 

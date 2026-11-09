@@ -13,7 +13,7 @@ from services.hubspot.hubspot_campaign_sync_job import (
     sync_interval_minutes,
 )
 from services.hubspot.hubspot_client import hubspot_configured
-from services.shared.auth_service import require_permission
+from services.shared.core.auth_service import require_permission
 
 router = APIRouter()
 

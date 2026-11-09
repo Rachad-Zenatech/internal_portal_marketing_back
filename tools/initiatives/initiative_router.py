@@ -18,19 +18,19 @@ from models.shared.initiative_model import (
 from services.initiatives import event_budget_import_service
 from services.initiatives.event_budget_import_service import EventBudgetImportError
 from services.initiatives.initiative_activity_service import list_activity as fetch_activity
-from services.shared.auth_service import require_permission
-from services.shared.import_parsing import ImportFileError
-from services.shared.initiative_service import (
+from services.shared.core.auth_service import require_permission
+from services.shared.imports.import_parsing import ImportFileError
+from services.shared.initiatives.initiative_service import (
     InitiativeNotFoundError,
     InitiativeValidationError,
 )
-from services.shared.initiative_service import create_initiative as insert_initiative
-from services.shared.initiative_service import delete_initiative as remove_initiative
-from services.shared.initiative_service import get_initiative as fetch_initiative
-from services.shared.initiative_service import initiative_summary as fetch_summary
-from services.shared.initiative_service import list_initiatives as fetch_initiatives
-from services.shared.initiative_service import list_owner_options as fetch_owner_options
-from services.shared.initiative_service import update_initiative as save_initiative_changes
+from services.shared.initiatives.initiative_service import create_initiative as insert_initiative
+from services.shared.initiatives.initiative_service import delete_initiative as remove_initiative
+from services.shared.initiatives.initiative_service import get_initiative as fetch_initiative
+from services.shared.initiatives.initiative_service import initiative_summary as fetch_summary
+from services.shared.initiatives.initiative_service import list_initiatives as fetch_initiatives
+from services.shared.initiatives.initiative_service import list_owner_options as fetch_owner_options
+from services.shared.initiatives.initiative_service import update_initiative as save_initiative_changes
 
 router = APIRouter()
 

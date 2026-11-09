@@ -21,7 +21,7 @@ from services.performance.performance_service import list_outcomes as fetch_outc
 from services.performance.performance_service import record_decision as insert_decision
 from services.performance.performance_service import save_evaluation as store_evaluation
 from services.performance.performance_service import save_outcomes as store_outcomes
-from services.shared.auth_service import require_permission
+from services.shared.core.auth_service import require_permission
 
 router = APIRouter()
 

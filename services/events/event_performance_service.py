@@ -16,13 +16,13 @@ from datetime import date, timedelta
 from uuid import UUID
 
 from postgresql_db.database import get_pool
-from services.shared import initiative_metrics as metrics
-from services.shared.demo_service import HELD_DEMO_SQL
-from services.shared.travel_cost_rules import travel_sql
+from services.shared.initiatives import initiative_metrics as metrics
+from services.shared.initiatives.demo_service import HELD_DEMO_SQL
+from services.shared.initiatives.travel_cost_rules import travel_sql
 
 EVENTS_CHANNEL = "EVENTS"
 
-# The seven categories of the cost breakdown. Travel comes first (services/shared/travel_cost_rules.py) and is split into
+# The seven categories of the cost breakdown. Travel comes first (services/shared/initiatives/travel_cost_rules.py) and is split into
 # travel, ground transport and meals & per diems by category; then category overrides, then the expense type.
 # Anything else is Other (sponsorship fees, hospitality, equipment, agency fees, software...).
 TRAVEL_CATEGORY_SPLIT = {"GROUND_TRANSPORT": "GROUND_TRANSPORT", "PER_DIEMS_MEALS": "MEALS_PER_DIEMS"}

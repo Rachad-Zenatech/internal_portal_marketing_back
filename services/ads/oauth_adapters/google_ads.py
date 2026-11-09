@@ -1,6 +1,6 @@
 """Google Ads OAuth 2.0 Provider Adapter
 
-GOOGLE_ADS_MODE (services/ads/google_ads_client.py) decides how it works:
+GOOGLE_ADS_MODE (services/ads/google/google_ads_client.py) decides how it works:
 - mock: no call to Google. Signing in returns straight to the app with a fake code, tokens are fake, and the accounts
   are the two mock ones. Each connection is stored with connection_metadata {"mode": "mock"}.
 - live: the real Google sign-in and the Google Ads API. Without GOOGLE_ADS_CLIENT_ID / GOOGLE_ADS_CLIENT_SECRET (or
@@ -15,9 +15,9 @@ from urllib.parse import urlencode
 
 import requests
 
-from services.ads import google_ads_client
-from services.ads.google_ads_client import LIVE_MODE, MOCK_MODE, MOCK_TOKEN_PREFIX, NOT_SET_UP_MESSAGE
-from services.ads.google_ads_mock_data import MOCK_ACCOUNTS
+from services.ads.google import google_ads_client
+from services.ads.google.google_ads_client import LIVE_MODE, MOCK_MODE, MOCK_TOKEN_PREFIX, NOT_SET_UP_MESSAGE
+from services.ads.google.google_ads_mock_data import MOCK_ACCOUNTS
 from services.ads.oauth_adapters.base import BaseOAuthProvider, OAuthProviderNotReady
 
 INSTANT_IN_LIVE_MESSAGE = (

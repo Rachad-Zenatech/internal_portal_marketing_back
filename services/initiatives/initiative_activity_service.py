@@ -8,8 +8,8 @@ from datetime import date
 from uuid import UUID
 
 from postgresql_db.database import get_pool
-from services.shared.audit_service import entity_title_sql
-from services.shared.initiative_service import InitiativeNotFoundError
+from services.shared.core.audit_service import entity_title_sql
+from services.shared.initiatives.initiative_service import InitiativeNotFoundError
 
 # Sources that change things without a person: the name shown as the actor
 SOURCE_NAMES = {

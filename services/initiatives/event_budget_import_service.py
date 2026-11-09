@@ -10,8 +10,8 @@ from typing import Any
 from uuid import UUID
 
 from postgresql_db.database import get_pool
-from services.shared.ads_service import audit_many
-from services.shared.import_parsing import (
+from services.shared.initiatives.ads_service import audit_many
+from services.shared.imports.import_parsing import (
     ROW_NUMBER,
     ImportFileError,
     InvalidValueError,

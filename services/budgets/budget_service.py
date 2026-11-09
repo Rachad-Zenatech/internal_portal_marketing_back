@@ -16,8 +16,8 @@ from uuid import UUID
 import asyncpg
 
 from postgresql_db.database import get_pool
-from services.shared.rbac_service import log_audit
-from services.shared.travel_cost_rules import travel_sql
+from services.shared.core.rbac_service import log_audit
+from services.shared.initiatives.travel_cost_rules import travel_sql
 
 BUDGET_ENTITY = "MonthlyBudget"
 TRANSFER_ENTITY = "BudgetTransfer"
@@ -30,7 +30,7 @@ TBD_ALL_BRAND = "TBD_ALL"
 # Costs that count as spent: the invoice is in
 SPENT_STATUSES = ("INVOICED", "PAID")
 
-# Costs kept out of marketing budgets: travel (services/shared/travel_cost_rules.py). s = the spend line.
+# Costs kept out of marketing budgets: travel (services/shared/initiatives/travel_cost_rules.py). s = the spend line.
 _OUTSIDE_BUDGET = travel_sql("s")
 
 

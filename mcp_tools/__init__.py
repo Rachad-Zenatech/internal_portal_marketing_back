@@ -6,7 +6,7 @@
 #
 # The same tools serve two callers, with the same RBAC check, tracing and output
 # redaction: MCP clients (mcp_tools.middleware) and the assistant chat through
-# Gemini function calling (services.ai.assistant_chat_service, via run_tool).
+# Gemini function calling (services.ai.core.assistant_chat_service, via run_tool).
 import asyncio
 import inspect
 import json
@@ -22,9 +22,9 @@ from google.genai import errors, types
 
 from mcp_tools.prompts import ALL_PROMPTS
 from mcp_tools.shared.permissions import list_my_accessible_tools_tool
-from services.ai.ai_guardrails import redact_pii
-from services.ai.ai_observability import span
-from services.shared.auth_service import current_user_id_ctx, get_my_permissions, user_can_use_mcp_tool
+from services.ai.observability.ai_guardrails import redact_pii
+from services.ai.observability.ai_observability import span
+from services.shared.core.auth_service import current_user_id_ctx, get_my_permissions, user_can_use_mcp_tool
 
 load_dotenv()
 logger = logging.getLogger(__name__)

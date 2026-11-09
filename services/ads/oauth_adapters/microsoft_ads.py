@@ -1,6 +1,6 @@
 """Microsoft Ads (Bing) OAuth 2.0 Provider Adapter
 
-MICROSOFT_ADS_MODE (services/ads/microsoft_ads_client.py) decides how it works:
+MICROSOFT_ADS_MODE (services/ads/microsoft/microsoft_ads_client.py) decides how it works:
 - mock: no call to Microsoft. Signing in returns straight to the app with a fake code, tokens are fake, and the
   accounts are the mock ones. Each connection is stored with connection_metadata {"mode": "mock"}.
 - live: the real Microsoft sign-in and the Microsoft Advertising API. Without MICROSOFT_ADS_CLIENT_ID /
@@ -14,9 +14,9 @@ from urllib.parse import urlencode
 
 import requests
 
-from services.ads import microsoft_ads_client
-from services.ads.microsoft_ads_client import LIVE_MODE, MOCK_MODE, MOCK_TOKEN_PREFIX, NOT_SET_UP_MESSAGE
-from services.ads.microsoft_ads_mock_data import MOCK_ACCOUNTS
+from services.ads.microsoft import microsoft_ads_client
+from services.ads.microsoft.microsoft_ads_client import LIVE_MODE, MOCK_MODE, MOCK_TOKEN_PREFIX, NOT_SET_UP_MESSAGE
+from services.ads.microsoft.microsoft_ads_mock_data import MOCK_ACCOUNTS
 from services.ads.oauth_adapters.base import BaseOAuthProvider, OAuthProviderNotReady
 
 INSTANT_IN_LIVE_MESSAGE = (

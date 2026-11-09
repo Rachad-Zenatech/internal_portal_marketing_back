@@ -25,7 +25,7 @@ from services.events.event_management_service import list_travellers as fetch_tr
 from services.events.event_management_service import remove_staff as delete_staff
 from services.events.event_management_service import update_staff as save_staff_changes
 from services.events.event_performance_service import list_event_performance as fetch_performance
-from services.shared.auth_service import require_permission
+from services.shared.core.auth_service import require_permission
 
 router = APIRouter()
 

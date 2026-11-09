@@ -25,18 +25,19 @@ from starlette.middleware.sessions import SessionMiddleware
 from mcp_tools import register_all as register_mcp_tools
 from mcp_tools import sync_mcp_tools_to_vector_db
 from postgresql_db.database import close_pool, create_pool, fetch_one
-from services.ads.google_ads_sync_job import google_ads_sync_enabled, google_ads_sync_loop
-from services.ads.microsoft_ads_sync_job import microsoft_ads_sync_enabled, microsoft_ads_sync_loop
-from services.ai import ai_observability, assistant_chat_service
+from services.ads.google.google_ads_sync_job import google_ads_sync_enabled, google_ads_sync_loop
+from services.ads.microsoft.microsoft_ads_sync_job import microsoft_ads_sync_enabled, microsoft_ads_sync_loop
+from services.ai.observability import ai_observability
+from services.ai.core import assistant_chat_service
 from services.hubspot.hubspot_campaign_sync_job import hubspot_sync_enabled, hubspot_sync_loop
 from services.microsoft_graph.graph_sync_job import graph_sync_loop
 from services.navan.navan_cost_sync_job import navan_cost_sync_enabled, navan_cost_sync_loop
-from services.shared.auth_service import (
+from services.shared.core.auth_service import (
     current_user_id_ctx,
     get_current_user_id_dependency,
 )
-from services.shared.cache_service import start_cache_invalidation_listener
-from services.shared.logging_service import (
+from services.shared.core.cache_service import start_cache_invalidation_listener
+from services.shared.core.logging_service import (
     asyncio_exception_handler,
     configure_logging,
     log_background_task_result,
@@ -57,17 +58,17 @@ from tools.notifications.notification_router import notification_router
 from tools.paid_search.paid_search_router import router as paid_search_router
 from tools.performance.performance_router import router as performance_router
 from tools.reference_data.reference_data_router import router as reference_data_router
-from tools.shared.auth_router import router as auth_router
-from tools.shared.demo_router import router as demo_router
-from tools.shared.import_router import router as import_router
-from tools.shared.log_router import router as log_router
-from tools.shared.observability import router as observability_router
-from tools.shared.rbac_router import get_current_user_id
-from tools.shared.rbac_router import router as rbac_router
+from tools.shared.core.auth_router import router as auth_router
+from tools.shared.initiatives.demo_router import router as demo_router
+from tools.shared.initiatives.import_router import router as import_router
+from tools.shared.core.log_router import router as log_router
+from tools.shared.core.observability import router as observability_router
+from tools.shared.core.rbac_router import get_current_user_id
+from tools.shared.core.rbac_router import router as rbac_router
 
 # FastAPI routers
-from tools.shared.search import router as search_router
-from tools.shared.spend_router import router as spend_router
+from tools.shared.core.search import router as search_router
+from tools.shared.initiatives.spend_router import router as spend_router
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -295,7 +296,7 @@ async def ai_chat(req: ChatRequest, user_id: UUID = Depends(get_current_user_id)
         )
     if not prepared.blocked and prepared.cached_answer is None:
         # Counts toward the daily AI limits (429 with when it frees up).
-        from services.ai import ai_usage_service
+        from services.ai.observability import ai_usage_service
         await ai_usage_service.reserve("CHAT", user_id)
     try:
         async def stream_generator():
@@ -453,7 +454,7 @@ def _session_identity(request: Request) -> Optional[str]:
     if auth_header[:7].lower() == "bearer ":
         token = auth_header[7:].strip()
     if not token:
-        from services.shared.auth_service import AUTH_COOKIE_NAME
+        from services.shared.core.auth_service import AUTH_COOKIE_NAME
         token = request.cookies.get(AUTH_COOKIE_NAME, "") or request.cookies.get("zenatech_access_token", "")
     if not token:
         return None

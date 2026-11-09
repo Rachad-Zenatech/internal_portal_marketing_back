@@ -2,8 +2,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from models.ads.microsoft_ads_model import MicrosoftAdsSyncStatus, MicrosoftAdsSyncSummary
-from services.ads.microsoft_ads_client import microsoft_ads_configured, microsoft_ads_mode
-from services.ads.microsoft_ads_sync_job import (
+from services.ads.microsoft.microsoft_ads_client import microsoft_ads_configured, microsoft_ads_mode
+from services.ads.microsoft.microsoft_ads_sync_job import (
     MicrosoftAdsSyncAlreadyRunning,
     MicrosoftAdsSyncFailed,
     connected_accounts,
@@ -13,7 +13,7 @@ from services.ads.microsoft_ads_sync_job import (
     sync_interval_minutes,
     sync_microsoft_ads,
 )
-from services.shared.auth_service import require_permission
+from services.shared.core.auth_service import require_permission
 
 router = APIRouter()
 

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 
 from models.paid_search.paid_search_model import PaidSearchBoardSave, PaidSearchBoardSaved, PaidSearchEntry
 from services.paid_search.paid_search_service import list_paid_search_entries, save_paid_search_board
-from services.shared.auth_service import require_permission
+from services.shared.core.auth_service import require_permission
 
 router = APIRouter()
 

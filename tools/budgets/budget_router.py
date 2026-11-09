@@ -25,14 +25,14 @@ from models.budgets.budget_model import (
 )
 from services.budgets import budget_import_service, budget_service
 from services.budgets.budget_service import BudgetNotFoundError, BudgetPermissionError, BudgetValidationError
-from services.shared.auth_service import require_permission
-from services.shared.cost_sheet_import_service import (
+from services.shared.core.auth_service import require_permission
+from services.shared.imports.cost_sheet_import_service import (
     ImportConflictError,
     ImportExpiredError,
     ImportForbiddenError,
     ImportNotFoundError,
 )
-from services.shared.import_parsing import ImportFileError
+from services.shared.imports.import_parsing import ImportFileError
 
 router = APIRouter()
 

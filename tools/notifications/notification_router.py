@@ -15,7 +15,7 @@ from services.notifications.notification_service import (
     mark_all_notifications_as_read,
     mark_notification_as_read,
 )
-from services.shared.auth_service import get_current_user_id_dependency
+from services.shared.core.auth_service import get_current_user_id_dependency
 
 notification_router = APIRouter()
 

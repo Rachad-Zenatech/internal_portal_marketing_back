@@ -458,7 +458,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `line_up` (def) - Brings a database made by another copy of the template in line with this repo, at the matching version.
 - `main` (def)
 
-## server.py (649 lines) - MCP tools & AI functions
+## server.py (650 lines) - MCP tools & AI functions
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `_messaging_default` (def) - MQTT presence and RabbitMQ, set up exactly as in the admin portal: on by default in production, off locally,
@@ -480,7 +480,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_should_log_request_completion` (def)
 - `request_observability` (def)
 
-## services/ads/ad_platform_sync.py (542 lines) - The campaign and weekly results sync shared by the ad platforms (Google Ads, Microsoft Ads).
+## services/ads/core/ad_platform_sync.py (542 lines) - The campaign and weekly results sync shared by the ad platforms (Google Ads, Microsoft Ads).
 - `AdSyncAlreadyRunning` (class) - Another sync of the platform is running (here or on another server).
 - `AdSyncFailed` (class) - No account of the platform could be read.
 - `AdPlatform` (class) - What the shared sync needs to know about one ad platform.
@@ -508,7 +508,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `connected_accounts` (def) - The accounts of the usable connections in the current mode (managers included, flagged).
 - `sync_loop` (def) - Run `sync` forever on a fixed interval; a failed run is logged and retried next interval.
 
-## services/ads/ads_import_service.py (731 lines) - Uploading Marketing's PPC sheet ("SaaS PPC Campaigns") instead of retyping it.
+## services/ads/core/ads_import_service.py (731 lines) - Uploading Marketing's PPC sheet ("SaaS PPC Campaigns") instead of retyping it.
 - `_join_words` (def)
 - `_Context` (class) - Everything a row check needs, loaded once per upload.
     - `__init__` (def)
@@ -530,7 +530,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `undo_import` (def) - Remove the results an upload created and restore the previous values of the ones it updated.
 - `build_template` (def) - An .xlsx with Marketing's own header, and dropdowns for the brand, market, sub-channel and status.
 
-## services/ads/ads_overview_service.py (878 lines) - The Paid Advertising page: key figures, charts, campaigns needing attention, one campaign's detail, data health.
+## services/ads/core/ads_overview_service.py (879 lines) - The Paid Advertising page: key figures, charts, campaigns needing attention, one campaign's detail, data health.
 - `ratio` (def) - numerator / denominator (x scale) to 2 dp; None when either is missing or the divisor is 0.
 - `_money` (def)
 - `previous_range` (def) - The same number of days right before.
@@ -568,7 +568,31 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `campaign_detail` (def) - One campaign for the side panel: its row (compared with its platform), trend, funnel, budget pace,
 - `health` (def) - Per platform: where the results come from (API connection, spreadsheet, typed in), the latest data date,
 
-## services/ads/google_ads_client.py (323 lines) - Google Ads: the mode (mock or live), the app credentials, and the few REST calls the portal makes.
+## services/ads/core/oauth_connection_service.py (580 lines) - OAuth Connection Management Service Supports hierarchical multi-entity OAuth: Organization -> Companies/Entities -> OAuth connections
+- `list_organizations` (def)
+- `get_organization` (def)
+- `create_organization` (def)
+- `list_companies` (def)
+- `get_company` (def)
+- `create_company` (def)
+- `update_company` (def)
+- `delete_company` (def)
+- `_row_to_connection` (def)
+- `list_connections` (def)
+- `get_connection` (def)
+- `store_connection` (def) - Stores or updates an OAuth connection, encrypting access and refresh tokens.
+- `update_connection` (def)
+- `revoke_connection` (def)
+- `resolve_oauth_connection` (def) - Resolves an OAuth connection using the hierarchical fallback pattern:
+- `get_valid_access_token` (def) - Retrieves the decrypted access token.
+- `_execute_provider_refresh` (def) - Calls provider token endpoint to refresh OAuth tokens.
+
+## services/ads/core/token_crypto_service.py (71 lines) - AES-256-GCM token encryption service for OAuth access and refresh tokens.
+- `_derive_key` (def) - Derive a 256-bit AES key from environment secrets using HKDF.
+- `encrypt_token` (def) - Encrypts a plaintext token string with AES-256-GCM.
+- `decrypt_token` (def) - Decrypts a base64 encoded AES-256-GCM token string.
+
+## services/ads/google/google_ads_client.py (323 lines) - Google Ads: the mode (mock or live), the app credentials, and the few REST calls the portal makes.
 - `GoogleAdsApiError` (class) - Google Ads refused a call or couldn't be reached.
 - `google_ads_mode` (def) - GOOGLE_ADS_MODE when it's mock or live; otherwise live in production and mock everywhere else.
 - `google_ads_credentials` (def) - The OAuth client id and secret: GOOGLE_ADS_CLIENT_ID / _SECRET, else GOOGLE_CLIENT_ID / _SECRET.
@@ -592,7 +616,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `parse_metric_row` (def) - (campaign id, week start (Monday), figures) from a weekly metrics row.
 - `fetch_campaigns` (def) - The account's campaigns with their weekly metrics from date_from to date_to (two queries).
 
-## services/ads/google_ads_mock_data.py (143 lines) - Made-up Google Ads accounts, campaigns and weekly results for GOOGLE_ADS_MODE=mock.
+## services/ads/google/google_ads_mock_data.py (143 lines) - Made-up Google Ads accounts, campaigns and weekly results for GOOGLE_ADS_MODE=mock.
 - `_rng` (def)
 - `_brand_for` (def)
 - `campaign_id_for` (def) - A stable, Google-like campaign id (11 digits) for the account's n-th mock campaign.
@@ -600,7 +624,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_week_figures` (def) - One week's figures: `days` of the week counted (7, or fewer for the current week).
 - `mock_account_campaigns` (def) - The account's campaigns with weekly figures for the weeks from date_from (a Monday) up to date_to, like
 
-## services/ads/google_ads_sync_job.py (177 lines) - Keeps Google Ads campaigns and their weekly results up to date from the connected Google Ads accounts.
+## services/ads/google/google_ads_sync_job.py (177 lines) - Keeps Google Ads campaigns and their weekly results up to date from the connected Google Ads accounts.
 - `GoogleAdsSyncAlreadyRunning` (class) - Another Google Ads sync is running (here or on another server).
     - `__init__` (def)
 - `GoogleAdsSyncFailed` (class) - No Google Ads account could be read.
@@ -618,7 +642,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `connected_accounts` (def) - The accounts of the usable connections in the current mode (managers included, flagged).
 - `google_ads_sync_loop` (def) - Run sync_google_ads() forever on a fixed interval; a failed run is logged and retried next interval.
 
-## services/ads/microsoft_ads_client.py (349 lines) - Microsoft Advertising (Bing Ads): the mode (mock or live), the app credentials, and the few API calls the portal makes.
+## services/ads/microsoft/microsoft_ads_client.py (349 lines) - Microsoft Advertising (Bing Ads): the mode (mock or live), the app credentials, and the few API calls the portal makes.
 - `MicrosoftAdsApiError` (class) - Microsoft Advertising refused a call or couldn't be reached.
 - `microsoft_ads_mode` (def) - MICROSOFT_ADS_MODE when it's mock or live; otherwise live in production and mock everywhere else.
 - `microsoft_ads_credentials` (def) - The Microsoft Advertising app's own client id and secret.
@@ -641,7 +665,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `fetch_weekly_report` (def)
 - `fetch_campaigns` (def) - The account's campaigns with their weekly metrics from date_from to date_to.
 
-## services/ads/microsoft_ads_mock_data.py (150 lines) - Made-up Microsoft Advertising accounts, campaigns and weekly results for MICROSOFT_ADS_MODE=mock.
+## services/ads/microsoft/microsoft_ads_mock_data.py (150 lines) - Made-up Microsoft Advertising accounts, campaigns and weekly results for MICROSOFT_ADS_MODE=mock.
 - `_rng` (def)
 - `_brand_for` (def)
 - `campaign_id_for` (def) - A stable, Microsoft-like campaign id (9 digits) for the account's n-th mock campaign.
@@ -649,7 +673,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_week_figures` (def) - One week's figures: `days` of the week counted (7, or fewer for the current week).
 - `mock_account_campaigns` (def) - The account's campaigns with weekly figures for the weeks from date_from (a Monday) up to date_to, like
 
-## services/ads/microsoft_ads_sync_job.py (150 lines) - Keeps Microsoft Advertising (Bing Ads) campaigns and their weekly results up to date from the connected accounts.
+## services/ads/microsoft/microsoft_ads_sync_job.py (150 lines) - Keeps Microsoft Advertising (Bing Ads) campaigns and their weekly results up to date from the connected accounts.
 - `MicrosoftAdsSyncAlreadyRunning` (class) - Another Microsoft Ads sync is running (here or on another server).
     - `__init__` (def)
 - `MicrosoftAdsSyncFailed` (class) - No Microsoft Ads account could be read.
@@ -681,7 +705,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `discover_accounts` (def) - Discovers authorized advertising or social accounts associated with the token.
     - `refresh_token` (def) - Refreshes an expired access token.
 
-## services/ads/oauth_adapters/google_ads.py (139 lines) - Google Ads OAuth 2.0 Provider Adapter GOOGLE_ADS_MODE (services/ads/google_ads_client.py) decides how it works: - mock: no call to Google.
+## services/ads/oauth_adapters/google_ads.py (139 lines) - Google Ads OAuth 2.0 Provider Adapter GOOGLE_ADS_MODE (services/ads/google/google_ads_client.py) decides how it works: - mock: no call to...
 - `GoogleAdsOAuthProvider` (class)
     - `__init__` (def)
     - `is_mock` (def)
@@ -706,7 +730,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `discover_accounts` (def)
     - `refresh_token` (def)
 
-## services/ads/oauth_adapters/microsoft_ads.py (116 lines) - Microsoft Ads (Bing) OAuth 2.0 Provider Adapter MICROSOFT_ADS_MODE (services/ads/microsoft_ads_client.py) decides how it works: - mock: n...
+## services/ads/oauth_adapters/microsoft_ads.py (116 lines) - Microsoft Ads (Bing) OAuth 2.0 Provider Adapter MICROSOFT_ADS_MODE (services/ads/microsoft/microsoft_ads_client.py) decides how it works:...
 - `MicrosoftAdsOAuthProvider` (class)
     - `__init__` (def)
     - `is_mock` (def)
@@ -750,31 +774,48 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `discover_accounts` (def)
     - `refresh_token` (def)
 
-## services/ads/oauth_connection_service.py (580 lines) - OAuth Connection Management Service Supports hierarchical multi-entity OAuth: Organization -> Companies/Entities -> OAuth connections
-- `list_organizations` (def)
-- `get_organization` (def)
-- `create_organization` (def)
-- `list_companies` (def)
-- `get_company` (def)
-- `create_company` (def)
-- `update_company` (def)
-- `delete_company` (def)
-- `_row_to_connection` (def)
-- `list_connections` (def)
-- `get_connection` (def)
-- `store_connection` (def) - Stores or updates an OAuth connection, encrypting access and refresh tokens.
-- `update_connection` (def)
-- `revoke_connection` (def)
-- `resolve_oauth_connection` (def) - Resolves an OAuth connection using the hierarchical fallback pattern:
-- `get_valid_access_token` (def) - Retrieves the decrypted access token.
-- `_execute_provider_refresh` (def) - Calls provider token endpoint to refresh OAuth tokens.
+## services/ai/core/assistant_chat_service.py (254 lines) - Assistant chat: answers questions about the portal, streamed as SSE.
+- `_get_client` (def)
+- `_sse` (def)
+- `PreparedChat` (class)
+    - `blocked` (def)
+    - `cached_answer` (def)
+- `_scope` (def) - Who can share a cached answer: people allowed the same tools.
+- `prepare` (def) - Screen the input and look for a cached answer (no Gemini quota is used here).
+- `_contents` (def)
+- `_stream_round` (def) - One model turn, streamed.
+- `stream` (def) - The SSE events for a prepared chat.
 
-## services/ads/token_crypto_service.py (71 lines) - AES-256-GCM token encryption service for OAuth access and refresh tokens.
-- `_derive_key` (def) - Derive a 256-bit AES key from environment secrets using HKDF.
-- `encrypt_token` (def) - Encrypts a plaintext token string with AES-256-GCM.
-- `decrypt_token` (def) - Decrypts a base64 encoded AES-256-GCM token string.
+## services/ai/core/gemini_service.py (121 lines) - gemini service (ai core)
+- `_normalize_ai_model_name` (def) - Normalizes a model name from the environment variable list
+- `get_gemini_fallback_models` (def) - Retrieves and normalizes the list of available Gemini models
+- `is_rotatable_model_error` (def) - Determines if a given exception represents a rate limit, quota exhaustion,
+- `generate_content_with_fallback` (def) - A robust wrapper around client.models.generate_content that automatically
 
-## services/ai/ai_guardrails.py (249 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
+## services/ai/core/model_router.py (98 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
+- `Route` (class)
+- `fallback_models` (def) - Every configured Gemini model (GEMINI_AVAILABLE_MODELS), retired ones left out, in the configured order.
+- `is_rotatable_model_error` (def) - A rate limit, exhausted quota, overloaded or retired model: worth trying the next model.
+- `enabled` (def)
+- `tier_models` (def)
+- `base_tier` (def)
+- `route` (def) - The models to try, in order, for this request, and why that tier was chosen.
+
+## services/ai/core/semantic_cache.py (205 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
+- `_env_float` (def)
+- `is_enabled` (def)
+- `Hit` (class)
+- `Lookup` (class) - What a lookup learned, so storing the answer afterwards doesn't embed the question again.
+- `normalise` (def)
+- `numbers` (def)
+- `_gemini_client` (def)
+- `_embed` (def)
+- `lookup` (def) - A cached answer to the question, if any.
+- `_lookup` (def)
+- `store` (def) - Cache an answer for the question of an earlier lookup.
+- `clear` (def) - Drop cached answers (one feature's, or all) when what they were built from has changed.
+
+## services/ai/observability/ai_guardrails.py (249 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
 - `_threshold` (def)
 - `GuardResult` (class)
     - `blocked` (def)
@@ -793,7 +834,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `feed` (def)
     - `flush` (def)
 
-## services/ai/ai_observability.py (368 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
+## services/ai/observability/ai_observability.py (368 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - `_env_int` (def)
 - `Span` (class)
 - `_get_queue` (def)
@@ -816,7 +857,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `flush` (def) - Write whatever is still queued (on shutdown, before the pool closes).
 - `writer_loop` (def) - Wait for records and write each burst in one batch; hourly (when idle) apply retention.
 
-## services/ai/ai_usage_service.py (141 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
+## services/ai/observability/ai_usage_service.py (141 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
 - `_env_int` (def)
 - `limit` (def)
 - `per_user_minute` (def)
@@ -827,47 +868,6 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_count` (def)
 - `reserve` (def) - Record one Gemini call, or raise AiLimitExceeded (HTTP 429) with a message saying when it frees up.
 - `usage_for` (def) - What a person has left, per feature, for showing in the UI.
-
-## services/ai/assistant_chat_service.py (252 lines) - Assistant chat: answers questions about the portal, streamed as SSE.
-- `_get_client` (def)
-- `_sse` (def)
-- `PreparedChat` (class)
-    - `blocked` (def)
-    - `cached_answer` (def)
-- `_scope` (def) - Who can share a cached answer: people allowed the same tools.
-- `prepare` (def) - Screen the input and look for a cached answer (no Gemini quota is used here).
-- `_contents` (def)
-- `_stream_round` (def) - One model turn, streamed.
-- `stream` (def) - The SSE events for a prepared chat.
-
-## services/ai/gemini_service.py (121 lines) - gemini service (ai)
-- `_normalize_ai_model_name` (def) - Normalizes a model name from the environment variable list
-- `get_gemini_fallback_models` (def) - Retrieves and normalizes the list of available Gemini models
-- `is_rotatable_model_error` (def) - Determines if a given exception represents a rate limit, quota exhaustion,
-- `generate_content_with_fallback` (def) - A robust wrapper around client.models.generate_content that automatically
-
-## services/ai/model_router.py (98 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
-- `Route` (class)
-- `fallback_models` (def) - Every configured Gemini model (GEMINI_AVAILABLE_MODELS), retired ones left out, in the configured order.
-- `is_rotatable_model_error` (def) - A rate limit, exhausted quota, overloaded or retired model: worth trying the next model.
-- `enabled` (def)
-- `tier_models` (def)
-- `base_tier` (def)
-- `route` (def) - The models to try, in order, for this request, and why that tier was chosen.
-
-## services/ai/semantic_cache.py (205 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
-- `_env_float` (def)
-- `is_enabled` (def)
-- `Hit` (class)
-- `Lookup` (class) - What a lookup learned, so storing the answer afterwards doesn't embed the question again.
-- `normalise` (def)
-- `numbers` (def)
-- `_gemini_client` (def)
-- `_embed` (def)
-- `lookup` (def) - A cached answer to the question, if any.
-- `_lookup` (def)
-- `store` (def) - Cache an answer for the question of an earlier lookup.
-- `clear` (def) - Drop cached answers (one feature's, or all) when what they were built from has changed.
 
 ## services/budgets/budget_import_service.py (660 lines) - Uploading Marketing's budget tracker sheet ("Budget Tracker") instead of adding each budget by hand.
 - `_join_words` (def)
@@ -1243,7 +1243,128 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## services/reference_data/reference_data_service.py (89 lines) - Marketing reference data (brands, channels, funnel stages, goals, KPIs, ratings, cost classification).
 - `get_reference_data` (def)
 
-## services/shared/ads_service.py (675 lines) - Paid ads: results per campaign or ad group per period, for every Paid Search and Paid Social platform.
+## services/shared/core/audit_service.py (252 lines) - audit service (shared core)
+- `_budget_label` (def) - SQL for a budget's name, "Sep 2026 · Othership · London" (plus " · Paid Search" for one channel).
+- `entity_title_sql` (def) - SQL expression giving a readable name for the audited item (e.g.
+- `log_audit_event` (def) - Records an event in the audit_logs table.
+- `get_audit_logs` (def)
+
+## services/shared/core/auth_service.py (625 lines) - No fallback: tokens must be signed with a secret of their own, never the session secret or a default
+- `_update_last_activity_async` (def)
+- `create_access_token` (def)
+- `verify_token` (def)
+- `get_my_permissions` (def)
+- `user_can_access_page` (def)
+- `user_can_use_mcp_tool` (def)
+- `resolve_user_department` (def) - Resolves user department matching the frontend logic:
+- `_is_cookie_secure` (def)
+- `set_access_token_cookie` (def)
+- `clear_access_token_cookie` (def)
+- `getCurrentUserFromMicrosoftClaims` (def)
+- `upsertMicrosoftUser` (def) - Create or update the local user record for an authenticated Microsoft
+- `getUserRoles` (def)
+- `getUserNavigationPermissions` (def)
+- `getUserToolPermissions` (def)
+- `get_current_user_id_dependency` (def)
+- `requireNavigationAccess` (def)
+    - `dependency` (def)
+- `require_permission` (def) - New API Permission Guard based on PBAC proposal.
+    - `dependency` (def)
+- `requireToolAccess` (def)
+    - `dependency` (def)
+
+## services/shared/core/cache_service.py (188 lines) - cache service (shared core)
+- `AsyncInMemoryCache` (class) - Lightweight in-memory cache with TTL expiration, LRU eviction, and key/prefix invalidation.
+    - `__init__` (def)
+    - `get` (def)
+    - `set` (def)
+    - `invalidate` (def)
+    - `invalidate_prefix` (def)
+    - `clear` (def)
+- `_apply_cache_invalidation` (def) - Apply invalidation to local process in-memory caches.
+- `emit_cache_invalidation` (def) - Broadcast a cache invalidation event.
+- `_create_notification_handler` (def) - Create a callback for PostgreSQL NOTIFY events received from other workers.
+    - `handle_notification` (def)
+- `start_cache_invalidation_listener` (def) - Background worker that listens for PostgreSQL NOTIFY events on CACHE_CHANNEL.
+
+## services/shared/core/logging_service.py (123 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
+- `JsonFormatter` (class) - Emit one compact JSON object per line for CloudWatch Logs Insights.
+    - `format` (def)
+- `configure_logging` (def) - Configure stdout once; AWS container log drivers collect this stream.
+- `log_background_task_result` (def) - Log a task that exits unexpectedly instead of losing its exception.
+- `asyncio_exception_handler` (def) - Capture detached asyncio failures that would otherwise only reach stderr.
+
+## services/shared/core/rbac_service.py (695 lines) - Utility for audit logging
+- `log_audit` (def)
+- `get_audit_logs` (def)
+- `_public_user` (def)
+- `get_all_users` (def)
+- `get_user_by_id` (def)
+- `create_user` (def)
+- `update_user` (def)
+- `delete_user` (def)
+- `bulk_delete_users` (def)
+- `get_all_roles` (def)
+- `get_role_tree` (def)
+- `get_role_by_id` (def)
+- `create_role` (def)
+- `update_role` (def)
+- `delete_role` (def)
+- `get_user_roles` (def)
+- `set_user_roles` (def)
+- `get_role_navigation_permissions` (def)
+- `update_role_navigation_permissions` (def)
+- `get_role_mcp_tool_permissions` (def)
+- `update_role_mcp_tool_permissions` (def)
+- `log_login_activity` (def)
+- `get_login_activity_logs` (def)
+- `log_audit_action` (def)
+- `get_permission_modules` (def)
+- `get_role_permission_groups` (def)
+- `update_role_permission_groups` (def)
+
+## services/shared/core/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
+- `require_application_scope` (def) - FastAPI dependency that enforces Application-Level Scope authorization.
+    - `_scope_guard` (def)
+- `generate_scoped_outbound_token` (def) - Generates a minimal, scope-restricted token for sending requests to another application.
+
+## services/shared/imports/cost_sheet_import_service.py (735 lines) - Uploading an event's cost sheet (.xlsx or .csv) instead of retyping it.
+- `ImportNotFoundError` (class) - No upload with the requested id.
+- `ImportForbiddenError` (class) - Someone other than the uploader tried to confirm a preview.
+- `ImportConflictError` (class) - The upload isn't in a state that allows this; the message is safe to show to users.
+- `ImportExpiredError` (class) - The preview is too old to confirm.
+- `_Context` (class) - Everything a row check needs, loaded once per upload.
+    - `__init__` (def)
+- `_cell` (def)
+- `_check_row` (def) - Check one sheet row.
+    - `amount` (def)
+    - `day` (def)
+- `preview_cost_sheet` (def) - Check every row of an uploaded cost sheet and keep the rows that pass for confirming later.
+- `_is_expired` (def)
+- `_staged` (def)
+- `_insert_lines` (def) - Add a batch's checked rows as cost lines in one statement, and audit each like a cost added by hand.
+- `confirm_import` (def) - Turn a preview's rows into cost lines in one statement, then mark the upload confirmed.
+- `undo_import` (def) - Remove every cost line an upload created (including ones edited since), unless Finance reconciled any.
+- `list_imports` (def) - An initiative's recent uploads, newest first, with how many of their lines remain and were edited.
+- `build_template` (def) - An .xlsx to start from: the columns in order, an example booth, and the categories to choose from.
+
+## services/shared/imports/import_parsing.py (334 lines) - Reading spreadsheet uploads (CSV and .xlsx) into rows, and parsing the values people type into them.
+- `ImportFileError` (class) - The file can't be read at all; the message is safe to show to users.
+- `InvalidValueError` (class) - One value can't be understood; the message is safe to show to users.
+- `normalise_header` (def) - Invoice_No ', 'invoice-no' and 'Invoice  No' all become 'invoice no'.
+- `_cell_text` (def) - A cell as text: dates as ISO, whole numbers without '.0', blanks as ''.
+- `_csv_rows` (def)
+- `_has_header` (def) - Whether one of the sheet's first rows names at least two of the known columns.
+- `_xlsx_rows` (def)
+- `read_table` (def) - Read a CSV or .xlsx upload into one dict per row, keyed by the sheet's own header text.
+- `ColumnMatch` (class) - Which sheet header feeds each of our fields, and the headers nothing uses.
+- `match_columns` (def) - Map sheet headers to our fields.
+- `uses_decimal_comma` (def) - True when a column clearly writes decimals with a comma (1.200,50 or 12,5) and never with a dot.
+- `parse_amount` (def) - An amount as typed: '$1,200.50' → 1200.50, '£300', '1 200', '(150.00)' → -150.
+- `parse_date` (def) - A date as typed or stored in a cell.
+- `parse_currency` (def) - A 3-letter currency code from a code (any case) or a symbol: $ → USD, £ → GBP, A$ → AUD, ₩ → KRW.
+
+## services/shared/initiatives/ads_service.py (675 lines) - Paid ads: results per campaign or ad group per period, for every Paid Search and Paid Social platform.
 - `AdsValidationError` (class) - A request that breaks an ads rule; the message is safe to show to users.
 - `AdResultNotFoundError` (class) - No ad result with the requested id.
 - `_number` (def)
@@ -1269,71 +1390,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `update_result` (def) - Change some of a result's values, then sync its campaign's spend and outcomes.
 - `delete_result` (def) - Delete a result and sync its campaign's spend and outcomes.
 
-## services/shared/audit_service.py (252 lines) - audit service (shared)
-- `_budget_label` (def) - SQL for a budget's name, "Sep 2026 · Othership · London" (plus " · Paid Search" for one channel).
-- `entity_title_sql` (def) - SQL expression giving a readable name for the audited item (e.g.
-- `log_audit_event` (def) - Records an event in the audit_logs table.
-- `get_audit_logs` (def)
-
-## services/shared/auth_service.py (625 lines) - No fallback: tokens must be signed with a secret of their own, never the session secret or a default
-- `_update_last_activity_async` (def)
-- `create_access_token` (def)
-- `verify_token` (def)
-- `get_my_permissions` (def)
-- `user_can_access_page` (def)
-- `user_can_use_mcp_tool` (def)
-- `resolve_user_department` (def) - Resolves user department matching the frontend logic:
-- `_is_cookie_secure` (def)
-- `set_access_token_cookie` (def)
-- `clear_access_token_cookie` (def)
-- `getCurrentUserFromMicrosoftClaims` (def)
-- `upsertMicrosoftUser` (def) - Create or update the local user record for an authenticated Microsoft
-- `getUserRoles` (def)
-- `getUserNavigationPermissions` (def)
-- `getUserToolPermissions` (def)
-- `get_current_user_id_dependency` (def)
-- `requireNavigationAccess` (def)
-    - `dependency` (def)
-- `require_permission` (def) - New API Permission Guard based on PBAC proposal.
-    - `dependency` (def)
-- `requireToolAccess` (def)
-    - `dependency` (def)
-
-## services/shared/cache_service.py (188 lines) - cache service (shared)
-- `AsyncInMemoryCache` (class) - Lightweight in-memory cache with TTL expiration, LRU eviction, and key/prefix invalidation.
-    - `__init__` (def)
-    - `get` (def)
-    - `set` (def)
-    - `invalidate` (def)
-    - `invalidate_prefix` (def)
-    - `clear` (def)
-- `_apply_cache_invalidation` (def) - Apply invalidation to local process in-memory caches.
-- `emit_cache_invalidation` (def) - Broadcast a cache invalidation event.
-- `_create_notification_handler` (def) - Create a callback for PostgreSQL NOTIFY events received from other workers.
-    - `handle_notification` (def)
-- `start_cache_invalidation_listener` (def) - Background worker that listens for PostgreSQL NOTIFY events on CACHE_CHANNEL.
-
-## services/shared/cost_sheet_import_service.py (735 lines) - Uploading an event's cost sheet (.xlsx or .csv) instead of retyping it.
-- `ImportNotFoundError` (class) - No upload with the requested id.
-- `ImportForbiddenError` (class) - Someone other than the uploader tried to confirm a preview.
-- `ImportConflictError` (class) - The upload isn't in a state that allows this; the message is safe to show to users.
-- `ImportExpiredError` (class) - The preview is too old to confirm.
-- `_Context` (class) - Everything a row check needs, loaded once per upload.
-    - `__init__` (def)
-- `_cell` (def)
-- `_check_row` (def) - Check one sheet row.
-    - `amount` (def)
-    - `day` (def)
-- `preview_cost_sheet` (def) - Check every row of an uploaded cost sheet and keep the rows that pass for confirming later.
-- `_is_expired` (def)
-- `_staged` (def)
-- `_insert_lines` (def) - Add a batch's checked rows as cost lines in one statement, and audit each like a cost added by hand.
-- `confirm_import` (def) - Turn a preview's rows into cost lines in one statement, then mark the upload confirmed.
-- `undo_import` (def) - Remove every cost line an upload created (including ones edited since), unless Finance reconciled any.
-- `list_imports` (def) - An initiative's recent uploads, newest first, with how many of their lines remain and were edited.
-- `build_template` (def) - An .xlsx to start from: the columns in order, an example booth, and the categories to choose from.
-
-## services/shared/demo_service.py (306 lines) - Demos given at events: one row per demo, with its type, company, product, who gave it and the outcome.
+## services/shared/initiatives/demo_service.py (306 lines) - Demos given at events: one row per demo, with its type, company, product, who gave it and the outcome.
 - `DemoValidationError` (class) - A request that breaks a demo rule; the message is safe to show to users.
 - `DemoNotFoundError` (class) - No demo with the requested id.
 - `InitiativeNotFoundError` (class) - No initiative with the requested id.
@@ -1346,23 +1403,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_per` (def)
 - `get_demo_summary` (def) - How many demos were given, of which kind, by whom, how far they got, and what each one cost.
 
-## services/shared/import_parsing.py (334 lines) - Reading spreadsheet uploads (CSV and .xlsx) into rows, and parsing the values people type into them.
-- `ImportFileError` (class) - The file can't be read at all; the message is safe to show to users.
-- `InvalidValueError` (class) - One value can't be understood; the message is safe to show to users.
-- `normalise_header` (def) - Invoice_No ', 'invoice-no' and 'Invoice  No' all become 'invoice no'.
-- `_cell_text` (def) - A cell as text: dates as ISO, whole numbers without '.0', blanks as ''.
-- `_csv_rows` (def)
-- `_has_header` (def) - Whether one of the sheet's first rows names at least two of the known columns.
-- `_xlsx_rows` (def)
-- `read_table` (def) - Read a CSV or .xlsx upload into one dict per row, keyed by the sheet's own header text.
-- `ColumnMatch` (class) - Which sheet header feeds each of our fields, and the headers nothing uses.
-- `match_columns` (def) - Map sheet headers to our fields.
-- `uses_decimal_comma` (def) - True when a column clearly writes decimals with a comma (1.200,50 or 12,5) and never with a dot.
-- `parse_amount` (def) - An amount as typed: '$1,200.50' → 1200.50, '£300', '1 200', '(150.00)' → -150.
-- `parse_date` (def) - A date as typed or stored in a cell.
-- `parse_currency` (def) - A 3-letter currency code from a code (any case) or a symbol: $ → USD, £ → GBP, A$ → AUD, ₩ → KRW.
-
-## services/shared/initiative_metrics.py (194 lines) - Turns an initiative's costs and results into the cost-per-outcome ladder, ROI and a suggested rating.
+## services/shared/initiatives/initiative_metrics.py (194 lines) - Turns an initiative's costs and results into the cost-per-outcome ladder, ROI and a suggested rating.
 - `_ratio` (def) - part ÷ whole, or None when either is missing or the whole is zero — never an error.
 - `_money` (def)
 - `_percent` (def)
@@ -1377,7 +1418,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `suggest_rating` (def) - The final verdict from the return, as the Events Overview judges events: no KPI or target needed.
 - `money_outcome` (def) - Whether the money came back: PROFIT, BROKE_EVEN, LOST_MONEY, or NO_REVENUE yet.
 
-## services/shared/initiative_service.py (873 lines) - Marketing initiatives — one record per initiative, whatever the channel.
+## services/shared/initiatives/initiative_service.py (873 lines) - Marketing initiatives — one record per initiative, whatever the channel.
 - `_check_event_rules` (def) - Raise if an event's details (as they'll be saved) break the sub-channel's rules.
 - `_check_travel_budget` (def) - The travel budget is part of the event budget (same currency), so it has to be smaller than it.
 - `_check_required` (def) - Fields a non-draft initiative needs (a draft only needs a name, brand and channel).
@@ -1409,48 +1450,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `delete_initiative` (def) - Delete an initiative in any status and channel (its costs, results, event details, links and team go with
 - `list_owner_options` (def) - Active users who can own an initiative, matched on name or email.
 
-## services/shared/logging_service.py (123 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
-- `JsonFormatter` (class) - Emit one compact JSON object per line for CloudWatch Logs Insights.
-    - `format` (def)
-- `configure_logging` (def) - Configure stdout once; AWS container log drivers collect this stream.
-- `log_background_task_result` (def) - Log a task that exits unexpectedly instead of losing its exception.
-- `asyncio_exception_handler` (def) - Capture detached asyncio failures that would otherwise only reach stderr.
-
-## services/shared/rbac_service.py (695 lines) - Utility for audit logging
-- `log_audit` (def)
-- `get_audit_logs` (def)
-- `_public_user` (def)
-- `get_all_users` (def)
-- `get_user_by_id` (def)
-- `create_user` (def)
-- `update_user` (def)
-- `delete_user` (def)
-- `bulk_delete_users` (def)
-- `get_all_roles` (def)
-- `get_role_tree` (def)
-- `get_role_by_id` (def)
-- `create_role` (def)
-- `update_role` (def)
-- `delete_role` (def)
-- `get_user_roles` (def)
-- `set_user_roles` (def)
-- `get_role_navigation_permissions` (def)
-- `update_role_navigation_permissions` (def)
-- `get_role_mcp_tool_permissions` (def)
-- `update_role_mcp_tool_permissions` (def)
-- `log_login_activity` (def)
-- `get_login_activity_logs` (def)
-- `log_audit_action` (def)
-- `get_permission_modules` (def)
-- `get_role_permission_groups` (def)
-- `update_role_permission_groups` (def)
-
-## services/shared/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
-- `require_application_scope` (def) - FastAPI dependency that enforces Application-Level Scope authorization.
-    - `_scope_guard` (def)
-- `generate_scoped_outbound_token` (def) - Generates a minimal, scope-restricted token for sending requests to another application.
-
-## services/shared/spend_service.py (482 lines) - Costs against an initiative (spend lines): list, add, edit and delete, with stage, invoice and boundary rules.
+## services/shared/initiatives/spend_service.py (482 lines) - Costs against an initiative (spend lines): list, add, edit and delete, with stage, invoice and boundary rules.
 - `lock_state` (def) - (lock_reason, locked_fields, can_delete) for a line with source, reconciled_month and status.
 - `_lock_message` (def)
 - `_with_lock_info` (def) - A line as the API returns it, with what's locked and why.
@@ -1475,10 +1475,10 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `get_spend_summary` (def) - Costs against the budget, by expense type then category, in the initiative's currency.
     - `expected_from` (def)
 
-## services/shared/travel_cost_rules.py (25 lines) - What counts as travel (flights, hotels, ground transport, per diems and other travel), in one place.
+## services/shared/initiatives/travel_cost_rules.py (25 lines) - What counts as travel (flights, hotels, ground transport, per diems and other travel), in one place.
 - `travel_sql` (def) - A SQL condition that is true when the spend line aliased `line` is travel.
 
-## tools/ads/ads_router.py (223 lines) - Paid ads (every Paid Search and Paid Social platform): overview, results, campaigns, and the PPC sheet upload.
+## tools/ads/ads_router.py (224 lines) - Paid ads (every Paid Search and Paid Social platform): overview, results, campaigns, and the PPC sheet upload.
 - `_unprocessable` (def)
 - `_result_not_found` (def)
 - `_upload_not_found` (def)
@@ -1620,7 +1620,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## tools/reference_data/reference_data_router.py (13 lines) - reference data router (reference data)
 - `get_reference_data` (def) [GET /reference-data] - All marketing lookup lists (brands, channels, goals, ...) for dropdowns.
 
-## tools/shared/auth_router.py (338 lines) - auth router (shared)
+## tools/shared/core/auth_router.py (338 lines) - auth router (shared core)
 - `microsoft_login` (def) [GET /auth/microsoft/login]
 - `microsoft_callback` (def) [GET /auth/microsoft/callback]
 - `get_auth_bootstrap` (def) [GET /auth/bootstrap]
@@ -1633,34 +1633,18 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `DevLoginRequest` (class)
 - `dev_login_json` (def) [POST /auth/dev-login] - Development-only login for the mobile app, which cannot follow the web redirect.
 
-## tools/shared/demo_router.py (91 lines) - demo router (shared)
-- `_unprocessable` (def)
-- `list_demos` (def) - The demos given at an event, newest first.
-- `get_demo_summary` (def) - Demo counts by type, outcome, product and staff member, the demo funnel, and cost per demo / customer.
-- `create_demo` (def) [POST /initiatives/{initiative_id}/demos] - Log a demo.
-- `update_demo` (def) [PATCH /demos/{demo_id}] - Change a demo, e.g.
-- `delete_demo` (def) [DELETE /demos/{demo_id}]
-
-## tools/shared/import_router.py (107 lines) - import router (shared)
-- `_initiative_not_found` (def)
-- `upload_cost_sheet` (def) [POST /initiatives/{initiative_id}/imports/cost-sheet] - Check an event's cost sheet (.xlsx or .csv) and show what would be imported.
-- `download_cost_sheet_template` (def) - An .xlsx to fill in: the columns in order, an example booth, and dropdowns for the categories.
-- `confirm_cost_sheet` (def) [POST /imports/{batch_id}/confirm] - Import the previewed rows as cost lines.
-- `undo_cost_sheet` (def) [POST /imports/{batch_id}/undo] - Remove every cost line the upload created, including any edited since.
-- `list_cost_sheet_imports` (def) - This initiative's recent cost sheet uploads, newest first.
-
-## tools/shared/log_router.py (75 lines) - log router (shared)
+## tools/shared/core/log_router.py (75 lines) - log router (shared core)
 - `_safe_parse_json` (def)
 - `list_audit_logs` (def) [GET /logs]
 
-## tools/shared/observability.py (74 lines) - observability (shared)
+## tools/shared/core/observability.py (74 lines) - observability (shared core)
 - `ClientErrorReport` (class)
 - `ClientPerformanceReport` (class)
 - `report_client_error` (def) [POST /observability/client-error]
 - `report_client_performance` (def) [POST /observability/client-performance]
 - `get_token_usage` (def) [GET /observability/usage/tokens]
 
-## tools/shared/rbac_router.py (224 lines) - rbac router (shared)
+## tools/shared/core/rbac_router.py (224 lines) - rbac router (shared core)
 - `get_current_user_id` (def)
 - `read_my_permissions` (def) [GET /me/permissions]
 - `list_audit_logs` (def) [GET /audit-logs]
@@ -1689,12 +1673,28 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `list_role_mcp_tool_permissions` (def) [GET /configuration/roles/{id}/mcp-tool-permissions]
 - `edit_role_mcp_tool_permissions` (def) [PUT /configuration/roles/{id}/mcp-tool-permissions]
 
-## tools/shared/search.py (178 lines) - Static system pages for quick navigation search with explicit permission codes
+## tools/shared/core/search.py (178 lines) - Static system pages for quick navigation search with explicit permission codes
 - `SearchResult` (class)
 - `global_search` (def) [GET ]
     - `has_perm` (def)
 
-## tools/shared/spend_router.py (97 lines) - spend router (shared)
+## tools/shared/initiatives/demo_router.py (91 lines) - demo router (shared initiatives)
+- `_unprocessable` (def)
+- `list_demos` (def) - The demos given at an event, newest first.
+- `get_demo_summary` (def) - Demo counts by type, outcome, product and staff member, the demo funnel, and cost per demo / customer.
+- `create_demo` (def) [POST /initiatives/{initiative_id}/demos] - Log a demo.
+- `update_demo` (def) [PATCH /demos/{demo_id}] - Change a demo, e.g.
+- `delete_demo` (def) [DELETE /demos/{demo_id}]
+
+## tools/shared/initiatives/import_router.py (107 lines) - import router (shared initiatives)
+- `_initiative_not_found` (def)
+- `upload_cost_sheet` (def) [POST /initiatives/{initiative_id}/imports/cost-sheet] - Check an event's cost sheet (.xlsx or .csv) and show what would be imported.
+- `download_cost_sheet_template` (def) - An .xlsx to fill in: the columns in order, an example booth, and dropdowns for the categories.
+- `confirm_cost_sheet` (def) [POST /imports/{batch_id}/confirm] - Import the previewed rows as cost lines.
+- `undo_cost_sheet` (def) [POST /imports/{batch_id}/undo] - Remove every cost line the upload created, including any edited since.
+- `list_cost_sheet_imports` (def) - This initiative's recent cost sheet uploads, newest first.
+
+## tools/shared/initiatives/spend_router.py (97 lines) - spend router (shared initiatives)
 - `_unprocessable` (def)
 - `list_spend_lines` (def) - An initiative's costs, grouped by expense type and category, then by date.
 - `get_spend_summary` (def) - Expected, committed, invoiced and paid costs against the budget, by expense type and category.

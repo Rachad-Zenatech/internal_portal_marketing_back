@@ -14,9 +14,9 @@ from uuid import UUID
 import asyncpg
 
 from postgresql_db.database import get_pool
-from services.shared import initiative_metrics as metrics
-from services.shared.demo_service import HELD_DEMO_SQL
-from services.shared.rbac_service import log_audit
+from services.shared.initiatives import initiative_metrics as metrics
+from services.shared.initiatives.demo_service import HELD_DEMO_SQL
+from services.shared.core.rbac_service import log_audit
 
 OUTCOMES_AUDIT_ENTITY = "Outcomes"
 EVALUATION_AUDIT_ENTITY = "Evaluation"

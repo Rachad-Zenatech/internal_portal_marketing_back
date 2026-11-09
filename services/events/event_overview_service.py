@@ -22,7 +22,7 @@ from postgresql_db.database import get_pool
 from services.events import event_matching
 from services.events.event_management_service import InitiativeNotFoundError, list_travellers
 from services.events.event_performance_service import EVENTS_CHANNEL, list_event_performance
-from services.shared import initiative_metrics as metrics
+from services.shared.initiatives import initiative_metrics as metrics
 
 _NAVAN_SQL = f"""
     SELECT i.id AS initiative_id, i.name AS initiative_name, ed.navan_event_name, ed.travel_budget_amount::float8 AS travel_budget,

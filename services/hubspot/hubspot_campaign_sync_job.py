@@ -36,8 +36,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from postgresql_db.database import get_pool
 from services.hubspot.hubspot_ad_results_sync import sync_paid_search_results
 from services.hubspot.hubspot_client import HubSpotUnavailable, fetch_hubspot_campaigns
-from services.shared import ads_service
-from services.shared.initiative_service import AUDIT_ENTITY as INITIATIVE_AUDIT_ENTITY
+from services.shared.initiatives import ads_service
+from services.shared.initiatives.initiative_service import AUDIT_ENTITY as INITIATIVE_AUDIT_ENTITY
 
 logger = logging.getLogger(__name__)
 

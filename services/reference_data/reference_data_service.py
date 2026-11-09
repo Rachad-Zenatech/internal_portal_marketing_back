@@ -5,9 +5,9 @@ tables must call emit_cache_invalidation(scope="master_data", key=REFERENCE_DATA
 """
 from models.shared.channel_details_model import CHOICES
 from postgresql_db.database import get_pool
-from services.shared.cache_service import master_data_cache
-from services.shared.initiative_metrics import RESULT_METRICS_BY_CHANNEL
-from services.shared.initiative_service import SUB_CHANNEL_REQUIRED_SQL
+from services.shared.core.cache_service import master_data_cache
+from services.shared.initiatives.initiative_metrics import RESULT_METRICS_BY_CHANNEL
+from services.shared.initiatives.initiative_service import SUB_CHANNEL_REQUIRED_SQL
 
 REFERENCE_DATA_CACHE_KEY = "reference_data"
 _CACHE_TTL_SECONDS = 300

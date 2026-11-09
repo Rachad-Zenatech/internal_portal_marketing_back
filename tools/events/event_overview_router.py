@@ -23,7 +23,7 @@ from services.events.event_overview_service import (
     set_hubspot_link,
     set_navan_trip_link,
 )
-from services.shared.auth_service import require_permission
+from services.shared.core.auth_service import require_permission
 
 router = APIRouter()
 

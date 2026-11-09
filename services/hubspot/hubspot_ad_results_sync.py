@@ -16,7 +16,7 @@ from collections import defaultdict
 from typing import Any, Dict, List
 from uuid import UUID
 
-from services.shared import ads_service
+from services.shared.initiatives import ads_service
 
 RESULT_SOURCE = "HUBSPOT"
 LINK_SYSTEM = "HUBSPOT"

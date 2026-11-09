@@ -689,7 +689,7 @@ spend_lines = sa.Table(
 # --- Paid ads results (Google Ads and Bing Ads campaigns) ---
 # One row per campaign (or one of its ad groups) per period, replacing Marketing's "SaaS PPC Campaigns" sheet.
 # CTR, CPC, CPL and the other ratios are calculated when read, never stored. Each row's spend becomes a spend line
-# and its results become monthly outcomes (services/shared/ads_service.py keeps both in step).
+# and its results become monthly outcomes (services/shared/initiatives/ads_service.py keeps both in step).
 ad_results = sa.Table(
     "ad_results", metadata,
     sa.Column("id", sa.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),

@@ -9,7 +9,7 @@ from services.navan.navan_cost_sync_job import (
     sync_navan_costs,
 )
 from services.navan.navan_service import DEMO_MODE, NavanUnavailable, navan_configured, navan_mode
-from services.shared.auth_service import require_permission
+from services.shared.core.auth_service import require_permission
 
 router = APIRouter()
 

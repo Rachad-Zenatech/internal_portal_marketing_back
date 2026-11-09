@@ -40,32 +40,32 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - scripts/demo_events.py (299 lines) - demo events
 - scripts/seed_sample_initiatives.py (675 lines) - seed sample initiatives
 - scripts/setup_prod_db.py (228 lines) - Set up or update the production database schema, using the PROD_* values in .env.
-- server.py (649 lines) - MCP tools & AI functions
-- services/ads/ad_platform_sync.py (542 lines) - The campaign and weekly results sync shared by the ad platforms (Google Ads, Microsoft Ads).
-- services/ads/ads_import_service.py (731 lines) - Uploading Marketing's PPC sheet ("SaaS PPC Campaigns") instead of retyping it.
-- services/ads/ads_overview_service.py (878 lines) - The Paid Advertising page: key figures, charts, campaigns needing attention, one campaign's detail, data health.
-- services/ads/google_ads_client.py (323 lines) - Google Ads: the mode (mock or live), the app credentials, and the few REST calls the portal makes.
-- services/ads/google_ads_mock_data.py (143 lines) - Made-up Google Ads accounts, campaigns and weekly results for GOOGLE_ADS_MODE=mock.
-- services/ads/google_ads_sync_job.py (177 lines) - Keeps Google Ads campaigns and their weekly results up to date from the connected Google Ads accounts.
-- services/ads/microsoft_ads_client.py (349 lines) - Microsoft Advertising (Bing Ads): the mode (mock or live), the app credentials, and the few API calls the portal makes.
-- services/ads/microsoft_ads_mock_data.py (150 lines) - Made-up Microsoft Advertising accounts, campaigns and weekly results for MICROSOFT_ADS_MODE=mock.
-- services/ads/microsoft_ads_sync_job.py (150 lines) - Keeps Microsoft Advertising (Bing Ads) campaigns and their weekly results up to date from the connected accounts.
+- server.py (650 lines) - MCP tools & AI functions
+- services/ads/core/ad_platform_sync.py (542 lines) - The campaign and weekly results sync shared by the ad platforms (Google Ads, Microsoft Ads).
+- services/ads/core/ads_import_service.py (731 lines) - Uploading Marketing's PPC sheet ("SaaS PPC Campaigns") instead of retyping it.
+- services/ads/core/ads_overview_service.py (879 lines) - The Paid Advertising page: key figures, charts, campaigns needing attention, one campaign's detail, data health.
+- services/ads/core/oauth_connection_service.py (580 lines) - OAuth Connection Management Service Supports hierarchical multi-entity OAuth: Organization -> Companies/Entities -> OAuth connections
+- services/ads/core/token_crypto_service.py (71 lines) - AES-256-GCM token encryption service for OAuth access and refresh tokens.
+- services/ads/google/google_ads_client.py (323 lines) - Google Ads: the mode (mock or live), the app credentials, and the few REST calls the portal makes.
+- services/ads/google/google_ads_mock_data.py (143 lines) - Made-up Google Ads accounts, campaigns and weekly results for GOOGLE_ADS_MODE=mock.
+- services/ads/google/google_ads_sync_job.py (177 lines) - Keeps Google Ads campaigns and their weekly results up to date from the connected Google Ads accounts.
+- services/ads/microsoft/microsoft_ads_client.py (349 lines) - Microsoft Advertising (Bing Ads): the mode (mock or live), the app credentials, and the few API calls the portal makes.
+- services/ads/microsoft/microsoft_ads_mock_data.py (150 lines) - Made-up Microsoft Advertising accounts, campaigns and weekly results for MICROSOFT_ADS_MODE=mock.
+- services/ads/microsoft/microsoft_ads_sync_job.py (150 lines) - Keeps Microsoft Advertising (Bing Ads) campaigns and their weekly results up to date from the connected accounts.
 - services/ads/oauth_adapters/__init__.py (56 lines) - OAuth Provider Adapters Package
 - services/ads/oauth_adapters/base.py (66 lines) - Base OAuth Provider Adapter Interface Defines the contract for OAuth 2.0 authorization, token exchange, account discovery, and token life...
-- services/ads/oauth_adapters/google_ads.py (139 lines) - Google Ads OAuth 2.0 Provider Adapter GOOGLE_ADS_MODE (services/ads/google_ads_client.py) decides how it works: - mock: no call to Google.
+- services/ads/oauth_adapters/google_ads.py (139 lines) - Google Ads OAuth 2.0 Provider Adapter GOOGLE_ADS_MODE (services/ads/google/google_ads_client.py) decides how it works: - mock: no call to...
 - services/ads/oauth_adapters/linkedin_ads.py (76 lines) - LinkedIn Ads OAuth 2.0 Provider Adapter
 - services/ads/oauth_adapters/meta_ads.py (74 lines) - Meta Ads (Facebook & Instagram) OAuth 2.0 Provider Adapter
-- services/ads/oauth_adapters/microsoft_ads.py (116 lines) - Microsoft Ads (Bing) OAuth 2.0 Provider Adapter MICROSOFT_ADS_MODE (services/ads/microsoft_ads_client.py) decides how it works: - mock: n...
+- services/ads/oauth_adapters/microsoft_ads.py (116 lines) - Microsoft Ads (Bing) OAuth 2.0 Provider Adapter MICROSOFT_ADS_MODE (services/ads/microsoft/microsoft_ads_client.py) decides how it works:...
 - services/ads/oauth_adapters/social_adapters.py (230 lines) - Organic Social Media OAuth 2.0 Provider Adapters
-- services/ads/oauth_connection_service.py (580 lines) - OAuth Connection Management Service Supports hierarchical multi-entity OAuth: Organization -> Companies/Entities -> OAuth connections
-- services/ads/token_crypto_service.py (71 lines) - AES-256-GCM token encryption service for OAuth access and refresh tokens.
-- services/ai/ai_guardrails.py (249 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
-- services/ai/ai_observability.py (368 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
-- services/ai/ai_usage_service.py (141 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
-- services/ai/assistant_chat_service.py (252 lines) - Assistant chat: answers questions about the portal, streamed as SSE.
-- services/ai/gemini_service.py (121 lines) - gemini service (ai)
-- services/ai/model_router.py (98 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
-- services/ai/semantic_cache.py (205 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
+- services/ai/core/assistant_chat_service.py (254 lines) - Assistant chat: answers questions about the portal, streamed as SSE.
+- services/ai/core/gemini_service.py (121 lines) - gemini service (ai core)
+- services/ai/core/model_router.py (98 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
+- services/ai/core/semantic_cache.py (205 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
+- services/ai/observability/ai_guardrails.py (249 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
+- services/ai/observability/ai_observability.py (368 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
+- services/ai/observability/ai_usage_service.py (141 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
 - services/budgets/budget_import_service.py (660 lines) - Uploading Marketing's budget tracker sheet ("Budget Tracker") instead of adding each budget by hand.
 - services/budgets/budget_service.py (836 lines) - Monthly budgets: what Marketing approved per month, brand, market and channel, and what's been spent against it.
 - services/events/event_management_service.py (260 lines) - Event management: every event at a glance and the team going to each one (who, their role, notes).
@@ -88,21 +88,21 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/paid_search/paid_search_service.py (65 lines) - The Paid Search board: load it, and save it whole (the board's order, its rows and their HubSpot links).
 - services/performance/performance_service.py (360 lines) - Results (outcomes) per month, success settings, scale-or-cut decisions, and the calculated performance view.
 - services/reference_data/reference_data_service.py (89 lines) - Marketing reference data (brands, channels, funnel stages, goals, KPIs, ratings, cost classification).
-- services/shared/ads_service.py (675 lines) - Paid ads: results per campaign or ad group per period, for every Paid Search and Paid Social platform.
-- services/shared/audit_service.py (252 lines) - audit service (shared)
-- services/shared/auth_service.py (625 lines) - No fallback: tokens must be signed with a secret of their own, never the session secret or a default
-- services/shared/cache_service.py (188 lines) - cache service (shared)
-- services/shared/cost_sheet_import_service.py (735 lines) - Uploading an event's cost sheet (.xlsx or .csv) instead of retyping it.
-- services/shared/demo_service.py (306 lines) - Demos given at events: one row per demo, with its type, company, product, who gave it and the outcome.
-- services/shared/import_parsing.py (334 lines) - Reading spreadsheet uploads (CSV and .xlsx) into rows, and parsing the values people type into them.
-- services/shared/initiative_metrics.py (194 lines) - Turns an initiative's costs and results into the cost-per-outcome ladder, ROI and a suggested rating.
-- services/shared/initiative_service.py (873 lines) - Marketing initiatives — one record per initiative, whatever the channel.
-- services/shared/logging_service.py (123 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
-- services/shared/rbac_service.py (695 lines) - Utility for audit logging
-- services/shared/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
-- services/shared/spend_service.py (482 lines) - Costs against an initiative (spend lines): list, add, edit and delete, with stage, invoice and boundary rules.
-- services/shared/travel_cost_rules.py (25 lines) - What counts as travel (flights, hotels, ground transport, per diems and other travel), in one place.
-- tools/ads/ads_router.py (223 lines) - Paid ads (every Paid Search and Paid Social platform): overview, results, campaigns, and the PPC sheet upload.
+- services/shared/core/audit_service.py (252 lines) - audit service (shared core)
+- services/shared/core/auth_service.py (625 lines) - No fallback: tokens must be signed with a secret of their own, never the session secret or a default
+- services/shared/core/cache_service.py (188 lines) - cache service (shared core)
+- services/shared/core/logging_service.py (123 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
+- services/shared/core/rbac_service.py (695 lines) - Utility for audit logging
+- services/shared/core/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
+- services/shared/imports/cost_sheet_import_service.py (735 lines) - Uploading an event's cost sheet (.xlsx or .csv) instead of retyping it.
+- services/shared/imports/import_parsing.py (334 lines) - Reading spreadsheet uploads (CSV and .xlsx) into rows, and parsing the values people type into them.
+- services/shared/initiatives/ads_service.py (675 lines) - Paid ads: results per campaign or ad group per period, for every Paid Search and Paid Social platform.
+- services/shared/initiatives/demo_service.py (306 lines) - Demos given at events: one row per demo, with its type, company, product, who gave it and the outcome.
+- services/shared/initiatives/initiative_metrics.py (194 lines) - Turns an initiative's costs and results into the cost-per-outcome ladder, ROI and a suggested rating.
+- services/shared/initiatives/initiative_service.py (873 lines) - Marketing initiatives — one record per initiative, whatever the channel.
+- services/shared/initiatives/spend_service.py (482 lines) - Costs against an initiative (spend lines): list, add, edit and delete, with stage, invoice and boundary rules.
+- services/shared/initiatives/travel_cost_rules.py (25 lines) - What counts as travel (flights, hotels, ground transport, per diems and other travel), in one place.
+- tools/ads/ads_router.py (224 lines) - Paid ads (every Paid Search and Paid Social platform): overview, results, campaigns, and the PPC sheet upload.
 - tools/ads/google_ads_router.py (58 lines) - Google Ads: run the campaign and results sync now, and see how it last went.
 - tools/ads/microsoft_ads_router.py (58 lines) - Microsoft Ads: run the campaign and results sync now, and see how it last went.
 - tools/ads/oauth_router.py (383 lines) - OAuth Integration Router Manages Organization -> Company -> OAuth Connections hierarchy.
@@ -117,11 +117,11 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tools/paid_search/paid_search_router.py (27 lines) - The Paid Search board: load the saved entries, and save the whole board.
 - tools/performance/performance_router.py (120 lines) - performance router (performance)
 - tools/reference_data/reference_data_router.py (13 lines) - reference data router (reference data)
-- tools/shared/auth_router.py (338 lines) - auth router (shared)
-- tools/shared/demo_router.py (91 lines) - demo router (shared)
-- tools/shared/import_router.py (107 lines) - import router (shared)
-- tools/shared/log_router.py (75 lines) - log router (shared)
-- tools/shared/observability.py (74 lines) - observability (shared)
-- tools/shared/rbac_router.py (224 lines) - rbac router (shared)
-- tools/shared/search.py (178 lines) - Static system pages for quick navigation search with explicit permission codes
-- tools/shared/spend_router.py (97 lines) - spend router (shared)
+- tools/shared/core/auth_router.py (338 lines) - auth router (shared core)
+- tools/shared/core/log_router.py (75 lines) - log router (shared core)
+- tools/shared/core/observability.py (74 lines) - observability (shared core)
+- tools/shared/core/rbac_router.py (224 lines) - rbac router (shared core)
+- tools/shared/core/search.py (178 lines) - Static system pages for quick navigation search with explicit permission codes
+- tools/shared/initiatives/demo_router.py (91 lines) - demo router (shared initiatives)
+- tools/shared/initiatives/import_router.py (107 lines) - import router (shared initiatives)
+- tools/shared/initiatives/spend_router.py (97 lines) - spend router (shared initiatives)
