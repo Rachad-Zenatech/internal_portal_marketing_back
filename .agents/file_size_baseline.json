@@ -1,0 +1,77 @@
+{
+  "limit": 500,
+  "files": {
+    "models/ads/ads_model.py": {
+      "max_lines": 513,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    },
+    "postgresql_db/schema_metadata.py": {
+      "max_lines": 1022,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    },
+    "scripts/seed_sample_initiatives.py": {
+      "max_lines": 674,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    },
+    "server.py": {
+      "max_lines": 649,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    },
+    "services/ads/core/ad_platform_sync.py": {
+      "max_lines": 541,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    },
+    "services/ads/core/ads_import_service.py": {
+      "max_lines": 730,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    },
+    "services/ads/core/ads_overview_service.py": {
+      "max_lines": 878,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    },
+    "services/ads/core/oauth_connection_service.py": {
+      "max_lines": 579,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    },
+    "services/budgets/budget_import_service.py": {
+      "max_lines": 659,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    },
+    "services/budgets/budget_service.py": {
+      "max_lines": 835,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    },
+    "services/hubspot/hubspot_campaign_sync_job.py": {
+      "max_lines": 582,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    },
+    "services/hubspot/hubspot_client.py": {
+      "max_lines": 589,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    },
+    "services/navan/navan_cost_sync_job.py": {
+      "max_lines": 688,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    },
+    "services/shared/core/auth_service.py": {
+      "max_lines": 624,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    },
+    "services/shared/core/rbac_service.py": {
+      "max_lines": 694,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    },
+    "services/shared/imports/cost_sheet_import_service.py": {
+      "max_lines": 734,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    },
+    "services/shared/initiatives/ads_service.py": {
+      "max_lines": 674,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    },
+    "services/shared/initiatives/initiative_service.py": {
+      "max_lines": 872,
+      "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    }
+  }
+}
