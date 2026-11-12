@@ -1,5 +1,9 @@
 {
   "limit": 500,
+  "block_limits": {
+    "jsx_return": 80,
+    "py_function": 120
+  },
   "files": {
     "models/ads/ads_model.py": {
       "max_lines": 513,
@@ -72,6 +76,52 @@
     "services/shared/initiatives/initiative_service.py": {
       "max_lines": 872,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    }
+  },
+  "blocks": {
+    "postgresql_db/schemas/setup_pbac_schema.py#setup": {
+      "max_lines": 392,
+      "kind": "py_function"
+    },
+    "scripts/seed_sample_initiatives.py#seed": {
+      "max_lines": 148,
+      "kind": "py_function"
+    },
+    "server.py#lifespan": {
+      "max_lines": 143,
+      "kind": "py_function"
+    },
+    "services/ads/core/ad_platform_sync.py#_apply": {
+      "max_lines": 149,
+      "kind": "py_function"
+    },
+    "services/ads/core/ads_import_service.py#_check_row": {
+      "max_lines": 139,
+      "kind": "py_function"
+    },
+    "services/navan/navan_cost_sync_job.py#_apply": {
+      "max_lines": 135,
+      "kind": "py_function"
+    },
+    "services/shared/core/auth_service.py#upsertMicrosoftUser": {
+      "max_lines": 139,
+      "kind": "py_function"
+    },
+    "services/shared/imports/cost_sheet_import_service.py#_check_row": {
+      "max_lines": 169,
+      "kind": "py_function"
+    },
+    "services/shared/initiatives/ads_service.py#sync_initiatives": {
+      "max_lines": 155,
+      "kind": "py_function"
+    },
+    "services/shared/initiatives/initiative_service.py#update_initiative": {
+      "max_lines": 133,
+      "kind": "py_function"
+    },
+    "tools/shared/core/search.py#global_search": {
+      "max_lines": 147,
+      "kind": "py_function"
     }
   }
 }
