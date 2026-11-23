@@ -38,7 +38,7 @@ to find the right file.
 | .agents/code-map/services__initiatives.md | 2 | 1 KB |
 | .agents/code-map/services__microsoft_graph.md | 2 | 2 KB |
 | .agents/code-map/services__navan.md | 3 | 5 KB |
-| .agents/code-map/services__notifications.md | 4 | 3 KB |
+| .agents/code-map/services__notifications.md | 4 | 4 KB |
 | .agents/code-map/services__paid_search.md | 1 | 1 KB |
 | .agents/code-map/services__performance.md | 1 | 1 KB |
 | .agents/code-map/services__reference_data.md | 1 | 1 KB |

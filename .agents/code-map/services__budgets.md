@@ -27,36 +27,36 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `undo_import` (def) L526 - Remove the budgets and notes an upload added and restore the previous values of the budgets it changed.
 - `build_template` (def) L616 - An .xlsx with the Budget Tracker header, and dropdowns for the brand, market and spend progress.
 
-## services/budgets/budget_service.py (845 lines) - Monthly budgets: what Marketing approved per month, brand, market and channel, and what's been spent against it.
-- `BudgetValidationError` (class) L37 - A request that breaks a budget rule; the message is safe to show to users.
-- `BudgetNotFoundError` (class) L41 - No budget (or money move, or comment) with the requested id.
-- `BudgetPermissionError` (class) L45 - The person can't do this, e.g.
-- `label_sql` (def) L143 - Aug 2026 · TBD/All · London' (and ' · Paid Search' when the budget is for one channel).
-- `_money` (def) L191
-- `_progress` (def) L195
-- `_shape_budget` (def) L203 - A budget as the API returns it.
-- `_figures_by_budget` (def) L249
-- `_budget_row` (def) L256
-- `_previous_month` (def) L266
-- `get_month` (def) L270 - Every budget in a month with what's been spent, totals per currency, and spend no budget covers.
-- `get_budget` (def) L314 - One budget with the costs counted against it, its money moves and its comments.
-- `_normalise_brand` (def) L349 - The TBD/All brand from the brand list is stored as no brand, so there's one way to say TBD/All.
-- `_duplicate_error` (def) L357
-- `_translate_db_error` (def) L369
-- `create_budget` (def) L376 - Add a budget for a month and audit it, in one transaction.
-- `update_budget` (def) L399 - Apply a partial update and audit what changed (old and new values), in one transaction.
-- `_has_transfers` (def) L441
-- `delete_budget` (def) L447 - Delete a budget (its comments go with it) and audit what it was.
-- `copy_month` (def) L465 - Copy a month's budgets (not cancelled ones) into another month as Not committed.
-- `_transfer` (def) L517
-- `create_transfer` (def) L530 - Move money from one budget to another (same currency) and audit it.
-- `delete_transfer` (def) L564
-- `create_comment` (def) L580 - Comment on a budget (in its month) or on a whole month.
-- `delete_comment` (def) L602 - Only the person who wrote a comment (or a super admin) can delete it.
-- `_month_start` (def) L670
-- `get_week` (def) L674 - A Monday-to-Sunday week of costs, each on the day it's dated with the budget it counts against, plus how far
-- `_month_end` (def) L731
-- `_period_lines` (def) L735
-- `get_period` (def) L739 - Budgets from the month of start to the month of end, with what was spent and committed against each,
-    - `money_rows` (def) L808
-- `list_expenses` (def) L837 - Every cost dated from start to end, with where it came from, its stage, whether Finance reconciled it, and
+## services/budgets/budget_service.py (834 lines) - Monthly budgets: what Marketing approved per month, brand, market and channel, and what's been spent against it.
+- `BudgetValidationError` (class) L38 - A request that breaks a budget rule; the message is safe to show to users.
+- `BudgetNotFoundError` (class) L42 - No budget (or money move, or comment) with the requested id.
+- `BudgetPermissionError` (class) L46 - The person can't do this, e.g.
+- `label_sql` (def) L144 - Aug 2026 · TBD/All · London' (and ' · Paid Search' when the budget is for one channel).
+- `_money` (def) L192
+- `_progress` (def) L196
+- `_shape_budget` (def) L204 - A budget as the API returns it.
+- `_figures_by_budget` (def) L250
+- `_budget_row` (def) L257
+- `_previous_month` (def) L267
+- `get_month` (def) L271 - Every budget in a month with what's been spent, totals per currency, and spend no budget covers.
+- `get_budget` (def) L315 - One budget with the costs counted against it, its money moves and its comments.
+- `_normalise_brand` (def) L350 - The TBD/All brand from the brand list is stored as no brand, so there's one way to say TBD/All.
+- `_duplicate_error` (def) L358
+- `_translate_db_error` (def) L370
+- `create_budget` (def) L377 - Add a budget for a month and audit it, in one transaction.
+- `update_budget` (def) L400 - Apply a partial update and audit what changed (old and new values), in one transaction.
+- `_has_transfers` (def) L442
+- `delete_budget` (def) L448 - Delete a budget (its comments go with it) and audit what it was.
+- `copy_month` (def) L466 - Copy a month's non-cancelled budgets into another month as Not committed.
+- `_transfer` (def) L506
+- `create_transfer` (def) L519 - Move money from one budget to another (same currency) and audit it.
+- `delete_transfer` (def) L553
+- `create_comment` (def) L569 - Comment on a budget (in its month) or on a whole month.
+- `delete_comment` (def) L591 - Only the person who wrote a comment (or a super admin) can delete it.
+- `_month_start` (def) L659
+- `get_week` (def) L663 - A Monday-to-Sunday week of costs, each on the day it's dated with the budget it counts against, plus how far
+- `_month_end` (def) L720
+- `_period_lines` (def) L724
+- `get_period` (def) L728 - Budgets from the month of start to the month of end, with what was spent and committed against each,
+    - `money_rows` (def) L797
+- `list_expenses` (def) L826 - Every cost dated from start to end, with where it came from, its stage, whether Finance reconciled it, and

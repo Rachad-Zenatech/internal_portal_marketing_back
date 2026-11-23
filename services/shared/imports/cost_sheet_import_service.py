@@ -15,7 +15,7 @@ import asyncpg
 
 from models.shared.spend_model import _MAX_AMOUNT
 from postgresql_db.database import get_pool
-from services.shared.initiatives.ads_service import audit_many
+from services.shared.core.rbac_service import log_audit
 from services.shared.imports.import_parsing import (
     ROW_NUMBER,
     ImportFileError,
@@ -28,7 +28,7 @@ from services.shared.imports.import_parsing import (
     read_table,
     uses_decimal_comma,
 )
-from services.shared.core.rbac_service import log_audit
+from services.shared.initiatives.ads_service import audit_many
 from services.shared.initiatives.spend_service import AUDIT_ENTITY as SPEND_AUDIT_ENTITY
 from services.shared.initiatives.spend_service import (
     InitiativeNotFoundError,

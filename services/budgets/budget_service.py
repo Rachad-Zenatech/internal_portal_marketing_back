@@ -16,6 +16,7 @@ from uuid import UUID
 import asyncpg
 
 from postgresql_db.database import get_pool
+from services.notifications.audit_hub_publisher import publish_budget_copy_audit
 from services.shared.core.rbac_service import log_audit
 from services.shared.initiatives.travel_cost_rules import travel_sql
 
@@ -463,11 +464,7 @@ async def delete_budget(budget_id: UUID, actor_id: UUID) -> None:
 
 
 async def copy_month(from_month: date, to_month: date, actor_id: UUID) -> dict:
-    """Copy a month's budgets (not cancelled ones) into another month as Not committed.
-
-    Budgets that already exist in the target month are left alone and counted as skipped. One statement
-    inserts the budgets and their audit entries.
-    """
+    """Copy a month's non-cancelled budgets into another month as Not committed."""
     if from_month == to_month:
         raise BudgetValidationError("Choose a different month to copy to.")
     pool = get_pool()
@@ -500,15 +497,7 @@ async def copy_month(from_month: date, to_month: date, actor_id: UUID) -> dict:
                 """,
                 from_month, to_month, actor_id,
             )
-    if row and row["created"]:
-        from services.notifications.audit_hub_publisher import publish_audit_log_to_hub
-        publish_audit_log_to_hub(
-            action="CREATE",
-            entity_type=BUDGET_ENTITY,
-            entity_id=str(to_month),
-            actor_user_id=actor_id,
-            new_value={"copied_from": str(from_month), "to_month": str(to_month), "created": row["created"]},
-        )
+    publish_budget_copy_audit(row, from_month, to_month, actor_id, BUDGET_ENTITY)
     return {"created": row["created"], "skipped": row["total"] - row["created"]}
 
 

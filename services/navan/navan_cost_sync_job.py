@@ -60,6 +60,8 @@ from services.navan.navan_service import (
     summarize_events,
     summarize_travellers,
 )
+from services.notifications.audit_hub_publisher import write_navan_audits as _audit
+from services.notifications.audit_hub_publisher import write_navan_event_audit
 from services.shared.initiatives.initiative_service import AUDIT_ENTITY as INITIATIVE_AUDIT_ENTITY
 from services.shared.initiatives.spend_service import AUDIT_ENTITY as SPEND_AUDIT_ENTITY
 
@@ -237,18 +239,7 @@ async def _create_events(conn, navan_events, links, summary: Dict[str, Any]) -> 
                       "navan_event_name": event["name"]},
             "source": "NAVAN",
         }
-        await conn.execute(
-            """
-            INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, old_value, new_value, created_at)
-            VALUES (NULL, 'CREATE', $1, $2, NULL, CAST($3 AS jsonb), now())
-            """,
-            INITIATIVE_AUDIT_ENTITY, str(initiative_id), json.dumps(values, default=str),
-        )
-        from services.notifications.audit_hub_publisher import publish_audit_log_to_hub
-        publish_audit_log_to_hub(
-            action="CREATE", entity_type=INITIATIVE_AUDIT_ENTITY, entity_id=str(initiative_id),
-            actor_name="Navan Sync", new_value=values,
-        )
+        await write_navan_event_audit(conn, INITIATIVE_AUDIT_ENTITY, initiative_id, values)
         links[key] = {"initiative_id": initiative_id, "initiative_name": event["name"], "link": "SET"}
         taken.add(key)
         summary["events_created"] += 1
@@ -303,25 +294,6 @@ async def _previous_links(conn) -> Dict[str, str]:
         for e in last.get("events", [])
         if e.get("initiative_id") and e.get("name")
     }
-
-
-async def _audit(conn, audits) -> None:
-    from services.notifications.audit_hub_publisher import publish_audit_log_to_hub
-    for entity_type, action, entity_id, old, new in audits:
-        # The actor is empty: Navan made the change
-        await conn.execute(
-            """
-            INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, old_value, new_value, created_at)
-            VALUES (NULL, $1, $2, $3, CAST($4 AS jsonb), CAST($5 AS jsonb), now())
-            """,
-            action, entity_type, str(entity_id),
-            json.dumps(old, default=str) if old is not None else None,
-            json.dumps(new, default=str) if new is not None else None,
-        )
-        publish_audit_log_to_hub(
-            action=action, entity_type=entity_type, entity_id=str(entity_id),
-            actor_name="Navan Sync", old_value=old, new_value=new,
-        )
 
 
 async def _apply_estimates(conn, estimates, links, our_events, summary: Dict[str, Any], audits: list) -> None:

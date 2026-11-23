@@ -13,7 +13,6 @@ After every change to an initiative's results, sync_initiatives() keeps two thin
 apply_results() upserts by campaign + ad group + period start. The spreadsheet upload uses it, and so will a
 future Data Studio feed (source DATA_STUDIO).
 """
-import json
 from collections import defaultdict
 from datetime import date
 from decimal import Decimal
@@ -22,6 +21,7 @@ from uuid import UUID
 import asyncpg
 
 from postgresql_db.database import get_pool
+from services.notifications.audit_hub_publisher import audit_many  # noqa: F401
 from services.shared.core.rbac_service import log_audit
 from services.shared.initiatives.spend_service import AUDIT_ENTITY as SPEND_AUDIT_ENTITY
 from services.shared.initiatives.spend_service import InitiativeNotFoundError
@@ -251,30 +251,6 @@ def _description(row) -> str:
     parts.append(_period_label(row["period_start"], row["period_end"]))
     text = " · ".join(parts)
     return text if len(text) <= 255 else text[:254] + "…"
-
-
-async def audit_many(conn, actor_id: UUID | None, entity_type: str, entries: list[tuple]) -> None:
-    """Write many audit entries in one statement: (action, entity id, old value, new value) each."""
-    if not entries:
-        return
-    await conn.execute(
-        """
-        INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, old_value, new_value, created_at)
-        SELECT $1, a.action, $2, a.entity_id, CAST(a.old_value AS jsonb), CAST(a.new_value AS jsonb), now()
-        FROM unnest($3::text[], $4::text[], $5::text[], $6::text[]) AS a(action, entity_id, old_value, new_value)
-        """,
-        actor_id, entity_type,
-        [e[0] for e in entries],
-        [str(e[1]) for e in entries],
-        [json.dumps(e[2], default=str) if e[2] is not None else None for e in entries],
-        [json.dumps(e[3], default=str) if e[3] is not None else None for e in entries],
-    )
-    from services.notifications.audit_hub_publisher import publish_audit_log_to_hub
-    for e in entries:
-        publish_audit_log_to_hub(
-            action=e[0], entity_type=entity_type, entity_id=str(e[1]),
-            actor_user_id=actor_id, old_value=e[2], new_value=e[3],
-        )
 
 
 _SYNCED_FIELDS = ("source", "category_id", "description", "vendor", "amount", "currency", "incurred_on", "status")

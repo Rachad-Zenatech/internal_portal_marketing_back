@@ -10,7 +10,6 @@ from typing import Any
 from uuid import UUID
 
 from postgresql_db.database import get_pool
-from services.shared.initiatives.ads_service import audit_many
 from services.shared.imports.import_parsing import (
     ROW_NUMBER,
     ImportFileError,
@@ -21,6 +20,7 @@ from services.shared.imports.import_parsing import (
     read_table,
     uses_decimal_comma,
 )
+from services.shared.initiatives.ads_service import audit_many
 
 MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_AMOUNT = Decimal("999999999999")

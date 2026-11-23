@@ -27,8 +27,8 @@ from mcp_tools import sync_mcp_tools_to_vector_db
 from postgresql_db.database import close_pool, create_pool, fetch_one
 from services.ads.google.google_ads_sync_job import google_ads_sync_enabled, google_ads_sync_loop
 from services.ads.microsoft.microsoft_ads_sync_job import microsoft_ads_sync_enabled, microsoft_ads_sync_loop
-from services.ai.observability import ai_observability
 from services.ai.core import assistant_chat_service
+from services.ai.observability import ai_observability
 from services.hubspot.hubspot_campaign_sync_job import hubspot_sync_enabled, hubspot_sync_loop
 from services.microsoft_graph.graph_sync_job import graph_sync_loop
 from services.navan.navan_cost_sync_job import navan_cost_sync_enabled, navan_cost_sync_loop
@@ -59,8 +59,6 @@ from tools.paid_search.paid_search_router import router as paid_search_router
 from tools.performance.performance_router import router as performance_router
 from tools.reference_data.reference_data_router import router as reference_data_router
 from tools.shared.core.auth_router import router as auth_router
-from tools.shared.initiatives.demo_router import router as demo_router
-from tools.shared.initiatives.import_router import router as import_router
 from tools.shared.core.log_router import router as log_router
 from tools.shared.core.observability import router as observability_router
 from tools.shared.core.rbac_router import get_current_user_id
@@ -68,6 +66,8 @@ from tools.shared.core.rbac_router import router as rbac_router
 
 # FastAPI routers
 from tools.shared.core.search import router as search_router
+from tools.shared.initiatives.demo_router import router as demo_router
+from tools.shared.initiatives.import_router import router as import_router
 from tools.shared.initiatives.spend_router import router as spend_router
 
 configure_logging()

@@ -55,34 +55,33 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `log_background_task_result` (def) L90 - Log a task that exits unexpectedly instead of losing its exception.
 - `asyncio_exception_handler` (def) L107 - Capture detached asyncio failures that would otherwise only reach stderr.
 
-## services/shared/core/rbac_service.py (710 lines) - Utility for audit logging
-- `log_audit` (def) L19
-- `get_audit_logs` (def) L46
-- `_public_user` (def) L84
-- `get_all_users` (def) L89
-- `get_user_by_id` (def) L129
-- `create_user` (def) L139
-- `update_user` (def) L197
-- `delete_user` (def) L262
-- `bulk_delete_users` (def) L291
-- `get_all_roles` (def) L343
-- `get_role_tree` (def) L353
-- `get_role_by_id` (def) L426
-- `create_role` (def) L430
-- `update_role` (def) L445
-- `delete_role` (def) L519
-- `get_user_roles` (def) L537
-- `set_user_roles` (def) L546
-- `get_role_navigation_permissions` (def) L566
-- `update_role_navigation_permissions` (def) L576
-- `get_role_mcp_tool_permissions` (def) L597
-- `update_role_mcp_tool_permissions` (def) L606
-- `log_login_activity` (def) L623
-- `get_login_activity_logs` (def) L632
-- `log_audit_action` (def) L644
-- `get_permission_modules` (def) L650
-- `get_role_permission_groups` (def) L688
-- `update_role_permission_groups` (def) L693
+## services/shared/core/rbac_service.py (684 lines) - rbac service (shared core)
+- `get_audit_logs` (def) L20
+- `_public_user` (def) L58
+- `get_all_users` (def) L63
+- `get_user_by_id` (def) L103
+- `create_user` (def) L113
+- `update_user` (def) L171
+- `delete_user` (def) L236
+- `bulk_delete_users` (def) L265
+- `get_all_roles` (def) L317
+- `get_role_tree` (def) L327
+- `get_role_by_id` (def) L400
+- `create_role` (def) L404
+- `update_role` (def) L419
+- `delete_role` (def) L493
+- `get_user_roles` (def) L511
+- `set_user_roles` (def) L520
+- `get_role_navigation_permissions` (def) L540
+- `update_role_navigation_permissions` (def) L550
+- `get_role_mcp_tool_permissions` (def) L571
+- `update_role_mcp_tool_permissions` (def) L580
+- `log_login_activity` (def) L597
+- `get_login_activity_logs` (def) L606
+- `log_audit_action` (def) L618
+- `get_permission_modules` (def) L624
+- `get_role_permission_groups` (def) L662
+- `update_role_permission_groups` (def) L667
 
 ## services/shared/core/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
 - `require_application_scope` (def) L114 - FastAPI dependency that enforces Application-Level Scope authorization.

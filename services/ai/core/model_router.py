@@ -19,7 +19,6 @@ from typing import Dict, List
 from services.ai.core.gemini_service import (
     DEPRECATED_MODELS,
     get_gemini_fallback_models,
-    is_rotatable_model_error,
     without_retired,
 )
 

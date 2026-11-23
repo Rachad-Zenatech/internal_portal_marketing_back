@@ -59,15 +59,15 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/ads/oauth_adapters/meta_ads.py (74 lines) - Meta Ads (Facebook & Instagram) OAuth 2.0 Provider Adapter
 - services/ads/oauth_adapters/microsoft_ads.py (116 lines) - Microsoft Ads (Bing) OAuth 2.0 Provider Adapter MICROSOFT_ADS_MODE (services/ads/microsoft/microsoft_ads_client.py) decides how it works:...
 - services/ads/oauth_adapters/social_adapters.py (230 lines) - Organic Social Media OAuth 2.0 Provider Adapters
-- services/ai/core/assistant_chat_service.py (254 lines) - Assistant chat: answers questions about the portal, streamed as SSE.
+- services/ai/core/assistant_chat_service.py (253 lines) - Assistant chat: answers questions about the portal, streamed as SSE.
 - services/ai/core/gemini_service.py (126 lines) - gemini service (ai core)
-- services/ai/core/model_router.py (85 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
+- services/ai/core/model_router.py (84 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
 - services/ai/core/semantic_cache.py (205 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
 - services/ai/observability/ai_guardrails.py (249 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
 - services/ai/observability/ai_observability.py (368 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - services/ai/observability/ai_usage_service.py (141 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
 - services/budgets/budget_import_service.py (660 lines) - Uploading Marketing's budget tracker sheet ("Budget Tracker") instead of adding each budget by hand.
-- services/budgets/budget_service.py (845 lines) - Monthly budgets: what Marketing approved per month, brand, market and channel, and what's been spent against it.
+- services/budgets/budget_service.py (834 lines) - Monthly budgets: what Marketing approved per month, brand, market and channel, and what's been spent against it.
 - services/events/event_management_service.py (260 lines) - Event management: every event at a glance and the team going to each one (who, their role, notes).
 - services/events/event_matching.py (90 lines) - Matching an event (from Navan) to the HubSpot campaign and marketing event of the same name.
 - services/events/event_overview_service.py (488 lines) - Events Overview: the events HubSpot has (its event campaigns), with Navan travel attached where it matches.
@@ -79,10 +79,10 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/initiatives/initiative_activity_service.py (230 lines) - An initiative's recent activity in plain English, read from the audit log.
 - services/microsoft_graph/graph_service.py (420 lines) - Microsoft Graph API client for employee profile sync.
 - services/microsoft_graph/graph_sync_job.py (132 lines) - Periodic Microsoft Graph sync for already-known employees.
-- services/navan/navan_cost_sync_job.py (699 lines) - Keeps each event's Navan travel cost up to date: one cost line per event, booking type and currency with the total of the event's active ...
+- services/navan/navan_cost_sync_job.py (671 lines) - Keeps each event's Navan travel cost up to date: one cost line per event, booking type and currency with the total of the event's active ...
 - services/navan/navan_demo_service.py (164 lines) - Generated Navan bookings for the demo events, used by the Navan sync when NAVAN_MODE=demo.
 - services/navan/navan_service.py (274 lines) - Reads bookings (flights, hotels, cars) from Navan's Booking Data API.
-- services/notifications/audit_hub_publisher.py (66 lines) - Publish local audit log records to the CEO Dashboard via the RabbitMQ Message Hub.
+- services/notifications/audit_hub_publisher.py (190 lines) - Publish local audit log records to the CEO Dashboard via the RabbitMQ Message Hub.
 - services/notifications/mqtt_presence.py (244 lines) - MQTT Service Presence Component Provides automated online/offline state publishing with MQTT Last Will and Testament (LWT), retained mess...
 - services/notifications/notification_service.py (121 lines) - notification service (notifications)
 - services/notifications/rabbitmq_service.py (406 lines) - RabbitMQ Service & Topology Manager Provides resilient connection management, topology declaration, publisher confirmations, and dead-let...
@@ -93,17 +93,17 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/shared/core/auth_service.py (625 lines) - No fallback: tokens must be signed with a secret of their own, never the session secret or a default
 - services/shared/core/cache_service.py (188 lines) - cache service (shared core)
 - services/shared/core/logging_service.py (123 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
-- services/shared/core/rbac_service.py (710 lines) - Utility for audit logging
+- services/shared/core/rbac_service.py (684 lines) - rbac service (shared core)
 - services/shared/core/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
 - services/shared/imports/cost_sheet_import_service.py (735 lines) - Uploading an event's cost sheet (.xlsx or .csv) instead of retyping it.
 - services/shared/imports/import_parsing.py (334 lines) - Reading spreadsheet uploads (CSV and .xlsx) into rows, and parsing the values people type into them.
-- services/shared/initiatives/ads_service.py (681 lines) - Paid ads: results per campaign or ad group per period, for every Paid Search and Paid Social platform.
+- services/shared/initiatives/ads_service.py (657 lines) - Paid ads: results per campaign or ad group per period, for every Paid Search and Paid Social platform.
 - services/shared/initiatives/demo_service.py (306 lines) - Demos given at events: one row per demo, with its type, company, product, who gave it and the outcome.
 - services/shared/initiatives/initiative_metrics.py (194 lines) - Turns an initiative's costs and results into the cost-per-outcome ladder, ROI and a suggested rating.
 - services/shared/initiatives/initiative_service.py (873 lines) - Marketing initiatives — one record per initiative, whatever the channel.
 - services/shared/initiatives/spend_service.py (482 lines) - Costs against an initiative (spend lines): list, add, edit and delete, with stage, invoice and boundary rules.
 - services/shared/initiatives/travel_cost_rules.py (25 lines) - What counts as travel (flights, hotels, ground transport, per diems and other travel), in one place.
-- tools/ads/ads_router.py (224 lines) - Paid ads (every Paid Search and Paid Social platform): overview, results, campaigns, and the PPC sheet upload.
+- tools/ads/ads_router.py (223 lines) - Paid ads (every Paid Search and Paid Social platform): overview, results, campaigns, and the PPC sheet upload.
 - tools/ads/google_ads_router.py (58 lines) - Google Ads: run the campaign and results sync now, and see how it last went.
 - tools/ads/microsoft_ads_router.py (58 lines) - Microsoft Ads: run the campaign and results sync now, and see how it last went.
 - tools/ads/oauth_router.py (383 lines) - OAuth Integration Router Manages Organization -> Company -> OAuth Connections hierarchy.

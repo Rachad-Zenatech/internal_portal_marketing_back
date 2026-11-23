@@ -4,23 +4,23 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## tools/ads/ads_router.py (224 lines) - Paid ads (every Paid Search and Paid Social platform): overview, results, campaigns, and the PPC sheet upload.
-- `_unprocessable` (def) L46
-- `_result_not_found` (def) L50
-- `_upload_not_found` (def) L54
-- `_date_range` (def) L62 - [from, to], by default the last 30 days up to today.
-- `ads_overview` (def) L75 [GET /ads/overview] - Key figures (with the previous period), per platform, brand and month, spend and verified leads over time,
-- `ads_campaign_detail` (def) L94 [GET /ads/campaigns/{initiative_id}] - One campaign for the side panel: figures for the range, trend, funnel, budget pace, CRM results, links.
-- `ads_data_health` (def) L108 [GET /ads/data-health] - Per platform: where results come from, the latest data date, and campaigns with missing or late data.
-- `list_ad_results` (def) L124 [GET /ads/results] - Results whose period overlaps [from, to], newest first, with totals per platform and for all.
-- `list_ad_campaigns` (def) L138 [GET /ads/campaigns] - Every ad campaign, for pickers.
-- `create_ad_result` (def) L144 [POST /ads/results] - Add a campaign's (or an ad group's) results for one period.
-- `update_ad_result` (def) L155 [PATCH /ads/results/{result_id}] - Change some of a result's values; only the fields sent change.
-- `delete_ad_result` (def) L166 [DELETE /ads/results/{result_id}] - Delete a result; its cost and synced results go with it (unless Finance reconciled the cost).
-- `upload_ads_sheet` (def) L178 [POST /ads/imports] - Check a PPC sheet (.xlsx or .csv) and show what would be imported.
-- `confirm_ads_import` (def) L190 [POST /ads/imports/{batch_id}/confirm] - Import the previewed rows, creating any new campaigns.
-- `undo_ads_import` (def) L205 [POST /ads/imports/{batch_id}/undo] - Remove the results the upload added and give the ones it updated their previous values back.
-- `download_ads_template` (def) L216 [GET /ads/template] - An .xlsx with the same columns as Marketing's "SaaS PPC Campaigns" sheet.
+## tools/ads/ads_router.py (223 lines) - Paid ads (every Paid Search and Paid Social platform): overview, results, campaigns, and the PPC sheet upload.
+- `_unprocessable` (def) L45
+- `_result_not_found` (def) L49
+- `_upload_not_found` (def) L53
+- `_date_range` (def) L61 - [from, to], by default the last 30 days up to today.
+- `ads_overview` (def) L74 [GET /ads/overview] - Key figures (with the previous period), per platform, brand and month, spend and verified leads over time,
+- `ads_campaign_detail` (def) L93 [GET /ads/campaigns/{initiative_id}] - One campaign for the side panel: figures for the range, trend, funnel, budget pace, CRM results, links.
+- `ads_data_health` (def) L107 [GET /ads/data-health] - Per platform: where results come from, the latest data date, and campaigns with missing or late data.
+- `list_ad_results` (def) L123 [GET /ads/results] - Results whose period overlaps [from, to], newest first, with totals per platform and for all.
+- `list_ad_campaigns` (def) L137 [GET /ads/campaigns] - Every ad campaign, for pickers.
+- `create_ad_result` (def) L143 [POST /ads/results] - Add a campaign's (or an ad group's) results for one period.
+- `update_ad_result` (def) L154 [PATCH /ads/results/{result_id}] - Change some of a result's values; only the fields sent change.
+- `delete_ad_result` (def) L165 [DELETE /ads/results/{result_id}] - Delete a result; its cost and synced results go with it (unless Finance reconciled the cost).
+- `upload_ads_sheet` (def) L177 [POST /ads/imports] - Check a PPC sheet (.xlsx or .csv) and show what would be imported.
+- `confirm_ads_import` (def) L189 [POST /ads/imports/{batch_id}/confirm] - Import the previewed rows, creating any new campaigns.
+- `undo_ads_import` (def) L204 [POST /ads/imports/{batch_id}/undo] - Remove the results the upload added and give the ones it updated their previous values back.
+- `download_ads_template` (def) L215 [GET /ads/template] - An .xlsx with the same columns as Marketing's "SaaS PPC Campaigns" sheet.
 
 ## tools/ads/google_ads_router.py (58 lines) - Google Ads: run the campaign and results sync now, and see how it last went.
 - `sync_google_ads_now` (def) L26 - Read the connected Google Ads accounts now (generated data for mock connections in mock mode) and update their

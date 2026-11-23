@@ -13,7 +13,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from postgresql_db.database import get_pool
-from services.shared.initiatives import ads_service
+from services.shared.core.rbac_service import log_audit
 from services.shared.imports.cost_sheet_import_service import (
     ImportConflictError,
     ImportExpiredError,
@@ -31,7 +31,7 @@ from services.shared.imports.import_parsing import (
     read_table,
     uses_decimal_comma,
 )
-from services.shared.core.rbac_service import log_audit
+from services.shared.initiatives import ads_service
 
 KIND = "ADS_RESULTS"
 AUDIT_ENTITY = "ImportBatch"

@@ -4,17 +4,17 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/ai/core/assistant_chat_service.py (254 lines) - Assistant chat: answers questions about the portal, streamed as SSE.
-- `_get_client` (def) L57
-- `_sse` (def) L64
-- `PreparedChat` (class) L69
-    - `blocked` (def) L80
-    - `cached_answer` (def) L84
-- `_scope` (def) L88 - Who can share a cached answer: people allowed the same tools.
-- `prepare` (def) L94 - Screen the input and look for a cached answer (no Gemini quota is used here).
-- `_contents` (def) L123
-- `_stream_round` (def) L132 - One model turn, streamed.
-- `stream` (def) L186 - The SSE events for a prepared chat.
+## services/ai/core/assistant_chat_service.py (253 lines) - Assistant chat: answers questions about the portal, streamed as SSE.
+- `_get_client` (def) L56
+- `_sse` (def) L63
+- `PreparedChat` (class) L68
+    - `blocked` (def) L79
+    - `cached_answer` (def) L83
+- `_scope` (def) L87 - Who can share a cached answer: people allowed the same tools.
+- `prepare` (def) L93 - Screen the input and look for a cached answer (no Gemini quota is used here).
+- `_contents` (def) L122
+- `_stream_round` (def) L131 - One model turn, streamed.
+- `stream` (def) L185 - The SSE events for a prepared chat.
 
 ## services/ai/core/gemini_service.py (126 lines) - gemini service (ai core)
 - `_normalize_ai_model_name` (def) L11 - Normalizes a model name from the environment variable list
@@ -23,13 +23,13 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `is_rotatable_model_error` (def) L66 - Determines if a given exception represents a rate limit, quota exhaustion,
 - `generate_content_with_fallback` (def) L87 - A robust wrapper around client.models.generate_content that automatically
 
-## services/ai/core/model_router.py (85 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
-- `Route` (class) L44
-- `fallback_models` (def) L50 - Every configured Gemini model (GEMINI_AVAILABLE_MODELS), retired ones left out, in priority order.
-- `enabled` (def) L55
-- `tier_models` (def) L59
-- `base_tier` (def) L64
-- `route` (def) L69 - The models to try, in order, for this request, and why that tier was chosen.
+## services/ai/core/model_router.py (84 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
+- `Route` (class) L43
+- `fallback_models` (def) L49 - Every configured Gemini model (GEMINI_AVAILABLE_MODELS), retired ones left out, in priority order.
+- `enabled` (def) L54
+- `tier_models` (def) L58
+- `base_tier` (def) L63
+- `route` (def) L68 - The models to try, in order, for this request, and why that tier was chosen.
 
 ## services/ai/core/semantic_cache.py (205 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
 - `_env_float` (def) L39

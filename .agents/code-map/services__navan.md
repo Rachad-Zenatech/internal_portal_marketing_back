@@ -4,36 +4,35 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/navan/navan_cost_sync_job.py (699 lines) - Keeps each event's Navan travel cost up to date: one cost line per event, booking type and currency with the total of the event's active ...
-- `_sync_name` (def) L100
-- `NavanSyncAlreadyRunning` (class) L104 - Another Navan sync is running (here or on another server).
-    - `__init__` (def) L107
-- `navan_cost_sync_enabled` (def) L111
-- `_sync_interval_seconds` (def) L115
-- `link_events` (def) L123 - Navan event key (lower-cased name) → {"initiative_id", "initiative_name", "link": "SET" | "NAME_MATCH"}.
-- `navan_create_events` (def) L143 - Off unless NAVAN_CREATE_EVENTS is set: events are created here and linked to their Navan event.
-- `navan_ignored_events` (def) L148 - Navan event names the sync leaves alone (NAVAN_IGNORE_EVENTS, separated by commas), lower-cased: names that
-- `_status_for` (def) L155 - By the event's own dates (Navan's API has no event status): Upcoming (PLANNED) before it starts, In progress
-- `_update_events` (def) L167 - Keep each linked event in step with Navan without creating anything: its status by its dates (Upcoming,
-- `_create_events` (def) L200 - A portal event for each Navan event with active bookings that isn't linked and whose name isn't taken.
-- `_external_ref` (def) L257
-- `_old_format_currency` (def) L261 - The currency of a line from before the split by booking type ("navan:<id>:<currency>"), else None.
-- `_description` (def) L267
-- `_navan_key` (def) L271 - The Navan event an event of ours takes its bookings from: its "Navan event", else its own name.
-- `_keep_absent_line` (def) L276 - Whether a Navan cost line no longer in this run's totals should stay as it is.
-- `_previous_links` (def) L294 - Initiative id → the Navan event (lower-cased name) it was linked to in the last successful run.
-- `_audit` (def) L308
-- `_apply_estimates` (def) L327 - Set each linked event's Navan estimate to the one the source gave, when it's in the event's currency.
-- `_traveller_rows` (def) L368 - Traveller key -> the row's values (_TRAVELLER_FIELDS) for an event in `currency`.
-- `_apply_travellers` (def) L380 - Replace the travellers of each linked event whose bookings were read, when they changed; remove those of an
-- `_apply` (def) L449
-- `_empty_summary` (def) L586
-- `_record_failure` (def) L594
-- `_read_source` (def) L607 - The bookings (and any estimates per Navan event) to sync: from Navan, or generated in demo mode.
-- `_run_sync` (def) L614
-- `sync_navan_costs` (def) L646 - Run one sync and return its summary.
-- `get_navan_sync_state` (def) L670 - The stored state of the Navan sync in the current mode (live or demo), or None before its first run.
-- `navan_cost_sync_loop` (def) L686 - Run sync_navan_costs() forever on a fixed interval; a failed run is logged and retried next interval.
+## services/navan/navan_cost_sync_job.py (671 lines) - Keeps each event's Navan travel cost up to date: one cost line per event, booking type and currency with the total of the event's active ...
+- `_sync_name` (def) L102
+- `NavanSyncAlreadyRunning` (class) L106 - Another Navan sync is running (here or on another server).
+    - `__init__` (def) L109
+- `navan_cost_sync_enabled` (def) L113
+- `_sync_interval_seconds` (def) L117
+- `link_events` (def) L125 - Navan event key (lower-cased name) → {"initiative_id", "initiative_name", "link": "SET" | "NAME_MATCH"}.
+- `navan_create_events` (def) L145 - Off unless NAVAN_CREATE_EVENTS is set: events are created here and linked to their Navan event.
+- `navan_ignored_events` (def) L150 - Navan event names the sync leaves alone (NAVAN_IGNORE_EVENTS, separated by commas), lower-cased: names that
+- `_status_for` (def) L157 - By the event's own dates (Navan's API has no event status): Upcoming (PLANNED) before it starts, In progress
+- `_update_events` (def) L169 - Keep each linked event in step with Navan without creating anything: its status by its dates (Upcoming,
+- `_create_events` (def) L202 - A portal event for each Navan event with active bookings that isn't linked and whose name isn't taken.
+- `_external_ref` (def) L248
+- `_old_format_currency` (def) L252 - The currency of a line from before the split by booking type ("navan:<id>:<currency>"), else None.
+- `_description` (def) L258
+- `_navan_key` (def) L262 - The Navan event an event of ours takes its bookings from: its "Navan event", else its own name.
+- `_keep_absent_line` (def) L267 - Whether a Navan cost line no longer in this run's totals should stay as it is.
+- `_previous_links` (def) L285 - Initiative id → the Navan event (lower-cased name) it was linked to in the last successful run.
+- `_apply_estimates` (def) L299 - Set each linked event's Navan estimate to the one the source gave, when it's in the event's currency.
+- `_traveller_rows` (def) L340 - Traveller key -> the row's values (_TRAVELLER_FIELDS) for an event in `currency`.
+- `_apply_travellers` (def) L352 - Replace the travellers of each linked event whose bookings were read, when they changed; remove those of an
+- `_apply` (def) L421
+- `_empty_summary` (def) L558
+- `_record_failure` (def) L566
+- `_read_source` (def) L579 - The bookings (and any estimates per Navan event) to sync: from Navan, or generated in demo mode.
+- `_run_sync` (def) L586
+- `sync_navan_costs` (def) L618 - Run one sync and return its summary.
+- `get_navan_sync_state` (def) L642 - The stored state of the Navan sync in the current mode (live or demo), or None before its first run.
+- `navan_cost_sync_loop` (def) L658 - Run sync_navan_costs() forever on a fixed interval; a failed run is logged and retried next interval.
 
 ## services/navan/navan_demo_service.py (164 lines) - Generated Navan bookings for the demo events, used by the Navan sync when NAVAN_MODE=demo.
 - `demo_events_sql` (def) L47 - A SQL condition that is true when the initiative aliased `alias` is a demo event (by its name).

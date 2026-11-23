@@ -9,8 +9,8 @@ import asyncpg
 
 from models.events.event_management_model import StaffAssignmentCreate
 from postgresql_db.database import get_pool
-from services.shared.initiatives.demo_service import HELD_DEMO_SQL
 from services.shared.core.rbac_service import log_audit
+from services.shared.initiatives.demo_service import HELD_DEMO_SQL
 from services.shared.initiatives.travel_cost_rules import travel_sql
 
 STAFF_AUDIT_ENTITY = "EventStaff"

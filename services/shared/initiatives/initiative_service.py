@@ -9,8 +9,8 @@ from models.shared.channel_details_model import details_fields, validate_channel
 from models.shared.initiative_model import KPI_TARGET_NEEDS_KPI, LINKED_NEEDS_LINK, InitiativeCreate
 from postgresql_db.database import get_pool
 from services.hubspot.hubspot_client import LAST_TOUCH, hubspot_attribution
-from services.shared.initiatives.initiative_metrics import result_fits_channel
 from services.shared.core.rbac_service import log_audit
+from services.shared.initiatives.initiative_metrics import result_fits_channel
 
 AUDIT_ENTITY = "Initiative"
 EVALUATION_AUDIT_ENTITY = "Evaluation"
