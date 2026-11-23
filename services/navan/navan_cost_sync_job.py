@@ -244,6 +244,11 @@ async def _create_events(conn, navan_events, links, summary: Dict[str, Any]) -> 
             """,
             INITIATIVE_AUDIT_ENTITY, str(initiative_id), json.dumps(values, default=str),
         )
+        from services.notifications.audit_hub_publisher import publish_audit_log_to_hub
+        publish_audit_log_to_hub(
+            action="CREATE", entity_type=INITIATIVE_AUDIT_ENTITY, entity_id=str(initiative_id),
+            actor_name="Navan Sync", new_value=values,
+        )
         links[key] = {"initiative_id": initiative_id, "initiative_name": event["name"], "link": "SET"}
         taken.add(key)
         summary["events_created"] += 1
@@ -301,6 +306,7 @@ async def _previous_links(conn) -> Dict[str, str]:
 
 
 async def _audit(conn, audits) -> None:
+    from services.notifications.audit_hub_publisher import publish_audit_log_to_hub
     for entity_type, action, entity_id, old, new in audits:
         # The actor is empty: Navan made the change
         await conn.execute(
@@ -311,6 +317,10 @@ async def _audit(conn, audits) -> None:
             action, entity_type, str(entity_id),
             json.dumps(old, default=str) if old is not None else None,
             json.dumps(new, default=str) if new is not None else None,
+        )
+        publish_audit_log_to_hub(
+            action=action, entity_type=entity_type, entity_id=str(entity_id),
+            actor_name="Navan Sync", old_value=old, new_value=new,
         )
 
 

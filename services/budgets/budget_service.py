@@ -500,6 +500,15 @@ async def copy_month(from_month: date, to_month: date, actor_id: UUID) -> dict:
                 """,
                 from_month, to_month, actor_id,
             )
+    if row and row["created"]:
+        from services.notifications.audit_hub_publisher import publish_audit_log_to_hub
+        publish_audit_log_to_hub(
+            action="CREATE",
+            entity_type=BUDGET_ENTITY,
+            entity_id=str(to_month),
+            actor_user_id=actor_id,
+            new_value={"copied_from": str(from_month), "to_month": str(to_month), "created": row["created"]},
+        )
     return {"created": row["created"], "skipped": row["total"] - row["created"]}
 
 

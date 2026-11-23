@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/shared/initiatives/ads_service.py (675 lines) - Paid ads: results per campaign or ad group per period, for every Paid Search and Paid Social platform.
+## services/shared/initiatives/ads_service.py (681 lines) - Paid ads: results per campaign or ad group per period, for every Paid Search and Paid Social platform.
 - `AdsValidationError` (class) L110 - A request that breaks an ads rule; the message is safe to show to users.
 - `AdResultNotFoundError` (class) L114 - No ad result with the requested id.
 - `_number` (def) L120
@@ -19,16 +19,16 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `day` (def) L241
 - `_description` (def) L247
 - `audit_many` (def) L256 - Write many audit entries in one statement: (action, entity id, old value, new value) each.
-- `sync_initiatives` (def) L277 - Bring these initiatives' ads spend lines and ADS outcomes in step with their results.
-- `changed_figures` (def) L436 - The figures that would change on an existing row.
-- `_audit_row` (def) L453
-- `apply_results` (def) L457 - Create or update results by (initiative, ad group, period start), in a fixed number of statements.
-- `_ads_initiative` (def) L554
-- `_db_error` (def) L570
-- `_fetch_one` (def) L576
-- `create_result` (def) L583 - Add one result to an ad campaign, then sync its spend and outcomes.
-- `update_result` (def) L611 - Change some of a result's values, then sync its campaign's spend and outcomes.
-- `delete_result` (def) L657 - Delete a result and sync its campaign's spend and outcomes.
+- `sync_initiatives` (def) L283 - Bring these initiatives' ads spend lines and ADS outcomes in step with their results.
+- `changed_figures` (def) L442 - The figures that would change on an existing row.
+- `_audit_row` (def) L459
+- `apply_results` (def) L463 - Create or update results by (initiative, ad group, period start), in a fixed number of statements.
+- `_ads_initiative` (def) L560
+- `_db_error` (def) L576
+- `_fetch_one` (def) L582
+- `create_result` (def) L589 - Add one result to an ad campaign, then sync its spend and outcomes.
+- `update_result` (def) L617 - Change some of a result's values, then sync its campaign's spend and outcomes.
+- `delete_result` (def) L663 - Delete a result and sync its campaign's spend and outcomes.
 
 ## services/shared/initiatives/demo_service.py (306 lines) - Demos given at events: one row per demo, with its type, company, product, who gave it and the outcome.
 - `DemoValidationError` (class) L55 - A request that breaks a demo rule; the message is safe to show to users.

@@ -27,7 +27,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `undo_import` (def) L526 - Remove the budgets and notes an upload added and restore the previous values of the budgets it changed.
 - `build_template` (def) L616 - An .xlsx with the Budget Tracker header, and dropdowns for the brand, market and spend progress.
 
-## services/budgets/budget_service.py (836 lines) - Monthly budgets: what Marketing approved per month, brand, market and channel, and what's been spent against it.
+## services/budgets/budget_service.py (845 lines) - Monthly budgets: what Marketing approved per month, brand, market and channel, and what's been spent against it.
 - `BudgetValidationError` (class) L37 - A request that breaks a budget rule; the message is safe to show to users.
 - `BudgetNotFoundError` (class) L41 - No budget (or money move, or comment) with the requested id.
 - `BudgetPermissionError` (class) L45 - The person can't do this, e.g.
@@ -48,15 +48,15 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_has_transfers` (def) L441
 - `delete_budget` (def) L447 - Delete a budget (its comments go with it) and audit what it was.
 - `copy_month` (def) L465 - Copy a month's budgets (not cancelled ones) into another month as Not committed.
-- `_transfer` (def) L508
-- `create_transfer` (def) L521 - Move money from one budget to another (same currency) and audit it.
-- `delete_transfer` (def) L555
-- `create_comment` (def) L571 - Comment on a budget (in its month) or on a whole month.
-- `delete_comment` (def) L593 - Only the person who wrote a comment (or a super admin) can delete it.
-- `_month_start` (def) L661
-- `get_week` (def) L665 - A Monday-to-Sunday week of costs, each on the day it's dated with the budget it counts against, plus how far
-- `_month_end` (def) L722
-- `_period_lines` (def) L726
-- `get_period` (def) L730 - Budgets from the month of start to the month of end, with what was spent and committed against each,
-    - `money_rows` (def) L799
-- `list_expenses` (def) L828 - Every cost dated from start to end, with where it came from, its stage, whether Finance reconciled it, and
+- `_transfer` (def) L517
+- `create_transfer` (def) L530 - Move money from one budget to another (same currency) and audit it.
+- `delete_transfer` (def) L564
+- `create_comment` (def) L580 - Comment on a budget (in its month) or on a whole month.
+- `delete_comment` (def) L602 - Only the person who wrote a comment (or a super admin) can delete it.
+- `_month_start` (def) L670
+- `get_week` (def) L674 - A Monday-to-Sunday week of costs, each on the day it's dated with the budget it counts against, plus how far
+- `_month_end` (def) L731
+- `_period_lines` (def) L735
+- `get_period` (def) L739 - Budgets from the month of start to the month of end, with what was spent and committed against each,
+    - `money_rows` (def) L808
+- `list_expenses` (def) L837 - Every cost dated from start to end, with where it came from, its stage, whether Finance reconciled it, and

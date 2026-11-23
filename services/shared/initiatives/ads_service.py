@@ -269,6 +269,12 @@ async def audit_many(conn, actor_id: UUID | None, entity_type: str, entries: lis
         [json.dumps(e[2], default=str) if e[2] is not None else None for e in entries],
         [json.dumps(e[3], default=str) if e[3] is not None else None for e in entries],
     )
+    from services.notifications.audit_hub_publisher import publish_audit_log_to_hub
+    for e in entries:
+        publish_audit_log_to_hub(
+            action=e[0], entity_type=entity_type, entity_id=str(e[1]),
+            actor_user_id=actor_id, old_value=e[2], new_value=e[3],
+        )
 
 
 _SYNCED_FIELDS = ("source", "category_id", "description", "vendor", "amount", "currency", "incurred_on", "status")

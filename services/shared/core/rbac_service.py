@@ -27,6 +27,21 @@ async def log_audit(conn, actor_id: UUID, action: str, entity_type: str, entity_
     # inet type requires string, but asyncpg handles it if passed as string
     await conn.execute(sql, actor_id, action, entity_type, str(entity_id) if entity_id is not None else None, old_json, new_json, ip, ua)
 
+    actor_name, actor_email = None, None
+    if actor_id:
+        try:
+            u = await conn.fetchrow("SELECT full_name, email FROM users WHERE id = $1", actor_id)
+            if u:
+                actor_name, actor_email = u["full_name"], u["email"]
+        except Exception:
+            pass
+    from services.notifications.audit_hub_publisher import publish_audit_log_to_hub
+    publish_audit_log_to_hub(
+        action=action, entity_type=entity_type, entity_id=entity_id,
+        actor_user_id=actor_id, actor_name=actor_name, actor_email=actor_email,
+        old_value=old_value, new_value=new_value, ip_address=ip, user_agent=ua,
+    )
+
 # --- AUDIT LOGS ---
 async def get_audit_logs():
     sql = f"""

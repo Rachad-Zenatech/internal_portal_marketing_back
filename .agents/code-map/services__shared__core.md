@@ -4,11 +4,11 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/shared/core/audit_service.py (252 lines) - audit service (shared core)
+## services/shared/core/audit_service.py (266 lines) - audit service (shared core)
 - `_budget_label` (def) L8 - SQL for a budget's name, "Sep 2026 · Othership · London" (plus " · Paid Search" for one channel).
 - `entity_title_sql` (def) L30 - SQL expression giving a readable name for the audited item (e.g.
 - `log_audit_event` (def) L139 - Records an event in the audit_logs table.
-- `get_audit_logs` (def) L163
+- `get_audit_logs` (def) L177
 
 ## services/shared/core/auth_service.py (625 lines) - No fallback: tokens must be signed with a secret of their own, never the session secret or a default
 - `_update_last_activity_async` (def) L37
@@ -55,34 +55,34 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `log_background_task_result` (def) L90 - Log a task that exits unexpectedly instead of losing its exception.
 - `asyncio_exception_handler` (def) L107 - Capture detached asyncio failures that would otherwise only reach stderr.
 
-## services/shared/core/rbac_service.py (695 lines) - Utility for audit logging
+## services/shared/core/rbac_service.py (710 lines) - Utility for audit logging
 - `log_audit` (def) L19
-- `get_audit_logs` (def) L31
-- `_public_user` (def) L69
-- `get_all_users` (def) L74
-- `get_user_by_id` (def) L114
-- `create_user` (def) L124
-- `update_user` (def) L182
-- `delete_user` (def) L247
-- `bulk_delete_users` (def) L276
-- `get_all_roles` (def) L328
-- `get_role_tree` (def) L338
-- `get_role_by_id` (def) L411
-- `create_role` (def) L415
-- `update_role` (def) L430
-- `delete_role` (def) L504
-- `get_user_roles` (def) L522
-- `set_user_roles` (def) L531
-- `get_role_navigation_permissions` (def) L551
-- `update_role_navigation_permissions` (def) L561
-- `get_role_mcp_tool_permissions` (def) L582
-- `update_role_mcp_tool_permissions` (def) L591
-- `log_login_activity` (def) L608
-- `get_login_activity_logs` (def) L617
-- `log_audit_action` (def) L629
-- `get_permission_modules` (def) L635
-- `get_role_permission_groups` (def) L673
-- `update_role_permission_groups` (def) L678
+- `get_audit_logs` (def) L46
+- `_public_user` (def) L84
+- `get_all_users` (def) L89
+- `get_user_by_id` (def) L129
+- `create_user` (def) L139
+- `update_user` (def) L197
+- `delete_user` (def) L262
+- `bulk_delete_users` (def) L291
+- `get_all_roles` (def) L343
+- `get_role_tree` (def) L353
+- `get_role_by_id` (def) L426
+- `create_role` (def) L430
+- `update_role` (def) L445
+- `delete_role` (def) L519
+- `get_user_roles` (def) L537
+- `set_user_roles` (def) L546
+- `get_role_navigation_permissions` (def) L566
+- `update_role_navigation_permissions` (def) L576
+- `get_role_mcp_tool_permissions` (def) L597
+- `update_role_mcp_tool_permissions` (def) L606
+- `log_login_activity` (def) L623
+- `get_login_activity_logs` (def) L632
+- `log_audit_action` (def) L644
+- `get_permission_modules` (def) L650
+- `get_role_permission_groups` (def) L688
+- `update_role_permission_groups` (def) L693
 
 ## services/shared/core/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
 - `require_application_scope` (def) L114 - FastAPI dependency that enforces Application-Level Scope authorization.
