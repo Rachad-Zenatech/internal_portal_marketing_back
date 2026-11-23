@@ -60,11 +60,13 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/ads/oauth_adapters/microsoft_ads.py (116 lines) - Microsoft Ads (Bing) OAuth 2.0 Provider Adapter MICROSOFT_ADS_MODE (services/ads/microsoft/microsoft_ads_client.py) decides how it works:...
 - services/ads/oauth_adapters/social_adapters.py (230 lines) - Organic Social Media OAuth 2.0 Provider Adapters
 - services/ai/core/assistant_chat_service.py (253 lines) - Assistant chat: answers questions about the portal, streamed as SSE.
+- services/ai/core/bedrock_service.py (373 lines) - AWS Bedrock AI Service Adapter.
 - services/ai/core/gemini_service.py (126 lines) - gemini service (ai core)
-- services/ai/core/model_router.py (84 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
+- services/ai/core/model_router.py (90 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
 - services/ai/core/semantic_cache.py (205 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
 - services/ai/observability/ai_guardrails.py (249 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
-- services/ai/observability/ai_observability.py (368 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
+- services/ai/observability/ai_health.py (105 lines) - Whether the AI (Gemini) is working right now, for the banner every signed-in user sees when it isn't.
+- services/ai/observability/ai_observability.py (398 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - services/ai/observability/ai_usage_service.py (141 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
 - services/budgets/budget_import_service.py (660 lines) - Uploading Marketing's budget tracker sheet ("Budget Tracker") instead of adding each budget by hand.
 - services/budgets/budget_service.py (834 lines) - Monthly budgets: what Marketing approved per month, brand, market and channel, and what's been spent against it.
