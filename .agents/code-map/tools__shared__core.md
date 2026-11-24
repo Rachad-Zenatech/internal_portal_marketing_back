@@ -21,12 +21,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_safe_parse_json` (def) L11
 - `list_audit_logs` (def) L23 [GET /logs]
 
-## tools/shared/core/observability.py (74 lines) - observability (shared core)
+## tools/shared/core/observability.py (94 lines) - observability (shared core)
 - `ClientErrorReport` (class) L14
 - `ClientPerformanceReport` (class) L22
 - `report_client_error` (def) L29 [POST /observability/client-error]
 - `report_client_performance` (def) L51 [POST /observability/client-performance]
 - `get_token_usage` (def) L69 [GET /observability/usage/tokens]
+- `get_ai_overview_endpoint` (def) L75 [GET /observability/ai/overview]
+- `get_ai_errors_endpoint` (def) L84 [GET /observability/ai/errors]
 
 ## tools/shared/core/rbac_router.py (224 lines) - rbac router (shared core)
 - `get_current_user_id` (def) L51
