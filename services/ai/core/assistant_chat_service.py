@@ -27,7 +27,7 @@ from google import genai
 from google.genai import types
 
 from services.ai.core import model_router, semantic_cache
-from services.ai.core.model_router import is_rotatable_model_error
+from services.ai.core.gemini_service import is_rotatable_model_error
 from services.ai.observability import ai_observability
 from services.ai.observability.ai_guardrails import GuardResult, StreamRedactor, screen_input
 from services.ai.observability.ai_observability import span
