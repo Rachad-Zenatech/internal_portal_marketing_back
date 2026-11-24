@@ -67,7 +67,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/ai/observability/ai_guardrails.py (249 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
 - services/ai/observability/ai_health.py (105 lines) - Whether the AI (Gemini) is working right now, for the banner every signed-in user sees when it isn't.
 - services/ai/observability/ai_observability.py (425 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
-- services/ai/observability/ai_overview_service.py (312 lines) - Combined AI health, feature-to-core mapping, and usage overview for System & Security.
+- services/ai/observability/ai_overview_service.py (331 lines) - Combined AI health, feature-to-core mapping, and usage overview for System & Security.
 - services/ai/observability/ai_usage_service.py (141 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
 - services/budgets/budget_import_service.py (660 lines) - Uploading Marketing's budget tracker sheet ("Budget Tracker") instead of adding each budget by hand.
 - services/budgets/budget_service.py (834 lines) - Monthly budgets: what Marketing approved per month, brand, market and channel, and what's been spent against it.
