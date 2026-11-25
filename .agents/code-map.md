@@ -30,7 +30,7 @@ to find the right file.
 | .agents/code-map/services__ads__google.md | 3 | 4 KB |
 | .agents/code-map/services__ads__microsoft.md | 3 | 4 KB |
 | .agents/code-map/services__ads__oauth_adapters.md | 7 | 4 KB |
-| .agents/code-map/services__ai__core.md | 5 | 5 KB |
+| .agents/code-map/services__ai__core.md | 6 | 6 KB |
 | .agents/code-map/services__ai__observability.md | 5 | 4 KB |
 | .agents/code-map/services__budgets.md | 2 | 4 KB |
 | .agents/code-map/services__events.md | 4 | 5 KB |

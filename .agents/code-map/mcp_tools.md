@@ -4,18 +4,18 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## mcp_tools/__init__.py (245 lines) - mcp_tools/__init__.py
-- `tool_code` (def) L44
-- `_normalize_ai_model_name` (def) L52
-- `_ai_model_candidates` (def) L56
-- `generate_with_fallback` (def) L73 - Call Gemini with retries and progressive model fallback.
-- `generate_stream_with_fallback` (def) L102 - Stream Gemini response with fallback handling.
-- `register_all` (def) L128 - Register every tool and prompt with the given FastMCP instance.
-- `allowed_tool_names` (def) L139 - The registered tools this person's roles allow (all of them for super admins).
-- `run_tool` (def) L153 - Run a tool for a person: RBAC check, traced, output PII-redacted.
-- `ask_gemini_stream` (def) L178 - Stream response from Gemini model for AI Chat interface.
-- `ask_gemini` (def) L210 - Convenience synchronous-like wrapper for non-streaming Gemini calls.
-- `sync_mcp_tools_to_vector_db` (def) L218 - Sync registered tools to PostgreSQL mcp_tools table (one batch statement).
+## mcp_tools/__init__.py (243 lines) - mcp_tools/__init__.py
+- `tool_code` (def) L46
+- `_normalize_ai_model_name` (def) L50
+- `_ai_model_candidates` (def) L54
+- `generate_with_fallback` (def) L71 - Call Gemini with retries and progressive model fallback.
+- `generate_stream_with_fallback` (def) L100 - Stream Gemini response with fallback handling.
+- `register_all` (def) L126 - Register every tool and prompt with the given FastMCP instance.
+- `allowed_tool_names` (def) L137 - The registered tools this person's roles allow (all of them for super admins).
+- `run_tool` (def) L151 - Run a tool for a person: RBAC check, traced, output PII-redacted.
+- `ask_gemini_stream` (def) L176 - Stream response from Gemini model for AI Chat interface.
+- `ask_gemini` (def) L208 - Convenience synchronous-like wrapper for non-streaming Gemini calls.
+- `sync_mcp_tools_to_vector_db` (def) L216 - Sync registered tools to PostgreSQL mcp_tools table (one batch statement).
 
 ## mcp_tools/middleware.py (84 lines) - Access control, tracing and output redaction for MCP clients calling tools through /mcp.
 - `_signed_in_user` (def) L24
