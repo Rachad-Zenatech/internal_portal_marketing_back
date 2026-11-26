@@ -93,6 +93,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/paid_search/paid_search_service.py (65 lines) - The Paid Search board: load it, and save it whole (the board's order, its rows and their HubSpot links).
 - services/performance/performance_service.py (360 lines) - Results (outcomes) per month, success settings, scale-or-cut decisions, and the calculated performance view.
 - services/reference_data/reference_data_service.py (89 lines) - Marketing reference data (brands, channels, funnel stages, goals, KPIs, ratings, cost classification).
+- services/shared/cookie_origin_protection.py (39 lines) - Reject cross-origin state-changing requests carrying a browser session.
 - services/shared/core/audit_service.py (266 lines) - audit service (shared core)
 - services/shared/core/auth_service.py (625 lines) - No fallback: tokens must be signed with a secret of their own, never the session secret or a default
 - services/shared/core/cache_service.py (188 lines) - cache service (shared core)

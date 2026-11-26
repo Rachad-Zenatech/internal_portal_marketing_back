@@ -42,6 +42,7 @@ to find the right file.
 | .agents/code-map/services__paid_search.md | 1 | 1 KB |
 | .agents/code-map/services__performance.md | 1 | 1 KB |
 | .agents/code-map/services__reference_data.md | 1 | 1 KB |
+| .agents/code-map/services__shared.md | 1 | 1 KB |
 | .agents/code-map/services__shared__core.md | 6 | 5 KB |
 | .agents/code-map/services__shared__imports.md | 2 | 3 KB |
 | .agents/code-map/services__shared__initiatives.md | 6 | 9 KB |
