@@ -1,0 +1,13 @@
+# Opt-in local credentials; combine with docker-compose.yml. Never copy ADC into the image.
+# Set GOOGLE_READER_ADC_PATH to the existing ADC file outside this repository.
+services:
+  api:
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /run/google-reader/application_default_credentials.json
+    volumes:
+      - type: bind
+        source: ${GOOGLE_READER_ADC_PATH:?Set GOOGLE_READER_ADC_PATH to your existing ADC JSON file}
+        target: /run/google-reader/application_default_credentials.json
+        read_only: true
+        bind:
+          create_host_path: false
