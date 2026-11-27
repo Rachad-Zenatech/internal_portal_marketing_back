@@ -4,24 +4,24 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## server.py (650 lines) - MCP tools & AI functions
-- `_graph_background_sync_enabled` (def) L77
-- `_env_flag` (def) L81
-- `_messaging_default` (def) L85 - MQTT presence and RabbitMQ, set up exactly as in the admin portal: on by default in production, off locally,
-- `_presence_instance_id` (def) L91 - marketing-01-<pid>: each worker process announces itself separately (production runs 2 workers).
-- `lifespan` (def) L97
-- `MessageItem` (class) L270
-- `ChatRequest` (class) L274
-- `ai_chat` (def) L283 [POST /ai/chat]
-- `root` (def) L329 [GET /]
-- `health_live` (def) L333 [GET /health/live]
-- `health_ready` (def) L337 [GET /health/ready]
-- `integration_status` (def) L346 [GET /api/integration-status, GET /api/integration/status]
-- `_sweep_rate_buckets` (def) L441
-- `_client_ip` (def) L445
-- `_session_identity` (def) L451
-- `rate_limit` (def) L464
-- `security_headers` (def) L530
-- `_slow_request_threshold_ms` (def) L545
-- `_should_log_request_completion` (def) L554
-- `request_observability` (def) L560
+## server.py (649 lines) - MCP tools & AI functions
+- `_graph_background_sync_enabled` (def) L78
+- `_env_flag` (def) L82
+- `_messaging_default` (def) L86 - MQTT presence and RabbitMQ, set up exactly as in the admin portal: on by default in production, off locally,
+- `_presence_instance_id` (def) L92 - marketing-01-<pid>: each worker process announces itself separately (production runs 2 workers).
+- `lifespan` (def) L98
+- `MessageItem` (class) L271
+- `ChatRequest` (class) L275
+- `ai_chat` (def) L284 [POST /ai/chat]
+- `root` (def) L330 [GET /]
+- `health_live` (def) L334 [GET /health/live]
+- `health_ready` (def) L338 [GET /health/ready]
+- `integration_status` (def) L347 [GET /api/integration-status, GET /api/integration/status]
+- `_sweep_rate_buckets` (def) L440
+- `_client_ip` (def) L444
+- `_session_identity` (def) L450
+- `rate_limit` (def) L463
+- `security_headers` (def) L529
+- `_slow_request_threshold_ms` (def) L544
+- `_should_log_request_completion` (def) L553
+- `request_observability` (def) L559

@@ -17,6 +17,7 @@ to find the right file.
 | .agents/code-map/models__events.md | 3 | 3 KB |
 | .agents/code-map/models__hubspot.md | 1 | 1 KB |
 | .agents/code-map/models__initiatives.md | 1 | 1 KB |
+| .agents/code-map/models__marketing.md | 1 | 1 KB |
 | .agents/code-map/models__navan.md | 1 | 1 KB |
 | .agents/code-map/models__notifications.md | 1 | 1 KB |
 | .agents/code-map/models__paid_search.md | 1 | 1 KB |
@@ -36,6 +37,7 @@ to find the right file.
 | .agents/code-map/services__events.md | 4 | 5 KB |
 | .agents/code-map/services__hubspot.md | 3 | 6 KB |
 | .agents/code-map/services__initiatives.md | 2 | 1 KB |
+| .agents/code-map/services__marketing.md | 3 | 1 KB |
 | .agents/code-map/services__microsoft_graph.md | 2 | 2 KB |
 | .agents/code-map/services__navan.md | 3 | 5 KB |
 | .agents/code-map/services__notifications.md | 4 | 4 KB |
@@ -43,7 +45,7 @@ to find the right file.
 | .agents/code-map/services__performance.md | 1 | 1 KB |
 | .agents/code-map/services__reference_data.md | 1 | 1 KB |
 | .agents/code-map/services__shared.md | 1 | 1 KB |
-| .agents/code-map/services__shared__core.md | 6 | 5 KB |
+| .agents/code-map/services__shared__core.md | 7 | 5 KB |
 | .agents/code-map/services__shared__imports.md | 2 | 3 KB |
 | .agents/code-map/services__shared__initiatives.md | 6 | 9 KB |
 | .agents/code-map/tools__ads.md | 4 | 5 KB |
@@ -51,6 +53,7 @@ to find the right file.
 | .agents/code-map/tools__events.md | 2 | 2 KB |
 | .agents/code-map/tools__hubspot.md | 1 | 1 KB |
 | .agents/code-map/tools__initiatives.md | 1 | 2 KB |
+| .agents/code-map/tools__marketing.md | 1 | 1 KB |
 | .agents/code-map/tools__microsoft_graph.md | 1 | 1 KB |
 | .agents/code-map/tools__navan.md | 1 | 1 KB |
 | .agents/code-map/tools__notifications.md | 1 | 1 KB |

@@ -58,6 +58,7 @@ from tools.notifications.notification_router import notification_router
 from tools.paid_search.paid_search_router import router as paid_search_router
 from tools.performance.performance_router import router as performance_router
 from tools.reference_data.reference_data_router import router as reference_data_router
+from tools.marketing.google_reporting_router import router as google_reporting_router
 from tools.shared.core.auth_router import router as auth_router
 from tools.shared.core.log_router import router as log_router
 from tools.shared.core.observability import router as observability_router
@@ -377,9 +378,7 @@ async def integration_status():
     }
 
 
-# --- Routers ---
 authenticated = [Depends(get_current_user_id_dependency)]
-
 app.include_router(auth_router, prefix="/api", tags=["Authentication"])
 app.include_router(rbac_router, prefix="/api", tags=["RBAC & Configuration"])
 app.include_router(search_router, prefix="/api/search", tags=["Global Search"], dependencies=authenticated)
@@ -388,6 +387,7 @@ app.include_router(log_router, prefix="/api", tags=["Logs"])
 app.include_router(observability_router, prefix="/api", tags=["Observability"])
 app.include_router(graph_router, prefix="/api", tags=["Microsoft Graph"], dependencies=authenticated)
 app.include_router(reference_data_router, prefix="/api", tags=["Reference Data"], dependencies=authenticated)
+app.include_router(google_reporting_router, prefix="/api", tags=["Google marketing reports"], dependencies=authenticated)
 app.include_router(initiative_router, prefix="/api", tags=["Initiatives"], dependencies=authenticated)
 app.include_router(spend_router, prefix="/api", tags=["Initiative costs"], dependencies=authenticated)
 app.include_router(demo_router, prefix="/api", tags=["Event demos"], dependencies=authenticated)
@@ -405,7 +405,6 @@ app.include_router(paid_search_router, prefix="/api", tags=["Paid Search board"]
 app.include_router(oauth_router, prefix="/api", tags=["OAuth & Integrations"], dependencies=authenticated)
 
 
-# --- Session Middleware ---
 # No default: a known session secret would let anyone forge the SSO login session
 _session_secret = os.environ.get("SESSION_SECRET", "")
 if len(_session_secret) < 32:
