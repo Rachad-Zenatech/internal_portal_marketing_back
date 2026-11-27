@@ -6,6 +6,7 @@ from urllib.parse import quote
 import httpx
 
 from models.marketing.google_reporting_model import GoogleReportSection
+from services.marketing.google_ads_campaign_report import CAMPAIGNS_QUERY, campaign_metrics_query, parse_campaigns, stream_rows
 from services.marketing.google_reporting_accounts import ReaderAccount
 from services.shared.core.google_reader_auth_service import get_reader_access_token
 
@@ -80,19 +81,28 @@ async def read_ads(client: httpx.AsyncClient, account: ReaderAccount, start: dat
         "metrics.clicks, metrics.impressions, metrics.conversions FROM customer "
         f"WHERE segments.date BETWEEN '{start.isoformat()}' AND '{end.isoformat()}' ORDER BY segments.date"
     )
-    data = await _post(client, f"https://googleads.googleapis.com/v25/customers/{account.ads_id}/googleAds:searchStream",
-                       "ads", {"query": query}, account.manager_id)
+    url = f"https://googleads.googleapis.com/v25/customers/{account.ads_id}/googleAds:searchStream"
+    data, metadata, performance = await asyncio.gather(*(
+        _post(client, url, "ads", {"query": gaql}, account.manager_id)
+        for gaql in (query, CAMPAIGNS_QUERY, campaign_metrics_query(start, end))
+    ))
+    campaigns = parse_campaigns(metadata, performance)
     rows, currency, time_zone = [], None, None
-    for batch in data:
-        for result in batch.get("results", []):
-            metrics = result.get("metrics", {})
-            currency = result.get("customer", {}).get("currencyCode", currency)
-            time_zone = result.get("customer", {}).get("timeZone", time_zone)
-            rows.append({"date": result["segments"]["date"], "spend": int(metrics.get("costMicros", 0)) / 1_000_000,
-                         "clicks": int(metrics.get("clicks", 0)), "impressions": int(metrics.get("impressions", 0)),
-                         "conversions": float(metrics.get("conversions", 0))})
+    for result in stream_rows(data):
+        metrics = result.get("metrics", {})
+        currency = result.get("customer", {}).get("currencyCode", currency)
+        time_zone = result.get("customer", {}).get("timeZone", time_zone)
+        rows.append({"date": result["segments"]["date"], "spend": int(metrics.get("costMicros", 0)) / 1_000_000,
+                     "clicks": int(metrics.get("clicks", 0)), "impressions": int(metrics.get("impressions", 0)),
+                     "conversions": float(metrics.get("conversions", 0))})
+    for result in stream_rows(metadata):
+        currency = result.get("customer", {}).get("currencyCode", currency)
+        time_zone = result.get("customer", {}).get("timeZone", time_zone)
+        if currency and time_zone:
+            break
     return GoogleReportSection(
-        status="ok" if rows else "empty", rows=rows, currency=currency, time_zone=time_zone,
-        totals={k: sum(r[k] for r in rows) for k in ("spend", "clicks", "impressions", "conversions")} if rows else {},
+        status="ok" if rows or campaigns else "empty", rows=rows, currency=currency, time_zone=time_zone,
+        campaigns=campaigns,
+        totals={k: sum(r[k] for r in rows) for k in ("spend", "clicks", "impressions", "conversions")} if rows or campaigns else {},
         message="Spend as reported by Google Ads, without country exclusions. This is performance cost, not a billing invoice.",
     )

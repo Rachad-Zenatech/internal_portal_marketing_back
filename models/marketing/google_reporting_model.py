@@ -11,6 +11,20 @@ class GoogleReportingBrand(BaseModel):
     has_ads: bool
 
 
+class GoogleAdsCampaign(BaseModel):
+    campaign_id: str
+    campaign_name: str
+    status: str
+    channel: str
+    spend: float = 0
+    clicks: int = 0
+    impressions: int = 0
+    conversions: float = 0
+    ctr: float | None = None
+    cpc: float | None = None
+    cost_per_conversion: float | None = None
+
+
 class GoogleReportSection(BaseModel):
     status: Literal["ok", "empty", "unavailable", "error"]
     rows: list[dict[str, str | int | float]] = Field(default_factory=list)
@@ -18,6 +32,7 @@ class GoogleReportSection(BaseModel):
     message: str | None = None
     time_zone: str | None = None
     currency: str | None = None
+    campaigns: list[GoogleAdsCampaign] = Field(default_factory=list)
 
 
 class GoogleMarketingReport(BaseModel):
