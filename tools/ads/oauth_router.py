@@ -5,11 +5,12 @@ Endpoints to connect, inspect, refresh, and resolve OAuth tokens for ads & servi
 """
 import base64
 import json
+import secrets
 import uuid
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from models.ads.oauth_connection_model import (
     Company,
@@ -31,6 +32,8 @@ from services.ads.google.google_ads_client import GoogleAdsApiError
 from services.ads.microsoft.microsoft_ads_client import MicrosoftAdsApiError
 from services.ads.oauth_adapters import get_oauth_adapter
 from services.ads.oauth_adapters.base import OAuthProviderNotReady
+from services.ads.oauth_adapters.linkedin_ads import LinkedInAdsApiError
+from services.ads.oauth_adapters import linkedin_state
 from services.shared.core.audit_service import log_audit_event
 from services.shared.core.auth_service import get_current_user_id_dependency, require_permission
 from services.shared.core.cache_service import emit_cache_invalidation
@@ -233,6 +236,7 @@ async def resolve_connection(
 async def get_authorization_url(
     provider: OAuthProvider,
     _user_id: AdminUser,
+    request: Request,
     organization_id: UUID = Query(..., description="Target Organization ID"),
     company_id: UUID | None = Query(None, description="Optional target Company ID"),
     redirect_uri: str = Query("http://localhost:5180/oauth/callback", description="App callback URI"),
@@ -252,7 +256,14 @@ async def get_authorization_url(
         "comp_id": str(company_id) if company_id else None,
         "provider": provider,
     }
+    if provider == "LINKEDIN_ADS":
+        state_payload["nonce"] = secrets.token_urlsafe(32)
     state = base64.urlsafe_b64encode(json.dumps(state_payload).encode()).decode()
+    if provider == "LINKEDIN_ADS":
+        try:
+            linkedin_state.remember_state(request.session, state, redirect_uri, _user_id)
+        except OAuthProviderNotReady as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     auth_url = adapter.get_authorization_url(state=state, redirect_uri=redirect_uri)
 
     return OAuthAuthorizeResponse(
@@ -267,6 +278,7 @@ async def get_authorization_url(
 async def handle_oauth_callback(
     data: OAuthCallbackRequest,
     user_id: AdminUser,
+    request: Request,
 ):
     """Handles the OAuth 2.0 callback, exchanging the code for tokens and discovering accounts."""
     try:
@@ -284,18 +296,26 @@ async def handle_oauth_callback(
     redirect_uri = data.redirect_uri or "http://localhost:5180/oauth/callback"
     try:
         adapter.ensure_ready()
+        if data.provider == "LINKEDIN_ADS":
+            if state_data.get("provider") != data.provider:
+                raise OAuthProviderNotReady("LinkedIn authorization provider mismatch. Start sign-in again.")
+            linkedin_state.consume_state(request.session, data.state, redirect_uri, user_id)
     except OAuthProviderNotReady as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     try:
         token_info = await adapter.exchange_code(code=data.code, redirect_uri=redirect_uri)
+    except LinkedInAdsApiError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Token exchange failed: {e}")
 
     # Discover accounts
     try:
         discovered = await adapter.discover_accounts(token_info["access_token"])
-    except (GoogleAdsApiError, MicrosoftAdsApiError) as exc:
+    except (GoogleAdsApiError, MicrosoftAdsApiError, LinkedInAdsApiError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    if data.provider == "LINKEDIN_ADS" and not discovered:
+        raise HTTPException(status_code=400, detail="No LinkedIn ad accounts were found. Check your Campaign Manager account access.")
     primary = discovered[0] if discovered else {
         "account_id": f"acc_{uuid.uuid4().hex[:8]}",
         "account_name": f"{adapter.name} Account",
@@ -317,6 +337,8 @@ async def handle_oauth_callback(
 
     conn = await oauth_svc.store_connection(create_payload, user_id=user_id)
     await log_audit_event("OAuthConnection", str(conn.id), "OAUTH_AUTHORIZE", user_id, {"provider": data.provider})
+    if data.provider == "LINKEDIN_ADS":
+        await emit_cache_invalidation(scope="oauth_connections", key=str(conn.id))
 
     return OAuthConnectResponse(
         connection=conn,
