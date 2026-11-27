@@ -4,11 +4,16 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/marketing/google_report_readers.py (99 lines) - Google API requests and report normalization; never returns tokens or raw errors.
-- `_post` (def) L13
-- `read_ga4` (def) L23
-- `read_search_console` (def) L51
-- `read_ads` (def) L75
+## services/marketing/google_ads_campaign_report.py (61 lines) - Campaign metadata and date-filtered performance for the Google reader report.
+- `campaign_metrics_query` (def) L14
+- `stream_rows` (def) L22
+- `parse_campaigns` (def) L29
+
+## services/marketing/google_report_readers.py (109 lines) - Google API requests and report normalization; never returns tokens or raw errors.
+- `_post` (def) L14
+- `read_ga4` (def) L24
+- `read_search_console` (def) L52
+- `read_ads` (def) L76
 
 ## services/marketing/google_reporting_accounts.py (30 lines) - Approved Google resources from the Marketing Data Reader brand reference.
 - `ReaderAccount` (class) L8

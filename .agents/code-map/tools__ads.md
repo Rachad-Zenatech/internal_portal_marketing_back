@@ -30,21 +30,21 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `sync_microsoft_ads_now` (def) L26 - Read the connected Microsoft Ads accounts now (generated data for mock connections in mock mode) and update
 - `get_microsoft_ads_sync_status` (def) L42 - The mode (mock or live), whether the scheduled sync is on and Microsoft Ads is set up, the connected accounts,
 
-## tools/ads/oauth_router.py (383 lines) - OAuth Integration Router Manages Organization -> Company -> OAuth Connections hierarchy.
-- `list_organizations` (def) L50 [GET /organizations] - List all top-level organizations (e.g.
-- `get_organization` (def) L56 [GET /organizations/{organization_id}]
-- `create_organization` (def) L64 [POST /organizations]
-- `list_companies` (def) L78 [GET /companies] - List companies/entities (e.g.
-- `get_company` (def) L87 [GET /companies/{company_id}]
-- `create_company` (def) L95 [POST /companies]
-- `update_company` (def) L106 [PUT /companies/{company_id}]
-- `delete_company` (def) L121 [DELETE /companies/{company_id}]
-- `list_connections` (def) L140 [GET /connections] - List registered OAuth connections with stripped/safe token credentials (requires administrative permission).
-- `get_connection` (def) L151 [GET /connections/{connection_id}]
-- `store_connection` (def) L159 [POST /connections] - Store a newly authorized OAuth connection (encrypts tokens before saving).
-- `refresh_connection` (def) L183 [POST /connections/{connection_id}/refresh] - Forces a token refresh check and returns updated connection status.
-- `disconnect_connection` (def) L197 [DELETE /connections/{connection_id}] - Disconnects and revokes an OAuth connection.
-- `resolve_connection` (def) L207 [GET /resolve] - Resolves the active OAuth connection according to the hierarchy:
-- `get_authorization_url` (def) L232 [GET /authorize/{provider}] - Generates a secure OAuth 2.0 authorization URL for the target ad or social provider.
-- `handle_oauth_callback` (def) L266 [POST /callback] - Handles the OAuth 2.0 callback, exchanging the code for tokens and discovering accounts.
-- `connect_provider_instant` (def) L327 [POST /connect-instant/{provider}] - Instantly connects the requested advertising or social provider using the adapter.
+## tools/ads/oauth_router.py (405 lines) - OAuth Integration Router Manages Organization -> Company -> OAuth Connections hierarchy.
+- `list_organizations` (def) L53 [GET /organizations] - List all top-level organizations (e.g.
+- `get_organization` (def) L59 [GET /organizations/{organization_id}]
+- `create_organization` (def) L67 [POST /organizations]
+- `list_companies` (def) L81 [GET /companies] - List companies/entities (e.g.
+- `get_company` (def) L90 [GET /companies/{company_id}]
+- `create_company` (def) L98 [POST /companies]
+- `update_company` (def) L109 [PUT /companies/{company_id}]
+- `delete_company` (def) L124 [DELETE /companies/{company_id}]
+- `list_connections` (def) L143 [GET /connections] - List registered OAuth connections with stripped/safe token credentials (requires administrative permission).
+- `get_connection` (def) L154 [GET /connections/{connection_id}]
+- `store_connection` (def) L162 [POST /connections] - Store a newly authorized OAuth connection (encrypts tokens before saving).
+- `refresh_connection` (def) L186 [POST /connections/{connection_id}/refresh] - Forces a token refresh check and returns updated connection status.
+- `disconnect_connection` (def) L200 [DELETE /connections/{connection_id}] - Disconnects and revokes an OAuth connection.
+- `resolve_connection` (def) L210 [GET /resolve] - Resolves the active OAuth connection according to the hierarchy:
+- `get_authorization_url` (def) L235 [GET /authorize/{provider}] - Generates a secure OAuth 2.0 authorization URL for the target ad or social provider.
+- `handle_oauth_callback` (def) L277 [POST /callback] - Handles the OAuth 2.0 callback, exchanging the code for tokens and discovering accounts.
+- `connect_provider_instant` (def) L349 [POST /connect-instant/{provider}] - Instantly connects the requested advertising or social provider using the adapter.

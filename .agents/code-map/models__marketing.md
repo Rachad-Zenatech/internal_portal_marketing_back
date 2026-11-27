@@ -4,7 +4,8 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## models/marketing/google_reporting_model.py (31 lines) - Dashboard responses from the company's read-only Google marketing reader.
+## models/marketing/google_reporting_model.py (46 lines) - Dashboard responses from the company's read-only Google marketing reader.
 - `GoogleReportingBrand` (class) L8
-- `GoogleReportSection` (class) L14
-- `GoogleMarketingReport` (class) L23
+- `GoogleAdsCampaign` (class) L14
+- `GoogleReportSection` (class) L28
+- `GoogleMarketingReport` (class) L38

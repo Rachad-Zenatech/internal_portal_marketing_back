@@ -30,12 +30,23 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `discover_accounts` (def) L107
     - `refresh_token` (def) L112
 
-## services/ads/oauth_adapters/linkedin_ads.py (76 lines) - LinkedIn Ads OAuth 2.0 Provider Adapter
-- `LinkedInAdsOAuthProvider` (class) L13
-    - `__init__` (def) L20
-    - `exchange_code` (def) L25
-    - `discover_accounts` (def) L61
-    - `refresh_token` (def) L70
+## services/ads/oauth_adapters/linkedin_ads.py (113 lines) - Live, read-only LinkedIn Ads OAuth and account discovery.
+- `LinkedInAdsApiError` (class) L11 - A sanitized LinkedIn error suitable for displaying in the portal.
+- `LinkedInAdsOAuthProvider` (class) L15
+    - `__init__` (def) L22
+    - `ensure_ready` (def) L27
+    - `connection_metadata` (def) L33
+    - `get_authorization_url` (def) L36
+    - `_request` (def) L40
+    - `exchange_code` (def) L59
+    - `_token_info` (def) L67
+    - `discover_accounts` (def) L79
+    - `refresh_token` (def) L106
+
+## services/ads/oauth_adapters/linkedin_state.py (31 lines) - Bind LinkedIn consent to the initiating portal session and user.
+- `validate_redirect` (def) L12
+- `remember_state` (def) L18
+- `consume_state` (def) L23
 
 ## services/ads/oauth_adapters/meta_ads.py (74 lines) - Meta Ads (Facebook & Instagram) OAuth 2.0 Provider Adapter
 - `MetaAdsOAuthProvider` (class) L13

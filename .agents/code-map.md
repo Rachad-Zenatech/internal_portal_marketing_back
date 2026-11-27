@@ -30,14 +30,14 @@ to find the right file.
 | .agents/code-map/services__ads__core.md | 5 | 8 KB |
 | .agents/code-map/services__ads__google.md | 3 | 4 KB |
 | .agents/code-map/services__ads__microsoft.md | 3 | 4 KB |
-| .agents/code-map/services__ads__oauth_adapters.md | 7 | 4 KB |
+| .agents/code-map/services__ads__oauth_adapters.md | 8 | 5 KB |
 | .agents/code-map/services__ai__core.md | 6 | 6 KB |
 | .agents/code-map/services__ai__observability.md | 5 | 4 KB |
 | .agents/code-map/services__budgets.md | 2 | 4 KB |
 | .agents/code-map/services__events.md | 4 | 5 KB |
 | .agents/code-map/services__hubspot.md | 3 | 6 KB |
 | .agents/code-map/services__initiatives.md | 2 | 1 KB |
-| .agents/code-map/services__marketing.md | 3 | 1 KB |
+| .agents/code-map/services__marketing.md | 4 | 1 KB |
 | .agents/code-map/services__microsoft_graph.md | 2 | 2 KB |
 | .agents/code-map/services__navan.md | 3 | 5 KB |
 | .agents/code-map/services__notifications.md | 4 | 4 KB |

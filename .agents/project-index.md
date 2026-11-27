@@ -19,7 +19,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/events/event_performance_model.py (140 lines) - Events Overview: budgets, actual spend, prior year spend, results and ROI of events (GET /api/events/performance).
 - models/hubspot/hubspot_model.py (144 lines) - HubSpot campaigns: the synced campaigns, and the sync's status.
 - models/initiatives/event_budget_import_model.py (51 lines) - Uploading many events' budgets from one spreadsheet (services/initiatives/event_budget_import_service.py).
-- models/marketing/google_reporting_model.py (31 lines) - Dashboard responses from the company's read-only Google marketing reader.
+- models/marketing/google_reporting_model.py (46 lines) - Dashboard responses from the company's read-only Google marketing reader.
 - models/navan/navan_model.py (75 lines) - Navan travel cost sync: run summaries and status.
 - models/notifications/notification_model.py (36 lines) - notification model (notifications)
 - models/paid_search/paid_search_model.py (65 lines) - The Paid Search board: entries typed in or uploaded from Marketing's PPC sheet, saved as the board shows them.
@@ -56,7 +56,8 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/ads/oauth_adapters/__init__.py (56 lines) - OAuth Provider Adapters Package
 - services/ads/oauth_adapters/base.py (66 lines) - Base OAuth Provider Adapter Interface Defines the contract for OAuth 2.0 authorization, token exchange, account discovery, and token life...
 - services/ads/oauth_adapters/google_ads.py (139 lines) - Google Ads OAuth 2.0 Provider Adapter GOOGLE_ADS_MODE (services/ads/google/google_ads_client.py) decides how it works: - mock: no call to...
-- services/ads/oauth_adapters/linkedin_ads.py (76 lines) - LinkedIn Ads OAuth 2.0 Provider Adapter
+- services/ads/oauth_adapters/linkedin_ads.py (113 lines) - Live, read-only LinkedIn Ads OAuth and account discovery.
+- services/ads/oauth_adapters/linkedin_state.py (31 lines) - Bind LinkedIn consent to the initiating portal session and user.
 - services/ads/oauth_adapters/meta_ads.py (74 lines) - Meta Ads (Facebook & Instagram) OAuth 2.0 Provider Adapter
 - services/ads/oauth_adapters/microsoft_ads.py (116 lines) - Microsoft Ads (Bing) OAuth 2.0 Provider Adapter MICROSOFT_ADS_MODE (services/ads/microsoft/microsoft_ads_client.py) decides how it works:...
 - services/ads/oauth_adapters/social_adapters.py (230 lines) - Organic Social Media OAuth 2.0 Provider Adapters
@@ -82,7 +83,8 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/hubspot/hubspot_client.py (590 lines) - Reads campaigns from HubSpot's Campaigns API (marketing/v3/campaigns) with a private app token.
 - services/initiatives/event_budget_import_service.py (207 lines) - Set many events' budgets from one spreadsheet: preview what would change, then apply it.
 - services/initiatives/initiative_activity_service.py (230 lines) - An initiative's recent activity in plain English, read from the audit log.
-- services/marketing/google_report_readers.py (99 lines) - Google API requests and report normalization; never returns tokens or raw errors.
+- services/marketing/google_ads_campaign_report.py (61 lines) - Campaign metadata and date-filtered performance for the Google reader report.
+- services/marketing/google_report_readers.py (109 lines) - Google API requests and report normalization; never returns tokens or raw errors.
 - services/marketing/google_reporting_accounts.py (30 lines) - Approved Google resources from the Marketing Data Reader brand reference.
 - services/marketing/google_reporting_service.py (78 lines) - On-demand Google reports, independently failing sources, and a bounded five-minute cache.
 - services/microsoft_graph/graph_service.py (420 lines) - Microsoft Graph API client for employee profile sync.
@@ -116,7 +118,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/ads/ads_router.py (223 lines) - Paid ads (every Paid Search and Paid Social platform): overview, results, campaigns, and the PPC sheet upload.
 - tools/ads/google_ads_router.py (58 lines) - Google Ads: run the campaign and results sync now, and see how it last went.
 - tools/ads/microsoft_ads_router.py (58 lines) - Microsoft Ads: run the campaign and results sync now, and see how it last went.
-- tools/ads/oauth_router.py (383 lines) - OAuth Integration Router Manages Organization -> Company -> OAuth Connections hierarchy.
+- tools/ads/oauth_router.py (405 lines) - OAuth Integration Router Manages Organization -> Company -> OAuth Connections hierarchy.
 - tools/budgets/budget_router.py (255 lines) - budget router (budgets)
 - tools/events/event_management_router.py (147 lines) - event management router (events)
 - tools/events/event_overview_router.py (126 lines) - Events Overview: the Navan events with the HubSpot results matched to them, one event in full, and the HubSpot link.
