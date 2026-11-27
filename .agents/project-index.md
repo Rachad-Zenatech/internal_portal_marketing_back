@@ -19,6 +19,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/events/event_performance_model.py (140 lines) - Events Overview: budgets, actual spend, prior year spend, results and ROI of events (GET /api/events/performance).
 - models/hubspot/hubspot_model.py (144 lines) - HubSpot campaigns: the synced campaigns, and the sync's status.
 - models/initiatives/event_budget_import_model.py (51 lines) - Uploading many events' budgets from one spreadsheet (services/initiatives/event_budget_import_service.py).
+- models/marketing/google_reporting_model.py (31 lines) - Dashboard responses from the company's read-only Google marketing reader.
 - models/navan/navan_model.py (75 lines) - Navan travel cost sync: run summaries and status.
 - models/notifications/notification_model.py (36 lines) - notification model (notifications)
 - models/paid_search/paid_search_model.py (65 lines) - The Paid Search board: entries typed in or uploaded from Marketing's PPC sheet, saved as the board shows them.
@@ -40,7 +41,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - scripts/demo_events.py (299 lines) - demo events
 - scripts/seed_sample_initiatives.py (675 lines) - seed sample initiatives
 - scripts/setup_prod_db.py (228 lines) - Set up or update the production database schema, using the PROD_* values in .env.
-- server.py (650 lines) - MCP tools & AI functions
+- server.py (649 lines) - MCP tools & AI functions
 - services/ads/core/ad_platform_sync.py (542 lines) - The campaign and weekly results sync shared by the ad platforms (Google Ads, Microsoft Ads).
 - services/ads/core/ads_import_service.py (731 lines) - Uploading Marketing's PPC sheet ("SaaS PPC Campaigns") instead of retyping it.
 - services/ads/core/ads_overview_service.py (879 lines) - The Paid Advertising page: key figures, charts, campaigns needing attention, one campaign's detail, data health.
@@ -81,6 +82,9 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/hubspot/hubspot_client.py (590 lines) - Reads campaigns from HubSpot's Campaigns API (marketing/v3/campaigns) with a private app token.
 - services/initiatives/event_budget_import_service.py (207 lines) - Set many events' budgets from one spreadsheet: preview what would change, then apply it.
 - services/initiatives/initiative_activity_service.py (230 lines) - An initiative's recent activity in plain English, read from the audit log.
+- services/marketing/google_report_readers.py (99 lines) - Google API requests and report normalization; never returns tokens or raw errors.
+- services/marketing/google_reporting_accounts.py (30 lines) - Approved Google resources from the Marketing Data Reader brand reference.
+- services/marketing/google_reporting_service.py (78 lines) - On-demand Google reports, independently failing sources, and a bounded five-minute cache.
 - services/microsoft_graph/graph_service.py (420 lines) - Microsoft Graph API client for employee profile sync.
 - services/microsoft_graph/graph_sync_job.py (132 lines) - Periodic Microsoft Graph sync for already-known employees.
 - services/navan/navan_cost_sync_job.py (671 lines) - Keeps each event's Navan travel cost up to date: one cost line per event, booking type and currency with the total of the event's active ...
@@ -97,6 +101,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/shared/core/audit_service.py (266 lines) - audit service (shared core)
 - services/shared/core/auth_service.py (625 lines) - No fallback: tokens must be signed with a secret of their own, never the session secret or a default
 - services/shared/core/cache_service.py (188 lines) - cache service (shared core)
+- services/shared/core/google_reader_auth_service.py (80 lines) - Keyless Google marketing reader authentication, loaded only when requested.
 - services/shared/core/logging_service.py (123 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
 - services/shared/core/rbac_service.py (684 lines) - rbac service (shared core)
 - services/shared/core/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
@@ -117,6 +122,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/events/event_overview_router.py (126 lines) - Events Overview: the Navan events with the HubSpot results matched to them, one event in full, and the HubSpot link.
 - tools/hubspot/hubspot_router.py (76 lines) - HubSpot campaigns and social posts: list what the sync read, start the sync, and see how it last went.
 - tools/initiatives/initiative_router.py (194 lines) - initiative router (initiatives)
+- tools/marketing/google_reporting_router.py (38 lines) - Permission-protected Google reports using the backend's configured reader.
 - tools/microsoft_graph/graph_router.py (47 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
 - tools/navan/navan_router.py (53 lines) - Navan travel costs: run the sync now, see how it last went, and list the Navan events it found.
 - tools/notifications/notification_router.py (90 lines) - notification router (notifications)

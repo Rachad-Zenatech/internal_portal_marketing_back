@@ -217,6 +217,125 @@ docker compose logs -f api  # wait for "Application startup complete", then Ctrl
 * Real data instead of an empty database: see [Copying Production into the Local Database](#4-copying-production-into-the-local-database-one-way).
 * Stop: `docker compose down`. Start again: `docker compose up -d`. Delete the local database too: `docker compose down -v`.
 
+### Google marketing reader: add your company account
+
+The backend uses Application Default Credentials (ADC) from the person running it
+and impersonates `automations-reader@zt-marketing-ops.iam.gserviceaccount.com`.
+There is no Google account connection button on the website, and no web OAuth client
+is required for this local setup. The Google sign-in happens on the backend host,
+not in each website user's browser.
+
+**Access prerequisite:** use your own active `@zenatech.com` Google account, already
+granted **Service Account Token Creator** on the reader service account. If it is
+already authorized, you can complete these steps without contacting the project
+manager. Signing in does not grant this permission: a new, unauthorized account
+must have it granted by an authorized administrator. No project-level role or
+service-account key file is needed for normal reader use.
+
+1. Install the [Google Cloud CLI](https://docs.cloud.google.com/sdk/docs/install-sdk)
+   if it is not installed, then open a new terminal.
+2. Run both commands and choose your individual company account in each browser
+   prompt. The first signs in the CLI; the second provides Python's credentials:
+
+   ```cmd
+   gcloud auth login
+   gcloud auth application-default login
+   ```
+
+   Finish with the message `Credentials saved to file`. Do not create or select
+   an unrelated personal Cloud project just to use this reader. A missing quota
+   project warning is separate from a failed sign-in; address it with Marketing
+   Operations only if the actual report request fails because of quota/API setup.
+3. Choose how you run the backend:
+
+   **Local Docker, Windows Command Prompt**, from this repository:
+
+   ```cmd
+   set "GOOGLE_READER_ADC_PATH=%APPDATA%\gcloud\application_default_credentials.json"
+   docker compose -f docker-compose.yml -f docker-compose.google-reader.yml up -d --build api
+   ```
+
+   **PowerShell:** use this environment assignment instead, then the same Compose command:
+
+   ```powershell
+   $env:GOOGLE_READER_ADC_PATH = "$env:APPDATA\gcloud\application_default_credentials.json"
+   ```
+
+   **Linux/macOS:** export the existing ADC file's absolute path (normally under
+   `~/.config/gcloud/`) as `GOOGLE_READER_ADC_PATH`, then use the same Compose command.
+   The override mounts only that file, read-only, into the API container. Missing
+   files fail instead of becoming directories. Keep both Compose `-f` arguments on
+   subsequent commands for this setup; starting with only the base file removes
+   the credential mount.
+
+   **Native Python:** install `requirements.txt` in the backend virtual environment.
+   Google's library discovers gcloud's standard ADC location automatically. A custom
+   `GOOGLE_APPLICATION_CREDENTIALS` value overrides discovery; remove a stale value
+   if you intend to use the account you just signed in with.
+4. Verify reader access without printing or saving a token:
+
+   ```cmd
+   python -c "import asyncio; from services.shared.core.google_reader_auth_service import get_reader_access_token; asyncio.run(get_reader_access_token('ga4')); print('Reader access confirmed')"
+   ```
+
+   Use the backend virtual environment's Python. For Docker, prefix that command
+   with `docker compose -f docker-compose.yml -f docker-compose.google-reader.yml exec api`.
+   The helper also accepts `gsc` and `ads`. Successful token issuance confirms
+   impersonation; individual reports still depend on the reader's source permissions.
+5. Open the portal, sign in with Microsoft, and go to **Campaigns & initiatives ?
+   Paid Search ? Performance and context**. Select a brand and dates, then load reports.
+   Your portal role needs `INITIATIVES_VIEW`.
+
+**Switching the backend to another company account:** run
+`gcloud auth application-default login` again and explicitly select the other
+approved account. Then restart the native backend, or recreate Docker's API with
+both Compose files and `--force-recreate api`, to clear cached tokens and pick up
+any replaced credential file. `gcloud auth list` shows the CLI account, which is
+not necessarily the separate ADC account; the reader check above tests the
+credentials Python actually uses. Never paste access tokens or the ADC file into
+chat. For `getAccessToken` permission failures, confirm the ADC account and reader
+Token Creator grant. For expired/revoked credentials, repeat ADC sign-in.
+
+**Who gets website access?** This configures one Google identity per backend
+instance. Website users sign in to the portal with Microsoft and permitted roles
+can view reports fetched by that backend identity. They do not connect a separate
+Google account through the website. Switching the backend credentials changes the
+Google identity for everyone using that instance. Someone with only the source
+code has no Google access without valid, authorized credentials.
+
+Credentials stay outside Git and Docker images. Only their file path is configured;
+account passwords and access tokens are not added to `.env`. The optional
+`GOOGLE_READER_SERVICE_ACCOUNT` setting identifies the reader, not a secret.
+Temporary source-scoped tokens stay in memory and refresh automatically, off the
+API event loop. Their one-hour lifetime does not limit how long downloaded data
+can be viewed. Saved sign-in can still expire or be revoked.
+
+For details, see Google's [local ADC setup](https://docs.cloud.google.com/docs/authentication/set-up-adc-local-dev-environment)
+and [service-account impersonation permissions](https://docs.cloud.google.com/docs/authentication/use-service-account-impersonation).
+
+### Google reports in Paid Search
+
+The **Performance and context** tab supports the eight approved brands, GA4 daily
+sessions/key events, Search Console totals and up to 20 queries, and Google Ads
+performance. Google Ads covers paid results; GA4 covers overall website activity;
+Search Console is organic search context. These last two sources are not filtered
+to paid-search visitors. Missing Ads accounts and successful empty reports are
+shown separately from errors. Other Dashboard figures remain labeled as sample data.
+
+The authenticated endpoints are `GET /api/marketing/google/brands` and
+`GET /api/marketing/google/report?brand=daas&date_from=2026-11-15&date_to=2026-11-21`.
+Both require `INITIATIVES_VIEW`. Date ranges must be in the past and cover at most
+366 days; the default ends four days ago to allow for Search Console lag. GA4 and
+Search Console exclude Pakistan and the Philippines; Ads cost has no country
+exclusions. Each source's time zone and Ads account currency are retained. Google
+key events and ad conversions are not automatically CRM leads.
+
+Reports load on demand, with independent source errors and a bounded five-minute
+in-memory cache. Identical concurrent requests share a fetch. **Load reports** may
+return cached results; the fetched time is displayed. Scheduled sync and PostgreSQL
+report history are not part of this initial integration. This setup is separate
+from the existing Google Ads OAuth account integrations.
+
 The steps below are for running the API outside Docker, from a Python virtual environment.
 
 ### 1. Python Environment Setup

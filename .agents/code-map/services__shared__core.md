@@ -48,6 +48,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `handle_notification` (def) L125
 - `start_cache_invalidation_listener` (def) L139 - Background worker that listens for PostgreSQL NOTIFY events on CACHE_CHANNEL.
 
+## services/shared/core/google_reader_auth_service.py (80 lines) - Keyless Google marketing reader authentication, loaded only when requested.
+- `GoogleReaderAuthError` (class) L31 - Reader authentication failed; the message contains no credential details.
+- `_get_access_token` (def) L35 - Reuse valid credentials and serialize refreshes across concurrent callers.
+- `get_reader_access_token` (def) L73 - Return a source-scoped reader token, refreshing off FastAPI's event loop.
+
 ## services/shared/core/logging_service.py (123 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
 - `JsonFormatter` (class) L44 - Emit one compact JSON object per line for CloudWatch Logs Insights.
     - `format` (def) L47
